@@ -6,11 +6,12 @@
     android:background="@drawable/bg_widget_glass_dark"
     android:padding="14dp">
 
-    <!-- Cột trái -->
+    <!-- Cột trái (trừ hàng dự báo giờ ở dưới cùng) -->
     <LinearLayout
         android:id="@+id/left_column"
         android:layout_width="wrap_content"
-        android:layout_height="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_above="@+id/bottom_row"
         android:layout_alignParentStart="true"
         android:layout_toStartOf="@+id/right_column"
         android:layout_marginEnd="8dp"
@@ -29,7 +30,7 @@
             android:textSize="15sp"
             android:textStyle="bold" />
 
-        <!-- Ngày âm & Năm Can Chi (đổi màu theo chủ đề) -->
+        <!-- Ngày âm & Can Chi (đổi màu theo chủ đề) -->
         <TextView
             android:id="@+id/tv_lunar_date"
             android:layout_width="wrap_content"
@@ -37,12 +38,12 @@
             android:layout_marginTop="2dp"
             android:ellipsize="end"
             android:maxLines="1"
-            android:text="Ngày 17/10 ÂL • Bính Ngọ"
+            android:text="Âm: 17/10 - Ngày Quý Mão, Bính Ngọ"
             android:textColor="#4FC3F7"
-            android:textSize="13sp"
+            android:textSize="12sp"
             android:textStyle="bold" />
 
-        <!-- Đồng hồ lớn tự cập nhật (hỗ trợ cả HH:mm và HH:mm:ss) -->
+        <!-- Đồng hồ lớn tự cập nhật -->
         <TextClock
             android:id="@+id/tv_clock"
             android:layout_width="wrap_content"
@@ -53,7 +54,7 @@
             android:includeFontPadding="false"
             android:maxLines="1"
             android:textColor="#FFFFFF"
-            android:textSize="38sp"
+            android:textSize="36sp"
             android:textStyle="bold" />
 
         <!-- Nhiệt độ cao / thấp trong ngày -->
@@ -66,57 +67,14 @@
             android:text="▲ --°  ▼ --°"
             android:textColor="#E0E0E0"
             android:textSize="13sp" />
-
-        <!-- Dự báo 4 mốc giờ -->
-        <LinearLayout
-            android:id="@+id/hourly_row"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:orientation="horizontal">
-
-            <TextView
-                android:id="@+id/tv_hour_1"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginEnd="8dp"
-                android:text="--:-- --°"
-                android:textColor="#EEEEEE"
-                android:textSize="12sp" />
-
-            <TextView
-                android:id="@+id/tv_hour_2"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginEnd="8dp"
-                android:text="--:-- --°"
-                android:textColor="#EEEEEE"
-                android:textSize="12sp" />
-
-            <TextView
-                android:id="@+id/tv_hour_3"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginEnd="8dp"
-                android:text="--:-- --°"
-                android:textColor="#EEEEEE"
-                android:textSize="12sp" />
-
-            <TextView
-                android:id="@+id/tv_hour_4"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="--:-- --°"
-                android:textColor="#EEEEEE"
-                android:textSize="12sp" />
-        </LinearLayout>
     </LinearLayout>
 
     <!-- Cột phải: đẩy thời tiết lên cao ngang hàng ngày tháng năm -->
     <LinearLayout
         android:id="@+id/right_column"
         android:layout_width="wrap_content"
-        android:layout_height="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_above="@+id/bottom_row"
         android:layout_alignParentEnd="true"
         android:gravity="end|top"
         android:orientation="vertical">
@@ -183,19 +141,78 @@
             android:text="💧 --% • 💨 --km/h"
             android:textColor="#CFD8DC"
             android:textSize="11sp" />
+    </LinearLayout>
 
-        <!-- Chữ ký góc dưới cùng bên phải -->
+    <!-- Hàng dưới cùng: 4 mốc giờ bên trái + chữ ký bên phải cùng 1 hàng -->
+    <RelativeLayout
+        android:id="@+id/bottom_row"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_marginTop="6dp">
+
+        <LinearLayout
+            android:id="@+id/hourly_row"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentStart="true"
+            android:layout_centerVertical="true"
+            android:layout_toStartOf="@+id/tv_signature"
+            android:layout_marginEnd="6dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/tv_hour_1"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="5dp"
+                android:maxLines="1"
+                android:text="--:-- --°"
+                android:textColor="#EEEEEE"
+                android:textSize="10.5sp" />
+
+            <TextView
+                android:id="@+id/tv_hour_2"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="5dp"
+                android:maxLines="1"
+                android:text="--:-- --°"
+                android:textColor="#EEEEEE"
+                android:textSize="10.5sp" />
+
+            <TextView
+                android:id="@+id/tv_hour_3"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="5dp"
+                android:maxLines="1"
+                android:text="--:-- --°"
+                android:textColor="#EEEEEE"
+                android:textSize="10.5sp" />
+
+            <TextView
+                android:id="@+id/tv_hour_4"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:maxLines="1"
+                android:text="--:-- --°"
+                android:textColor="#EEEEEE"
+                android:textSize="10.5sp" />
+        </LinearLayout>
+
         <TextView
             android:id="@+id/tv_signature"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true"
             android:ellipsize="end"
             android:maxLines="1"
             android:text="Gió Độc"
             android:textColor="#FFFFFF"
-            android:textSize="13sp"
+            android:textSize="12sp"
             android:textStyle="italic" />
-    </LinearLayout>
+    </RelativeLayout>
 
 </RelativeLayout>
