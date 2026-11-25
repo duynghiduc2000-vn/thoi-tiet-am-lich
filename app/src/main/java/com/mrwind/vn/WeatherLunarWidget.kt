@@ -9,6 +9,7 @@ import android.content.Intent
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
+import android.provider.AlarmClock
 import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
@@ -34,21 +35,67 @@ class WeatherLunarWidget : AppWidgetProvider() {
 
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
-        if (intent.action == ACTION_REFRESH_WEATHER) {
-            val pendingResult = goAsync()
-            val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-            scope.launch {
-                try {
-                    WeatherService.syncWeather(context)
-                } finally {
-                    pendingResult.finish()
+        when (intent.action) {
+            ACTION_REFRESH_WEATHER -> {
+                val pendingResult = goAsync()
+                val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+                scope.launch {
+                    try {
+                        WeatherService.syncWeather(context)
+                    } finally {
+                        pendingResult.finish()
+                    }
                 }
+            }
+            ACTION_OPEN_CLOCK -> {
+                openSystemClockApp(context)
             }
         }
     }
 
     companion object {
         const val ACTION_REFRESH_WEATHER = "com.mrwind.vn.ACTION_REFRESH_WEATHER"
+        const val ACTION_OPEN_CLOCK = "com.mrwind.vn.ACTION_OPEN_CLOCK"
+
+        private fun openSystemClockApp(context: Context) {
+            val candidates = listOf(
+                Intent(AlarmClock.ACTION_SHOW_ALARMS),
+                Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_CLOCK)
+            )
+            for (candidate in candidates) {
+                candidate.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                val resolved = candidate.resolveActivity(context.packageManager)
+                if (resolved != null) {
+                    try {
+                        context.startActivity(candidate)
+                        return
+                    } catch (_: Exception) {
+                    }
+                }
+            }
+
+            val fallbackPackages = listOf(
+                "com.android.deskclock",
+                "com.google.android.deskclock",
+                "com.miui.clock",
+                "com.sec.android.app.clockpackage",
+                "com.coloros.alarmclock",
+                "com.oneplus.deskclock",
+                "com.vivo.clock",
+                "com.huawei.deskclock"
+            )
+            for (pkg in fallbackPackages) {
+                val launchIntent = context.packageManager.getLaunchIntentForPackage(pkg)
+                if (launchIntent != null) {
+                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    try {
+                        context.startActivity(launchIntent)
+                        return
+                    } catch (_: Exception) {
+                    }
+                }
+            }
+        }
 
         fun requestPinWidget(context: Context): Boolean {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return false
@@ -149,7 +196,7 @@ class WeatherLunarWidget : AppWidgetProvider() {
             views.setTextColor(R.id.tv_clock, primaryTextColor)
             views.setTextViewTextSize(R.id.tv_clock, TypedValue.COMPLEX_UNIT_SP, clockSp)
 
-            views.setTextViewText(R.id.tv_min_max_temp, "▲ ${weather.maxTemp}  ▼${weather.minTemp}")
+            views.setTextViewText(R.id.tv_min_max_temp, "▲ ${weather.maxTemp}  ▼ ${weather.minTemp}")
             views.setTextColor(R.id.tv_min_max_temp, secondaryTextColor)
 
             views.setTextViewText(R.id.tv_hour_1, weather.hour1)
@@ -181,6 +228,17 @@ class WeatherLunarWidget : AppWidgetProvider() {
             views.setTextViewText(R.id.tv_signature, signature)
             views.setTextColor(R.id.tv_signature, primaryTextColor)
             views.setTextViewTextSize(R.id.tv_signature, TypedValue.COMPLEX_UNIT_SP, sigSp)
+
+            val clockIntent = Intent(context, WeatherLunarWidget::class.java).apply {
+                action = ACTION_OPEN_CLOCK
+            }
+            val clockPending = PendingIntent.getBroadcast(
+                context,
+                appWidgetId + 50,
+                clockIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            views.setOnClickPendingIntent(R.id.tv_clock, clockPending)
 
             val refreshIntent = Intent(context, WeatherLunarWidget::class.java).apply {
                 action = ACTION_REFRESH_WEATHER
