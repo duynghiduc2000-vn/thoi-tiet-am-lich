@@ -15,7 +15,7 @@ data class LunarDateInfo(
 ) {
     fun shortSummary(): String {
         val leapText = if (isLeap) " nhuận" else ""
-        return "$day/${month}$leapText ÂL • Năm $yearCanChi"
+        return "Ngày $day/${month}$leapText ÂL • $yearCanChi"
     }
 
     fun fullSummary(): String {
@@ -27,15 +27,14 @@ data class LunarDateInfo(
 object LunarCalendar {
     private val CANS = arrayOf(
         "Giáp", "Ất", "Bính", "Đinh", "Mậu",
-        "Kỷ", "Canh", " Tân", "Nhâm", "Quý"
-    ).map { it.trim() }.toTypedArray()
+        "Kỷ", "Canh", "Tân", "Nhâm", "Quý"
+    )
 
     private val CHIS = arrayOf(
         "Tý", "Sửu", "Dần", "Mão", "Thìn", "Tỵ",
         "Ngọ", "Mùi", "Thân", "Dậu", "Tuất", "Hợi"
     )
 
-    // Tính Julian Day Number từ ngày Dương lịch
     private fun jdFromDate(dd: Int, mm: Int, yy: Int): Int {
         val a = (14 - mm) / 12
         val y = yy + 4800 - a
@@ -47,7 +46,6 @@ object LunarCalendar {
         return jd
     }
 
-    // Góc kinh độ Mặt Trời tại thời điểm tính Sóc (múi giờ +7)
     private fun getSunLongitude(dayNumber: Int, timeZone: Double = 7.0): Int {
         val t = (dayNumber - 0.5 - timeZone / 24.0 - 2451545.0) / 36525.0
         val t2 = t * t
@@ -63,7 +61,6 @@ object LunarCalendar {
         return floor(l / Math.PI * 6).toInt()
     }
 
-    // Ngày Sóc thứ k tính theo chu kỳ Mặt Trăng
     private fun getNewMoonDay(k: Int, timeZone: Double = 7.0): Int {
         val t = k / 1236.85
         val t2 = t * t
@@ -168,20 +165,20 @@ object LunarCalendar {
     fun canChiOfDay(jd: Int): String {
         val can = CANS[(jd + 9) % 10]
         val chi = CHIS[(jd + 1) % 12]
-        return "$can $chi"
+        return "$can$chi"
     }
 
     fun canChiOfMonth(lunarYear: Int, lunarMonth: Int): String {
         val yearCanIndex = (lunarYear + 6) % 10
         val monthCanIndex = (yearCanIndex * 2 + lunarMonth + 1) % 10
         val monthChiIndex = (lunarMonth + 1) % 12
-        return "${CANS[monthCanIndex]} ${CHIS[monthChiIndex]}"
+        return "${CANS[monthCanIndex]}${CHIS[monthChiIndex]}"
     }
 
     fun canChiOfYear(lunarYear: Int): String {
         val can = CANS[(lunarYear + 6) % 10]
         val chi = CHIS[(lunarYear + 8) % 12]
-        return "$can $chi"
+        return "$can$chi"
     }
 
     fun todayLunar(): LunarDateInfo {
