@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/bg_widget_glass_dark"
+    android:padding="14dp">
+
+    <!-- Cột trái -->
+    <LinearLayout
+        android:id="@+id/left_column"
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:layout_alignParentStart="true"
+        android:layout_toStartOf="@+id/right_column"
+        android:layout_marginEnd="8dp"
+        android:gravity="center_vertical"
+        android:orientation="vertical">
+
+        <!-- Ngày dương lịch -->
+        <TextView
+            android:id="@+id/tv_solar_date"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="Thứ Tư • 25/11/2026"
+            android:textColor="#FFFFFF"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <!-- Lịch âm & Can Chi (đổi màu theo chủ đề) -->
+        <TextView
+            android:id="@+id/tv_lunar_date"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="Âm lịch • Can Chi"
+            android:textColor="#4FC3F7"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <!-- Đồng hồ lớn tự cập nhật -->
+        <TextClock
+            android:id="@+id/tv_clock"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:format12Hour="HH:mm"
+            android:format24Hour="HH:mm"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:textColor="#FFFFFF"
+            android:textSize="38sp"
+            android:textStyle="bold" />
+
+        <!-- Nhiệt độ cao / thấp trong ngày -->
+        <TextView
+            android:id="@+id/tv_min_max_temp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:maxLines="1"
+            android:text="▲ --°  ▼ --°"
+            android:textColor="#E0E0E0"
+            android:textSize="13sp" />
+
+        <!-- Dự báo 4 mốc giờ -->
+        <LinearLayout
+            android:id="@+id/hourly_row"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/tv_hour_1"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
+                android:text="--:-- --°"
+                android:textColor="#EEEEEE"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/tv_hour_2"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
+                android:text="--:-- --°"
+                android:textColor="#EEEEEE"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/tv_hour_3"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
+                android:text="--:-- --°"
+                android:textColor="#EEEEEE"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/tv_hour_4"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="--:-- --°"
+                android:textColor="#EEEEEE"
+                android:textSize="12sp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Cột phải -->
+    <LinearLayout
+        android:id="@+id/right_column"
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:layout_alignParentEnd="true"
+        android:gravity="end|center_vertical"
+        android:orientation="vertical">
+
+        <!-- Khu vực thời tiết hiện tại + nút đồng bộ thủ công khi bấm -->
+        <LinearLayout
+            android:id="@+id/btn_refresh_weather"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:padding="2dp">
+
+            <ImageView
+                android:id="@+id/iv_weather_icon"
+                android:layout_width="26dp"
+                android:layout_height="26dp"
+                android:layout_marginEnd="6dp"
+                android:contentDescription="Thời tiết"
+                android:src="@android:drawable/ic_menu_day" />
+
+            <TextView
+                android:id="@+id/tv_current_temp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:maxLines="1"
+                android:text="--°C"
+                android:textColor="#4FC3F7"
+                android:textSize="28sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- Tên địa danh -->
+        <TextView
+            android:id="@+id/tv_location_name"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="Chưa có vị trí"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <!-- Trạng thái thời tiết -->
+        <TextView
+            android:id="@+id/tv_weather_desc"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="Chạm nhiệt độ để cập nhật"
+            android:textColor="#E0E0E0"
+            android:textSize="12sp" />
+
+        <!-- Độ ẩm & Gió -->
+        <TextView
+            android:id="@+id/tv_humidity_wind"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:maxLines="1"
+            android:text="💧 --% • 💨 --km/h"
+            android:textColor="#CFD8DC"
+            android:textSize="11sp" />
+
+        <!-- Chữ ký góc dưới cùng bên phải -->
+        <TextView
+            android:id="@+id/tv_signature"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="Gió Độc"
+            android:textColor="#FFFFFF"
+            android:textSize="13sp"
+            android:textStyle="italic" />
+    </LinearLayout>
+
+</RelativeLayout>
