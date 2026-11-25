@@ -10,6 +10,7 @@ import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.util.TypedValue
+import android.view.View
 import android.widget.RemoteViews
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -101,6 +102,7 @@ class WeatherLunarWidget : AppWidgetProvider() {
             val weather = AppPrefs.getWeather(context)
             val accentColor = AppPrefs.getAccentColor(context)
             val showSeconds = AppPrefs.isShowSeconds(context)
+            val showSignature = AppPrefs.isShowSignature(context)
 
             val clockSp = AppPrefs.clockSp(AppPrefs.getClockScale(context), showSeconds)
             val lunarSp = AppPrefs.lunarSp(AppPrefs.getLunarScale(context))
@@ -147,7 +149,7 @@ class WeatherLunarWidget : AppWidgetProvider() {
             views.setTextColor(R.id.tv_clock, primaryTextColor)
             views.setTextViewTextSize(R.id.tv_clock, TypedValue.COMPLEX_UNIT_SP, clockSp)
 
-            views.setTextViewText(R.id.tv_min_max_temp, "▲ ${weather.maxTemp}  ▼ ${weather.minTemp}")
+            views.setTextViewText(R.id.tv_min_max_temp, "▲ ${weather.maxTemp}  ▼${weather.minTemp}")
             views.setTextColor(R.id.tv_min_max_temp, secondaryTextColor)
 
             views.setTextViewText(R.id.tv_hour_1, weather.hour1)
@@ -175,6 +177,7 @@ class WeatherLunarWidget : AppWidgetProvider() {
             views.setTextColor(R.id.tv_humidity_wind, secondaryTextColor)
 
             val signature = AppPrefs.getSignature(context).ifBlank { "Gió Độc" }
+            views.setViewVisibility(R.id.tv_signature, if (showSignature) View.VISIBLE else View.GONE)
             views.setTextViewText(R.id.tv_signature, signature)
             views.setTextColor(R.id.tv_signature, primaryTextColor)
             views.setTextViewTextSize(R.id.tv_signature, TypedValue.COMPLEX_UNIT_SP, sigSp)
