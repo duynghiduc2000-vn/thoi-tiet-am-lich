@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -30,10 +31,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AddToHomeScreen
 import androidx.compose.material.icons.filled.Cake
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -49,7 +52,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -110,6 +112,7 @@ fun ThoiTietAmLichApp() {
     var appThemeMode by remember { mutableIntStateOf(AppPrefs.getAppThemeMode(context)) }
     var widgetBgMode by remember { mutableIntStateOf(AppPrefs.getWidgetBgMode(context)) }
     var accentColorInt by remember { mutableIntStateOf(AppPrefs.getAccentColor(context)) }
+    var showSeconds by remember { mutableStateOf(AppPrefs.isShowSeconds(context)) }
     var signature by remember { mutableStateOf(AppPrefs.getSignature(context)) }
 
     var clockScale by remember { mutableIntStateOf(AppPrefs.getClockScale(context)) }
@@ -120,6 +123,11 @@ fun ThoiTietAmLichApp() {
     var autoLocation by remember { mutableStateOf(AppPrefs.isAutoLocation(context)) }
     var weather by remember { mutableStateOf(AppPrefs.getWeather(context)) }
     var isSyncing by remember { mutableStateOf(false) }
+
+    var locationQuery by remember { mutableStateOf("") }
+    var isSearchingLocation by remember { mutableStateOf(false) }
+    var searchResults by remember { mutableStateOf<List<WeatherService.SearchLocationResult>>(emptyList()) }
+    var locationSearchMsg by remember { mutableStateOf<String?>(null) }
 
     var birthdays by remember { mutableStateOf(AppPrefs.getBirthdays(context)) }
     var bdayNameInput by remember { mutableStateOf("") }
@@ -229,7 +237,7 @@ fun ThoiTietAmLichApp() {
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                // 1. Thẻ tổng quan Lịch Âm - Dương & Thời tiết
+                // 1. Thẻ tổng quan Lịch Âm - Dương, Thời tiết & Ghim Widget
                 item {
                     Card(
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
@@ -254,7 +262,7 @@ fun ThoiTietAmLichApp() {
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Column {
+                                Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         "${weather.currentTemp} • ${weather.description}",
                                         style = MaterialTheme.typography.titleLarge,
@@ -278,13 +286,55 @@ fun ThoiTietAmLichApp() {
                                     Text(if (isSyncing) "Đang tải..." else "Cập nhật")
                                 }
                             }
+                            Spacer(modifier = Modifier.height(12.dp))
+                            OutlinedButton(
+                                onClick = {
+                                    val pinned = WeatherLunarWidget.requestPinWidget(context)
+                                    if (!pinned) {
+                                        Toast.makeText(
+                                            context,
+                                            "Launcher hiện tại không hỗ trợ ghim tự động. Bạn nhấn giữ màn hình chính -> Tiện ích để thêm nhé.",
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Default.AddToHomeScreen, contentDescription = null)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Ghim Widget ra màn hình chính")
+                            }
                         }
                     }
                 }
 
-                // 2. Giao diện App & Nền Widget
+                // 2. Đồng hồ & Nền Widget
                 item {
-                    SectionCard(title = "Giao diện ứng dụng & Nền Widget") {
+                    SectionCard(title = "Đồng hồ, Giao diện & Nền Widget") {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 10.dp)
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Hiển thị giây (chạy liên tục)", fontWeight = FontWeight.Medium)
+                                Text(
+                                    "Định dạng HH:mm:ss trên đồng hồ Widget",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                            Switch(
+                                checked = showSeconds,
+                                onCheckedChange = { checked ->
+                                    showSeconds = checked
+                                    AppPrefs.setShowSeconds(context, checked)
+                                    WeatherLunarWidget.updateAllWidgets(context)
+                                }
+                            )
+                        }
+
                         Text("Chế độ giao diện ứng dụng", fontWeight = FontWeight.Medium)
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -360,7 +410,7 @@ fun ThoiTietAmLichApp() {
                     }
                 }
 
-                // 4. Vị trí thời tiết (Tự động GPS hoặc Thủ công)
+                // 4. Vị trí thời tiết (Tự động GPS hoặc Nhập tên tìm kiếm thủ công)
                 item {
                     SectionCard(title = "Vị trí cập nhật thời tiết") {
                         Row(
@@ -371,7 +421,7 @@ fun ThoiTietAmLichApp() {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text("Tự động theo vị trí hiện tại (GPS)", fontWeight = FontWeight.Medium)
                                 Text(
-                                    "Tắt để chọn sẵn một địa điểm thủ công",
+                                    "Tắt để nhập tên tìm địa điểm bất kỳ",
                                     style = MaterialTheme.typography.bodySmall
                                 )
                             }
@@ -391,20 +441,64 @@ fun ThoiTietAmLichApp() {
 
                         if (!autoLocation) {
                             Spacer(modifier = Modifier.height(8.dp))
-                            Text("Chọn địa điểm thủ công:", fontWeight = FontWeight.Medium)
-                            Spacer(modifier = Modifier.height(6.dp))
-                            WeatherService.PRESET_LOCATIONS.forEach { preset ->
-                                val isCurrent = weather.locationName == preset.name
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                OutlinedTextField(
+                                    value = locationQuery,
+                                    onValueChange = {
+                                        locationQuery = it
+                                        locationSearchMsg = null
+                                    },
+                                    label = { Text("Nhập tên địa điểm (VD: Nghi Đức, Đà Lạt...)") },
+                                    singleLine = true,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Button(
+                                    onClick = {
+                                        scope.launch {
+                                            isSearchingLocation = true
+                                            locationSearchMsg = null
+                                            val found = WeatherService.searchLocationsByName(locationQuery)
+                                            searchResults = found
+                                            if (found.isEmpty()) {
+                                                locationSearchMsg = "Không tìm thấy địa điểm phù hợp."
+                                            }
+                                            isSearchingLocation = false
+                                        }
+                                    },
+                                    enabled = !isSearchingLocation
+                                ) {
+                                    Icon(Icons.Default.Search, contentDescription = null)
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(if (isSearchingLocation) "..." else "Tìm")
+                                }
+                            }
+
+                            if (locationSearchMsg != null) {
+                                Text(
+                                    locationSearchMsg!!,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(top = 6.dp)
+                                )
+                            }
+
+                            searchResults.forEach { item ->
+                                val isCurrent = weather.locationName == item.displayName
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     modifier = Modifier
                                         .fillMaxWidth()
+                                        .padding(top = 4.dp)
                                         .clip(RoundedCornerShape(10.dp))
                                         .clickable {
                                             val updatedCache = weather.copy(
-                                                locationName = preset.name,
-                                                latitude = preset.lat,
-                                                longitude = preset.lon
+                                                locationName = item.displayName,
+                                                latitude = item.lat,
+                                                longitude = item.lon
                                             )
                                             AppPrefs.saveWeather(context, updatedCache)
                                             weather = updatedCache
@@ -424,7 +518,7 @@ fun ThoiTietAmLichApp() {
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        preset.name,
+                                        item.displayName,
                                         fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
                                         color = if (isCurrent) accentCompose else MaterialTheme.colorScheme.onSurface
                                     )
