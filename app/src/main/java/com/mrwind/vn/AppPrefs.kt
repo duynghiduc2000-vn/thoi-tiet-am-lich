@@ -20,6 +20,15 @@ data class LunarLookupHistoryItem(
     val searchedAt: Long = System.currentTimeMillis()
 )
 
+data class AgeHistoryItem(
+    val id: String,
+    val birthDay: Int,
+    val birthMonth: Int,
+    val birthYear: Int,
+    val ageSummary: String,
+    val calculatedAt: Long = System.currentTimeMillis()
+)
+
 data class WeatherCache(
     val locationName: String = "Chưa có vị trí",
     val latitude: Double = 11.15,
@@ -209,6 +218,48 @@ object AppPrefs {
 
     fun clearLunarHistory(context: Context) {
         prefs(context).edit().remove("lunar_lookup_history_json").apply()
+    }
+
+    fun getAgeHistory(context: Context): List<AgeHistoryItem> {
+        val raw = prefs(context).getString("age_history_json", "[]") ?: "[]"
+        val list = mutableListOf<AgeHistoryItem>()
+        try {
+            val arr = JSONArray(raw)
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                list.add(
+                    AgeHistoryItem(
+                        id = obj.optString("id"),
+                        birthDay = obj.optInt("birthDay", 1),
+                        birthMonth = obj.optInt("birthMonth", 1),
+                        birthYear = obj.optInt("birthYear", 2000),
+                        ageSummary = obj.optString("ageSummary", ""),
+                        calculatedAt = obj.optLong("calculatedAt", 0L)
+                    )
+                )
+            }
+        } catch (_: Exception) {
+        }
+        return list
+    }
+
+    fun saveAgeHistory(context: Context, list: List<AgeHistoryItem>) {
+        val arr = JSONArray()
+        list.take(20).forEach { item ->
+            val obj = JSONObject()
+            obj.put("id", item.id)
+            obj.put("birthDay", item.birthDay)
+            obj.put("birthMonth", item.birthMonth)
+            obj.put("birthYear", item.birthYear)
+            obj.put("ageSummary", item.ageSummary)
+            obj.put("calculatedAt", item.calculatedAt)
+            arr.put(obj)
+        }
+        prefs(context).edit().putString("age_history_json", arr.toString()).apply()
+    }
+
+    fun clearAgeHistory(context: Context) {
+        prefs(context).edit().remove("age_history_json").apply()
     }
 
     fun getBirthdays(context: Context): List<BirthdayItem> {
