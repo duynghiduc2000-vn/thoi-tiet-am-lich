@@ -56,8 +56,22 @@ class WeatherLunarWidget : AppWidgetProvider() {
     companion object {
         const val ACTION_REFRESH_WEATHER = "com.mrwind.vn.ACTION_REFRESH_WEATHER"
         const val ACTION_OPEN_CLOCK = "com.mrwind.vn.ACTION_OPEN_CLOCK"
+        private const val TARGET_CLOCK_PACKAGE = "com.android.deskclock"
+
+        private fun launchPackageIfAvailable(context: Context, packageName: String): Boolean {
+            val launchIntent = context.packageManager.getLaunchIntentForPackage(packageName) ?: return false
+            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            return try {
+                context.startActivity(launchIntent)
+                true
+            } catch (_: Exception) {
+                false
+            }
+        }
 
         private fun openSystemClockApp(context: Context) {
+            if (launchPackageIfAvailable(context, TARGET_CLOCK_PACKAGE)) return
+
             val candidates = listOf(
                 Intent(AlarmClock.ACTION_SHOW_ALARMS),
                 Intent(Intent.ACTION_MAIN).addCategory("android.intent.category.APP_CLOCK")
@@ -75,7 +89,6 @@ class WeatherLunarWidget : AppWidgetProvider() {
             }
 
             val fallbackPackages = listOf(
-                "com.android.deskclock",
                 "com.google.android.deskclock",
                 "com.miui.clock",
                 "com.sec.android.app.clockpackage",
@@ -85,15 +98,7 @@ class WeatherLunarWidget : AppWidgetProvider() {
                 "com.huawei.deskclock"
             )
             for (pkg in fallbackPackages) {
-                val launchIntent = context.packageManager.getLaunchIntentForPackage(pkg)
-                if (launchIntent != null) {
-                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    try {
-                        context.startActivity(launchIntent)
-                        return
-                    } catch (_: Exception) {
-                    }
-                }
+                if (launchPackageIfAvailable(context, pkg)) return
             }
         }
 
