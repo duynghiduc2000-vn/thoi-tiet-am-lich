@@ -42,13 +42,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddToHomeScreen
+import androidx.compose.material.icons.filled.BatteryAlert
 import androidx.compose.material.icons.filled.Cake
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -141,6 +141,7 @@ fun ThoiTietAmLichApp() {
     var widgetBgMode by remember { mutableIntStateOf(AppPrefs.getWidgetBgMode(context)) }
     var accentColorInt by remember { mutableIntStateOf(AppPrefs.getAccentColor(context)) }
     var showSeconds by remember { mutableStateOf(AppPrefs.isShowSeconds(context)) }
+    var showSecondsWarningPopup by remember { mutableStateOf(false) }
     var showWeatherEffect by remember { mutableStateOf(AppPrefs.isShowWeatherEffect(context)) }
     var showSignature by remember { mutableStateOf(AppPrefs.isShowSignature(context)) }
     var signature by remember { mutableStateOf(AppPrefs.getSignature(context)) }
@@ -326,7 +327,7 @@ fun ThoiTietAmLichApp() {
                         }
                     }
 
-                    // 2. Đồng hồ & Nền Widget
+                    // 2. Đồng hồ, Hiệu ứng thời tiết & Nền Widget
                     item {
                         SectionCard(title = "Đồng hồ, Giao diện & Nền Widget") {
                             Row(
@@ -346,9 +347,13 @@ fun ThoiTietAmLichApp() {
                                 Switch(
                                     checked = showSeconds,
                                     onCheckedChange = { checked ->
-                                        showSeconds = checked
-                                        AppPrefs.setShowSeconds(context, checked)
-                                        WeatherLunarWidget.updateAllWidgets(context)
+                                        if (checked) {
+                                            showSecondsWarningPopup = true
+                                        } else {
+                                            showSeconds = false
+                                            AppPrefs.setShowSeconds(context, false)
+                                            WeatherLunarWidget.updateAllWidgets(context)
+                                        }
                                     }
                                 )
                             }
@@ -363,7 +368,7 @@ fun ThoiTietAmLichApp() {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text("Hiệu ứng thời tiết trên Widget", fontWeight = FontWeight.Medium)
                                     Text(
-                                        "Lớp hiệu ứng nắng, mây, sương mù, mưa theo thời tiết hiện tại",
+                                        "Bật/tắt lớp hiệu ứng nắng, mây, sương mù, mưa theo thời tiết",
                                         style = MaterialTheme.typography.bodySmall
                                     )
                                 }
@@ -818,12 +823,146 @@ fun ThoiTietAmLichApp() {
                                 .padding(top = 6.dp, bottom = 8.dp)
                         ) {
                             Text(
-                                "Được tạo bởi Mr.Wind - Xiaomi Community Việt Nam\nỦng hộ anh ấy một cốc cà hê qua MOMO: 0923032127",
+                                "Được tạo bởi Mr.WInd - Xiaomi Community Việt Nam\nỦng hộ anh ấy một cuốn triện gei qua MOMO: 0923032127",
                                 fontSize = 11.sp,
                                 lineHeight = 16.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = TextAlign.Center
                             )
+                        }
+                    }
+                }
+            }
+
+            // Pop-up cảnh báo hao pin khi bật hiển thị giây
+            AnimatedVisibility(
+                visible = showSecondsWarningPopup,
+                enter = fadeIn() + scaleIn(initialScale = 0.92f),
+                exit = fadeOut() + scaleOut(targetScale = 0.92f),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.58f))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { showSecondsWarningPopup = false }
+                        .padding(horizontal = 24.dp)
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(28.dp),
+                        tonalElevation = 8.dp,
+                        shadowElevation = 16.dp,
+                        color = MaterialTheme.colorScheme.surface,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) {}
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(22.dp)
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.End,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                IconButton(
+                                    onClick = { showSecondsWarningPopup = false },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Close,
+                                        contentDescription = "Đóng",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(64.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        Brush.linearGradient(
+                                            listOf(
+                                                accentCompose.copy(alpha = 0.25f),
+                                                accentCompose.copy(alpha = 0.12f)
+                                            )
+                                        )
+                                    )
+                                    .border(1.5.dp, accentCompose.copy(alpha = 0.55f), CircleShape)
+                            ) {
+                                Icon(
+                                    Icons.Default.BatteryAlert,
+                                    contentDescription = null,
+                                    tint = accentCompose,
+                                    modifier = Modifier.size(32.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            Text(
+                                "Lưu ý mức tiêu thụ pin",
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center
+                            )
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            Text(
+                                "Bật tính năng này sẽ làm cho thiết bị của bạn hao pin hơn.",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center
+                            )
+
+                            Spacer(modifier = Modifier.height(20.dp))
+
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                OutlinedButton(
+                                    onClick = { showSecondsWarningPopup = false },
+                                    shape = RoundedCornerShape(16.dp),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(48.dp)
+                                ) {
+                                    Text(
+                                        "Hủy",
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+
+                                Button(
+                                    onClick = {
+                                        showSecondsWarningPopup = false
+                                        showSeconds = true
+                                        AppPrefs.setShowSeconds(context, true)
+                                        WeatherLunarWidget.updateAllWidgets(context)
+                                    },
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = accentCompose),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(48.dp)
+                                ) {
+                                    Text(
+                                        "Ok",
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
                         }
                     }
                 }
