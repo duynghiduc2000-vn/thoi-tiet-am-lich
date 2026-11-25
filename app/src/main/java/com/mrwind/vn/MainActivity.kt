@@ -97,6 +97,7 @@ import kotlinx.coroutines.launch
 import java.util.Calendar
 import java.util.TimeZone
 import java.util.UUID
+import kotlin.math.floor
 import kotlin.math.roundToInt
 
 class MainActivity : ComponentActivity() {
@@ -142,6 +143,111 @@ private data class LunarResultPopupData(
     val lunarSummary: String
 )
 
+private val CAN_NAMES = arrayOf(
+    "Giáp", "Ất", "Bính", "Đinh", "Mậu", "Kỷ", "Canh", "Tân", "Nhâm", "Quý"
+)
+
+private val CHI_NAMES = arrayOf(
+    "Tý", "Sửu", "Dần", "Mão", "Thìn", "Tỵ", "Ngọ", "Mùi", "Thân", "Dậu", "Tuất", "Hợi"
+)
+
+private fun jdFromDate(dd: Int, mm: Int, yy: Int): Int {
+    val a = (14 - mm) / 12
+    val y = yy + 4800 - a
+    val m = mm + 12 * a - 3
+    var jd = dd + (153 * m + 2) / 5 + 365 * y + y / 4 - y / 100 + y / 400 - 32045
+    if (jd < 2299161) {
+        jd = dd + (153 * m + 2) / 5 + 365 * y + y / 4 - 32083
+    }
+    return jd
+}
+
+private fun newMoonDayNumber(k: Int, timeZoneOffset: Double = 7.0): Int {
+    val t = k / 1236.85
+    val t2 = t * t
+    val t3 = t2 * t
+    val dr = Math.PI / 180.0
+    var jd1 = 2415020.75933 + 29.53058868 * k + 0.0001178 * t2 - 0.000000155 * t3
+    jd1 += 0.00033 * Math.sin((166.56 + 132.87 * t - 0.009173 * t2) * dr)
+    val m = 359.2242 + 29.10535608 * k - 0.0000333 * t2 - 0.00000347 * t3
+    val mpr = 306.0253 + 385.81691806 * k + 0.0107306 * t2 + 0.00001236 * t3
+    val f = 21.2964 + 390.67050646 * k - 0.0016528 * t2 - 0.00000239 * t3
+    var c1 = (0.1734 - 0.000393 * t) * Math.sin(m * dr) + 0.0021 * Math.sin(2 * m * dr)
+    c1 = c1 - 0.4068 * Math.sin(mpr * dr) + 0.0161 * Math.sin(2 * mpr * dr)
+    c1 = c1 - 0.0004 * Math.sin(3 * mpr * dr)
+    c1 = c1 + 0.0104 * Math.sin(2 * f * dr) - 0.0051 * Math.sin((m + mpr) * dr)
+    c1 = c1 - 0.0074 * Math.sin((m - mpr) * dr) + 0.0004 * Math.sin((2 * f + m) * dr)
+    c1 = c1 - 0.0004 * Math.sin((2 * f - m) * dr) - 0.0006 * Math.sin((2 * f + mpr) * dr)
+    c1 = c1 + 0.0010 * Math.sin((2 * f - mpr) * dr) + 0.0005 * Math.sin((mpr + 2 * m) * dr)
+    val deltat = if (t < -11) {
+        0.001 + 0.000839 * t + 0.0002261 * t2 - 0.00000845 * t3 - 0.000000081 * t3 * t
+    } else {
+        -0.000278 + 0.000265 * t + 0.000262 * t2
+    }
+    val jdNew = jd1 + c1 - deltat
+    return floor(jdNew + 0.5 + timeZoneOffset / 24.0).toInt()
+}
+
+private fun sunLongitude(jdn: Int, timeZoneOffset: Double = 7.0): Double {
+    val t = (jdn - 2451545.0 - timeZoneOffset / 24.0) / 36525.0
+    val t2 = t * t
+    val dr = Math.PI / 180.0
+    val m = 357.52910 + 35999.05030 * t - 0.0001559 * t2 - 0.00000048 * t * t2
+    val l0 = 280.46645 + 36000.76983 * t + 0.0003032 * t2
+    var dl = (1.914600 - 0.004817 * t - 0.000014 * t2) * Math.sin(dr * m)
+    dl += (0.019993 - 0.000101 * t) * Math.sin(dr * 2 * m) + 0.000290 * Math.sin(dr * 3 * m)
+    var l = l0 + dl
+    l *= dr
+    l -= Math.PI * 2 * floor(l / (Math.PI * 2))
+    return l
+}
+
+private fun sunMajorTerm(dayNumber: Int, timeZoneOffset: Double = 7.0): Int {
+    return floor(sunLongitude(dayNumber - 0.5.toInt(), timeZoneOffset) / Math.PI * 6).toInt()
+}
+
+private fun lunarMonth11(yy: Int, timeZoneOffset: Double = 7.0): Int {
+    val off = jdFromDate(31, 12, yy) - 2415021
+    val k = floor(off / 29.530588853).toInt()
+    var nm = newMoonDayNumber(k, timeZoneOffset)
+    val sunLong = sunMajorTerm(nm, timeZoneOffset)
+    if (sunLong >= 9) {
+        nm = newMoonDayNumber(k - 1, timeZoneOffset)
+    }
+    return nm
+}
+
+private fun leapMonthOffset(a11: Int, timeZoneOffset: Double = 7.0): Int {
+    val k = floor((a11 - 2415021.076998695) / 29.530588853 + 0.5).toInt()
+    var last = 0
+    var i = 1
+    var arc = sunMajorTerm(newMoonDayNumber(k + i, timeZoneOffset), timeZoneOffset)
+    do {
+        last = arc
+        i++
+        arc = sunMajorTerm(newMoonDayNumber(k + i, timeZoneOffset), timeZoneOffset)
+    } while (arc != last && i < 14)
+    return i - 1
+}
+
+private fun canChiDay(jd: Int): String {
+    val can = CAN_NAMES[(jd + 9) % 10]
+    val chi = CHI_NAMES[(jd + 1) % 12]
+    return "$can $chi"
+}
+
+private fun canChiMonth(lunarMonth: Int, lunarYear: Int): String {
+    val monthCanIndex = (lunarYear * 12 + lunarMonth + 3) % 10
+    val monthChiIndex = (lunarMonth + 1) % 12
+    return "${CAN_NAMES[(monthCanIndex + 10) % 10]} ${CHI_NAMES[(monthChiIndex + 12) % 12]}"
+}
+
+private fun canChiYear(lunarYear: Int): String {
+    val yearCanIndex = (lunarYear + 6) % 10
+    val yearChiIndex = (lunarYear + 8) % 12
+    return "${CAN_NAMES[(yearCanIndex + 10) % 10]} ${CHI_NAMES[(yearChiIndex + 12) % 12]}"
+}
+
 private fun convertSolarToLunarSummary(day: Int, month: Int, year: Int): String {
     val cal = Calendar.getInstance(TimeZone.getTimeZone("Asia/Ho_Chi_Minh")).apply {
         isLenient = false
@@ -149,30 +255,52 @@ private fun convertSolarToLunarSummary(day: Int, month: Int, year: Int): String 
         set(Calendar.MONTH, month - 1)
         set(Calendar.DAY_OF_MONTH, day)
     }
-    // Đảm bảo ngày hợp lệ theo lịch dương
+    // Xác thực ngày hợp lệ theo lịch dương
     cal.timeInMillis
 
-    return try {
-        val kClass = LunarCalendar::class.java
-        val method = kClass.declaredMethods.firstOrNull { m ->
-            m.parameterCount == 3 &&
-                m.parameterTypes[0] == Int::class.javaPrimitiveType &&
-                m.parameterTypes[1] == Int::class.javaPrimitiveType &&
-                m.parameterTypes[2] == Int::class.javaPrimitiveType
-        }
-        val res = method?.invoke(LunarCalendar, day, month, year)
-        when (res) {
-            null -> LunarCalendar.todayLunar().fullSummary()
-            is String -> res
-            else -> {
-                val fullFn = res.javaClass.methods.firstOrNull { it.name == "fullSummary" && it.parameterCount == 0 }
-                val shortFn = res.javaClass.methods.firstOrNull { it.name == "shortSummary" && it.parameterCount == 0 }
-                (fullFn?.invoke(res) ?: shortFn?.invoke(res) ?: res).toString()
+    val timeZoneOffset = 7.0
+    val dayNumber = jdFromDate(day, month, year)
+    val k = floor((dayNumber - 2415021.076998695) / 29.530588853).toInt()
+    var monthStart = newMoonDayNumber(k + 1, timeZoneOffset)
+    if (monthStart > dayNumber) {
+        monthStart = newMoonDayNumber(k, timeZoneOffset)
+    }
+    var a11 = lunarMonth11(year, timeZoneOffset)
+    var b11 = a11
+    val lunarYear: Int
+    if (a11 >= monthStart) {
+        lunarYear = year
+        a11 = lunarMonth11(year - 1, timeZoneOffset)
+    } else {
+        lunarYear = year + 1
+        b11 = lunarMonth11(year + 1, timeZoneOffset)
+    }
+    val lunarDay = dayNumber - monthStart + 1
+    val diff = floor((monthStart - a11) / 29.0).toInt()
+    var lunarLeap = false
+    var lunarMonth = diff + 11
+    if (b11 - a11 > 365) {
+        val leapOff = leapMonthOffset(a11, timeZoneOffset)
+        if (diff >= leapOff) {
+            lunarMonth = diff + 10
+            if (diff == leapOff) {
+                lunarLeap = true
             }
         }
-    } catch (_: Exception) {
-        LunarCalendar.todayLunar().fullSummary()
     }
+    if (lunarMonth > 12) {
+        lunarMonth -= 12
+    }
+    if (lunarMonth >= 11 && diff < 4) {
+        // Giữ năm âm lịch khớp với tháng 11/12 cuối năm
+    }
+
+    val leapText = if (lunarLeap) " (nhuận)" else ""
+    val dCanChi = canChiDay(dayNumber)
+    val mCanChi = canChiMonth(lunarMonth, lunarYear)
+    val yCanChi = canChiYear(lunarYear)
+
+    return "Âm lịch: Ngày $lunarDay/$lunarMonth/$lunarYear$leapText • Ngày $dCanChi • Tháng $mCanChi • Năm $yCanChi"
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
@@ -206,7 +334,6 @@ fun ThoiTietAmLichApp() {
     var searchResults by remember { mutableStateOf<List<WeatherService.SearchLocationResult>>(emptyList()) }
     var locationSearchMsg by remember { mutableStateOf<String?>(null) }
 
-    // Tra cứu lịch âm + lịch sử + pop-up kết quả & pop-up sau khi xóa lịch sử
     var lookupDayInput by remember { mutableStateOf(nowCal.get(Calendar.DAY_OF_MONTH).toString()) }
     var lookupMonthInput by remember { mutableStateOf((nowCal.get(Calendar.MONTH) + 1).toString()) }
     var lookupYearInput by remember { mutableStateOf(nowCal.get(Calendar.YEAR).toString()) }
@@ -569,6 +696,17 @@ fun ThoiTietAmLichApp() {
                                         lunarHistory.forEach { item ->
                                             val solarStr =
                                                 "${item.solarDay.toString().padStart(2, '0')}/${item.solarMonth.toString().padStart(2, '0')}/${item.solarYear}"
+                                            val freshSummary = remember(item) {
+                                                try {
+                                                    convertSolarToLunarSummary(
+                                                        item.solarDay,
+                                                        item.solarMonth,
+                                                        item.solarYear
+                                                    )
+                                                } catch (_: Exception) {
+                                                    item.lunarSummary
+                                                }
+                                            }
                                             Surface(
                                                 shape = RoundedCornerShape(12.dp),
                                                 color = MaterialTheme.colorScheme.surface.copy(alpha = 0.65f),
@@ -581,7 +719,7 @@ fun ThoiTietAmLichApp() {
                                                         lookupYearInput = item.solarYear.toString()
                                                         lunarResultPopup = LunarResultPopupData(
                                                             solarLabel = "Dương lịch: $solarStr",
-                                                            lunarSummary = item.lunarSummary
+                                                            lunarSummary = freshSummary
                                                         )
                                                     }
                                             ) {
@@ -597,7 +735,7 @@ fun ThoiTietAmLichApp() {
                                                             style = MaterialTheme.typography.bodyMedium
                                                         )
                                                         Text(
-                                                            item.lunarSummary,
+                                                            freshSummary,
                                                             color = accentCompose,
                                                             style = MaterialTheme.typography.bodySmall,
                                                             modifier = Modifier.padding(top = 2.dp)
