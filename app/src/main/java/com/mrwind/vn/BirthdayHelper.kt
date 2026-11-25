@@ -4,7 +4,6 @@ import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
-import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -12,20 +11,29 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
-import java.text.SimpleDateFormat
 import java.util.Calendar
-import java.util.Date
-import java.util.Locale
 import java.util.TimeZone
 
 object BirthdayHelper {
-    private const val CHANNEL_ID = "birthday_reminders_channel"
+    private const val CHANNEL_ID = "birthday_reminder_channel"
+    private const val ADMIN_DAY = 31
+    private const val ADMIN_MONTH = 12
+    const val ADMIN_BIRTHDAY_MESSAGE =
+        "Hôm nay là sinh nhật của admin Mr.Wind. Hãy cùng chúc mừng anh ấy nhé!"
 
-    fun todayKey(): String {
-        val fmt = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply {
-            timeZone = TimeZone.getTimeZone("Asia/Ho_Chi_Minh")
-        }
-        return fmt.format(Date())
+    fun todayDateKey(): String {
+        val cal = Calendar.getInstance(TimeZone.getTimeZone("Asia/Ho_Chi_Minh"))
+        val d = cal.get(Calendar.DAY_OF_MONTH).toString().padStart(2, '0')
+        val m = (cal.get(Calendar.MONTH) + 1).toString().padStart(2, '0')
+        val y = cal.get(Calendar.YEAR)
+        return "$y-$m-$d"
+    }
+
+    fun isAdminBirthdayToday(): Boolean {
+        val cal = Calendar.getInstance(TimeZone.getTimeZone("Asia/Ho_Chi_Minh"))
+        val day = cal.get(Calendar.DAY_OF_MONTH)
+        val month = cal.get(Calendar.MONTH) + 1
+        return day == ADMIN_DAY && month == ADMIN_MONTH
     }
 
     fun getTodayBirthdays(context: Context): List<BirthdayItem> {
@@ -36,34 +44,28 @@ object BirthdayHelper {
     }
 
     fun shouldShowAppPopupToday(context: Context): Boolean {
-        val todays = getTodayBirthdays(context)
-        if (todays.isEmpty()) return false
-        return AppPrefs.getLastPopupDate(context) != todayKey()
+        val hasUserBirthdaysToday = getTodayBirthdays(context).isNotEmpty()
+        val hasAdminPopupToday = isAdminBirthdayToday() &&
+            AppPrefs.getLastAdminPopupDate(context) != todayDateKey()
+        return hasUserBirthdaysToday || hasAdminPopupToday
     }
 
     fun markAppPopupShownToday(context: Context) {
-        AppPrefs.setLastPopupDate(context, todayKey())
-    }
-
-    fun ensureNotificationChannel(context: Context) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                "Nhắc sinh nhật",
-                NotificationManager.IMPORTANCE_HIGH
-            ).apply {
-                description = "Thông báo nhắc ngày sinh nhật trong danh sách"
-            }
-            val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            manager.createNotificationChannel(channel)
+        val key = todayDateKey()
+        if (getTodayBirthdays(context).isNotEmpty()) {
+            AppPrefs.setLastPopupDate(context, key)
+        }
+        if (isAdminBirthdayToday()) {
+            AppPrefs.setLastAdminPopupDate(context, key)
         }
     }
 
     fun notifyTodayBirthdaysOncePerDay(context: Context) {
-        val todays = getTodayBirthdays(context)
-        if (todays.isEmpty()) return
+        val todayBirthdays = getTodayBirthdays(context)
+        val isAdminToday = isAdminBirthdayToday()
+        if (todayBirthdays.isEmpty() && !isAdminToday) return
 
-        val key = todayKey()
+        val key = todayDateKey()
         if (AppPrefs.getLastNotifyDate(context) == key) return
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -73,11 +75,7 @@ object BirthdayHelper {
             if (!granted) return
         }
 
-        ensureNotificationChannel(context)
-
-        val names = todays.joinToString(", ") { it.name }
-        val title = "Hôm nay là sinh nhật của $names!"
-        val content = "Nhớ gửi lời chúc mừng sinh nhật tới ${names} nhé."
+        createChannelIfNeeded(context)
 
         val openIntent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -89,14 +87,25 @@ object BirthdayHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        val contentText = buildString {
+            if (isAdminToday) {
+                append(ADMIN_BIRTHDAY_MESSAGE)
+            }
+            if (todayBirthdays.isNotEmpty()) {
+                if (isNotEmpty()) append(" • ")
+                val names = todayBirthdays.joinToString(", ") { it.name }
+                append("Sinh nhật hôm nay: $names.")
+            }
+        }
+
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_popup_reminder)
-            .setContentTitle(title)
-            .setContentText(content)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(content))
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setAutoCancel(true)
+            .setContentTitle(if (isAdminToday && todayBirthdays.isEmpty()) "Chúc mừng sinh nhật Mr.Wind!" else "Nhắc ngày sinh nhật hôm nay")
+            .setContentText(contentText)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(contentText))
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
             .build()
 
         try {
@@ -105,14 +114,18 @@ object BirthdayHelper {
         } catch (_: SecurityException) {
         }
     }
-}
 
-class BirthdayBootReceiver : BroadcastReceiver() {
-    override fun onReceive(context: Context, intent: Intent?) {
-        if (intent?.action == Intent.ACTION_BOOT_COMPLETED) {
-            WeatherService.scheduleTwoHourlySync(context)
-            BirthdayHelper.notifyTodayBirthdaysOncePerDay(context)
-            WeatherLunarWidget.updateAllWidgets(context)
+    private fun createChannelIfNeeded(context: Context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "Nhắc sinh nhật",
+                NotificationManager.IMPORTANCE_DEFAULT
+            ).apply {
+                description = "Thông báo nhắc ngày sinh nhật trong ngày"
+            }
+            manager.createNotificationChannel(channel)
         }
     }
 }
