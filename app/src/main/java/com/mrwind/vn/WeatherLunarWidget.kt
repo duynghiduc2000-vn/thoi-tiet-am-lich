@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
+import android.os.Build
 import android.util.TypedValue
 import android.widget.RemoteViews
 import kotlinx.coroutines.CoroutineScope
@@ -48,6 +49,24 @@ class WeatherLunarWidget : AppWidgetProvider() {
     companion object {
         const val ACTION_REFRESH_WEATHER = "com.mrwind.vn.ACTION_REFRESH_WEATHER"
 
+        fun requestPinWidget(context: Context): Boolean {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return false
+            val manager = context.getSystemService(AppWidgetManager::class.java) ?: return false
+            if (!manager.isRequestPinAppWidgetSupported) return false
+
+            val component = ComponentName(context, WeatherLunarWidget::class.java)
+            val callbackIntent = Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            val successCallback = PendingIntent.getActivity(
+                context,
+                3030,
+                callbackIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            return manager.requestPinAppWidget(component, null, successCallback)
+        }
+
         fun updateAllWidgets(context: Context) {
             val manager = AppWidgetManager.getInstance(context)
             val component = ComponentName(context, WeatherLunarWidget::class.java)
@@ -69,13 +88,13 @@ class WeatherLunarWidget : AppWidgetProvider() {
             val lunar = LunarCalendar.todayLunar()
             val weather = AppPrefs.getWeather(context)
             val accentColor = AppPrefs.getAccentColor(context)
+            val showSeconds = AppPrefs.isShowSeconds(context)
 
-            val clockSp = AppPrefs.clockSp(AppPrefs.getClockScale(context))
+            val clockSp = AppPrefs.clockSp(AppPrefs.getClockScale(context), showSeconds)
             val lunarSp = AppPrefs.lunarSp(AppPrefs.getLunarScale(context))
             val solarSp = AppPrefs.solarSp(AppPrefs.getSolarScale(context))
             val sigSp = AppPrefs.sigSp(AppPrefs.getSigScale(context))
 
-            // 0 = Kính lỏng tối, 1 = Kính lỏng sáng, 2 = Trong suốt, 3 = Theo chủ đề app
             val bgMode = AppPrefs.getWidgetBgMode(context)
             when (bgMode) {
                 0 -> views.setInt(R.id.widget_root, "setBackgroundResource", R.drawable.bg_widget_glass_dark)
@@ -92,7 +111,6 @@ class WeatherLunarWidget : AppWidgetProvider() {
                         )
                     }
                     views.setInt(R.id.widget_root, "setBackgroundResource", R.drawable.bg_widget_theme)
-                    // Nếu dùng nền theo chủ đề, giữ màu chữ dễ đọc
                     if (dynamicBg.alpha >= 0) {
                         views.setTextColor(R.id.tv_solar_date, Color.WHITE)
                     }
@@ -111,6 +129,9 @@ class WeatherLunarWidget : AppWidgetProvider() {
             views.setTextColor(R.id.tv_lunar_date, accentColor)
             views.setTextViewTextSize(R.id.tv_lunar_date, TypedValue.COMPLEX_UNIT_SP, lunarSp)
 
+            val clockFormat = if (showSeconds) "HH:mm:ss" else "HH:mm"
+            views.setCharSequence(R.id.tv_clock, "setFormat12Hour", clockFormat)
+            views.setCharSequence(R.id.tv_clock, "setFormat24Hour", clockFormat)
             views.setTextColor(R.id.tv_clock, primaryTextColor)
             views.setTextViewTextSize(R.id.tv_clock, TypedValue.COMPLEX_UNIT_SP, clockSp)
 
@@ -145,7 +166,6 @@ class WeatherLunarWidget : AppWidgetProvider() {
             views.setTextColor(R.id.tv_signature, primaryTextColor)
             views.setTextViewTextSize(R.id.tv_signature, TypedValue.COMPLEX_UNIT_SP, sigSp)
 
-            // Bấm vào khu vực nhiệt độ để đồng bộ thời tiết thủ công ngay lập tức
             val refreshIntent = Intent(context, WeatherLunarWidget::class.java).apply {
                 action = ACTION_REFRESH_WEATHER
             }
@@ -157,7 +177,6 @@ class WeatherLunarWidget : AppWidgetProvider() {
             )
             views.setOnClickPendingIntent(R.id.btn_refresh_weather, refreshPending)
 
-            // Bấm vào vùng nền Widget để mở ứng dụng chính
             val openAppIntent = Intent(context, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             }
