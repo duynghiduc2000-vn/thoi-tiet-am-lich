@@ -9,6 +9,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -22,12 +23,15 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -66,11 +70,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.UUID
 import kotlin.math.roundToInt
@@ -113,7 +119,7 @@ private val ACCENT_OPTIONS = listOf(
     AccentOption("Trắng ngà", 0xFFF5F5F5.toInt())
 )
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun ThoiTietAmLichApp() {
     val context = LocalContext.current
@@ -145,6 +151,8 @@ fun ThoiTietAmLichApp() {
     var bdayDayInput by remember { mutableStateOf("1") }
     var bdayMonthInput by remember { mutableStateOf("1") }
     var bdayError by remember { mutableStateOf<String?>(null) }
+
+    val bdaySectionBringIntoView = remember { BringIntoViewRequester() }
 
     val todayBirthdays = remember(birthdays) { BirthdayHelper.getTodayBirthdays(context) }
     var showBirthdayPopup by remember { mutableStateOf(false) }
@@ -244,8 +252,9 @@ fun ThoiTietAmLichApp() {
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(innerPadding),
-                contentPadding = PaddingValues(16.dp),
+                    .padding(innerPadding)
+                    .imePadding(),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 120.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 // 1. Thẻ tổng quan Lịch Âm - Dương, Thời tiết & Ghim Widget
@@ -626,119 +635,152 @@ fun ThoiTietAmLichApp() {
 
                 // 7. Danh sách ngày sinh nhật (tối đa 10)
                 item {
-                    SectionCard(title = "Nhắc ngày sinh nhật (${birthdays.size}/10)") {
-                        Text(
-                            "Tự động hiện Pop-up khi mở app và gửi thông báo 1 lần/ngày vào đúng ngày sinh nhật.",
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        OutlinedTextField(
-                            value = bdayNameInput,
-                            onValueChange = {
-                                bdayNameInput = it
-                                bdayError = null
-                            },
-                            label = { Text("Tên người sinh nhật") },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedTextField(
-                                value = bdayDayInput,
-                                onValueChange = {
-                                    bdayDayInput = it.filter { ch -> ch.isDigit() }.take(2)
-                                    bdayError = null
-                                },
-                                label = { Text("Ngày (1-31)") },
-                                singleLine = true,
-                                modifier = Modifier.weight(1f)
-                            )
-                            OutlinedTextField(
-                                value = bdayMonthInput,
-                                onValueChange = {
-                                    bdayMonthInput = it.filter { ch -> ch.isDigit() }.take(2)
-                                    bdayError = null
-                                },
-                                label = { Text("Tháng (1-12)") },
-                                singleLine = true,
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-
-                        if (bdayError != null) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .bringIntoViewRequester(bdaySectionBringIntoView)
+                    ) {
+                        SectionCard(title = "Nhắc ngày sinh nhật (${birthdays.size}/10)") {
                             Text(
-                                bdayError!!,
-                                color = MaterialTheme.colorScheme.error,
-                                style = MaterialTheme.typography.bodySmall,
-                                modifier = Modifier.padding(top = 4.dp)
+                                "Tự động hiện Pop-up khi mở app và gửi thông báo 1 lần/ngày vào đúng ngày sinh nhật.",
+                                style = MaterialTheme.typography.bodySmall
                             )
-                        }
+                            Spacer(modifier = Modifier.height(8.dp))
 
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        OutlinedButton(
-                            onClick = {
-                                if (birthdays.size >= 10) {
-                                    bdayError = "Đã đạt giới hạn tối đa 10 ngày sinh nhật."
-                                    return@OutlinedButton
-                                }
-                                val nameTrim = bdayNameInput.trim()
-                                val d = bdayDayInput.toIntOrNull() ?: 0
-                                val m = bdayMonthInput.toIntOrNull() ?: 0
-                                if (nameTrim.isEmpty()) {
-                                    bdayError = "Vui lòng nhập tên."
-                                    return@OutlinedButton
-                                }
-                                if (d !in 1..31 || m !in 1..12) {
-                                    bdayError = "Ngày phải từ 1–31 và tháng từ 1–12."
-                                    return@OutlinedButton
-                                }
-                                val updated = birthdays + BirthdayItem(
-                                    id = UUID.randomUUID().toString(),
-                                    name = nameTrim,
-                                    day = d,
-                                    month = m
-                                )
-                                birthdays = updated
-                                AppPrefs.saveBirthdays(context, updated)
-                                bdayNameInput = ""
-                                bdayError = null
-                                BirthdayHelper.notifyTodayBirthdaysOncePerDay(context)
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Thêm ngày sinh nhật")
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        birthdays.forEach { item ->
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween,
+                            OutlinedTextField(
+                                value = bdayNameInput,
+                                onValueChange = {
+                                    bdayNameInput = it
+                                    bdayError = null
+                                },
+                                label = { Text("Tên người sinh nhật") },
+                                singleLine = true,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(vertical = 4.dp)
-                            ) {
-                                Text(
-                                    "🎂 ${item.name} — ${item.day.toString().padStart(2, '0')}/${item.month.toString().padStart(2, '0')}",
-                                    fontWeight = FontWeight.Medium
-                                )
-                                IconButton(
-                                    onClick = {
-                                        val updated = birthdays.filterNot { it.id == item.id }
-                                        birthdays = updated
-                                        AppPrefs.saveBirthdays(context, updated)
+                                    .onFocusChanged { focusState ->
+                                        if (focusState.isFocused) {
+                                            scope.launch {
+                                                delay(180)
+                                                bdaySectionBringIntoView.bringIntoView()
+                                            }
+                                        }
                                     }
-                                ) {
-                                    Icon(
-                                        Icons.Default.Delete,
-                                        contentDescription = "Xóa sinh nhật",
-                                        tint = MaterialTheme.colorScheme.error
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedTextField(
+                                    value = bdayDayInput,
+                                    onValueChange = {
+                                        bdayDayInput = it.filter { ch -> ch.isDigit() }.take(2)
+                                        bdayError = null
+                                    },
+                                    label = { Text("Ngày (1-31)") },
+                                    singleLine = true,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .onFocusChanged { focusState ->
+                                            if (focusState.isFocused) {
+                                                scope.launch {
+                                                    delay(180)
+                                                    bdaySectionBringIntoView.bringIntoView()
+                                                }
+                                            }
+                                        }
+                                )
+                                OutlinedTextField(
+                                    value = bdayMonthInput,
+                                    onValueChange = {
+                                        bdayMonthInput = it.filter { ch -> ch.isDigit() }.take(2)
+                                        bdayError = null
+                                    },
+                                    label = { Text("Tháng (1-12)") },
+                                    singleLine = true,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .onFocusChanged { focusState ->
+                                            if (focusState.isFocused) {
+                                                scope.launch {
+                                                    delay(180)
+                                                    bdaySectionBringIntoView.bringIntoView()
+                                                }
+                                            }
+                                        }
+                                )
+                            }
+
+                            if (bdayError != null) {
+                                Text(
+                                    bdayError!!,
+                                    color = MaterialTheme.colorScheme.error,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    modifier = Modifier.padding(top = 4.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            OutlinedButton(
+                                onClick = {
+                                    if (birthdays.size >= 10) {
+                                        bdayError = "Đã đạt giới hạn tối đa 10 ngày sinh nhật."
+                                        return@OutlinedButton
+                                    }
+                                    val nameTrim = bdayNameInput.trim()
+                                    val d = bdayDayInput.toIntOrNull() ?: 0
+                                    val m = bdayMonthInput.toIntOrNull() ?: 0
+                                    if (nameTrim.isEmpty()) {
+                                        bdayError = "Vui lòng nhập tên."
+                                        return@OutlinedButton
+                                    }
+                                    if (d !in 1..31 || m !in 1..12) {
+                                        bdayError = "Ngày phải từ 1–31 và tháng từ 1–12."
+                                        return@OutlinedButton
+                                    }
+                                    val updated = birthdays + BirthdayItem(
+                                        id = UUID.randomUUID().toString(),
+                                        name = nameTrim,
+                                        day = d,
+                                        month = m
                                     )
+                                    birthdays = updated
+                                    AppPrefs.saveBirthdays(context, updated)
+                                    bdayNameInput = ""
+                                    bdayError = null
+                                    BirthdayHelper.notifyTodayBirthdaysOncePerDay(context)
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Thêm ngày sinh nhật")
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            birthdays.forEach { item ->
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 4.dp)
+                                ) {
+                                    Text(
+                                        "🎂 ${item.name} — ${item.day.toString().padStart(2, '0')}/${item.month.toString().padStart(2, '0')}",
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    IconButton(
+                                        onClick = {
+                                            val updated = birthdays.filterNot { it.id == item.id }
+                                            birthdays = updated
+                                            AppPrefs.saveBirthdays(context, updated)
+                                        }
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Delete,
+                                            contentDescription = "Xóa sinh nhật",
+                                            tint = MaterialTheme.colorScheme.error
+                                        )
+                                    }
                                 }
                             }
                         }
