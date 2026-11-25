@@ -38,8 +38,8 @@
                 <action android:name="com.mrwind.vn.ACTION_OPEN_CLOCK" />
             </intent-filter>
             <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/widget_weather_lunar_info" />
+    android:name="android.appwidget.provider"
+    android:resource="@xml/weather_lunar_widget_info" />
         </receiver>
 
         <receiver
