@@ -48,6 +48,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -140,6 +141,7 @@ fun ThoiTietAmLichApp() {
     var widgetBgMode by remember { mutableIntStateOf(AppPrefs.getWidgetBgMode(context)) }
     var accentColorInt by remember { mutableIntStateOf(AppPrefs.getAccentColor(context)) }
     var showSeconds by remember { mutableStateOf(AppPrefs.isShowSeconds(context)) }
+    var showWeatherEffect by remember { mutableStateOf(AppPrefs.isShowWeatherEffect(context)) }
     var showSignature by remember { mutableStateOf(AppPrefs.isShowSignature(context)) }
     var signature by remember { mutableStateOf(AppPrefs.getSignature(context)) }
 
@@ -346,6 +348,30 @@ fun ThoiTietAmLichApp() {
                                     onCheckedChange = { checked ->
                                         showSeconds = checked
                                         AppPrefs.setShowSeconds(context, checked)
+                                        WeatherLunarWidget.updateAllWidgets(context)
+                                    }
+                                )
+                            }
+
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 10.dp)
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Hiệu ứng thời tiết trên Widget", fontWeight = FontWeight.Medium)
+                                    Text(
+                                        "Lớp hiệu ứng nắng, mây, sương mù, mưa theo thời tiết hiện tại",
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
+                                Switch(
+                                    checked = showWeatherEffect,
+                                    onCheckedChange = { checked ->
+                                        showWeatherEffect = checked
+                                        AppPrefs.setShowWeatherEffect(context, checked)
                                         WeatherLunarWidget.updateAllWidgets(context)
                                     }
                                 )
@@ -792,7 +818,7 @@ fun ThoiTietAmLichApp() {
                                 .padding(top = 6.dp, bottom = 8.dp)
                         ) {
                             Text(
-                                "Được tạo bởi Mr.WInd - Xiaomi Community Việt Nam\nỦng hộ anh ấy một cốc cà hê qua MOMO: 0923032127",
+                                "Được tạo bởi Mr.WInd - Xiaomi Community Việt Nam\nỦng hộ anh ấy một cuốn triện gei qua MOMO: 0923032127",
                                 fontSize = 11.sp,
                                 lineHeight = 16.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
