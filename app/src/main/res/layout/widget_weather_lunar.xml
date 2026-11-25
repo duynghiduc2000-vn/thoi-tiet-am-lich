@@ -61,7 +61,7 @@
             android:textStyle="bold" />
     </LinearLayout>
 
-    <!-- Cột trái (dưới dòng Âm lịch): Dương lịch, Đồng hồ, Cao/Thấp -->
+    <!-- Cột trái (dưới dòng Âm lịch): Dương lịch, Đồng hồ -->
     <LinearLayout
         android:id="@+id/left_column"
         android:layout_width="wrap_content"
@@ -100,20 +100,9 @@
             android:textColor="#FFFFFF"
             android:textSize="36sp"
             android:textStyle="bold" />
-
-        <!-- Nhiệt độ cao / thấp trong ngày -->
-        <TextView
-            android:id="@+id/tv_min_max_temp"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
-            android:maxLines="1"
-            android:text="▲ --°  ▼ --°"
-            android:textColor="#E0E0E0"
-            android:textSize="13sp" />
     </LinearLayout>
 
-    <!-- Cột phải (dưới cụm nhiệt độ): Địa danh, Trạng thái, Độ ẩm & Gió -->
+    <!-- Cột phải (dưới cụm nhiệt độ): Địa danh, Trạng thái, Độ ẩm & Gió, Cao/Thấp -->
     <LinearLayout
         android:id="@+id/right_column"
         android:layout_width="wrap_content"
@@ -158,6 +147,18 @@
             android:text="💧 --% • 💨 --km/h"
             android:textColor="#CFD8DC"
             android:textSize="11sp" />
+
+        <!-- Nhiệt độ cao / thấp trong ngày (dưới độ ẩm & gió bên phải) -->
+        <TextView
+            android:id="@+id/tv_min_max_temp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="end"
+            android:layout_marginTop="2dp"
+            android:maxLines="1"
+            android:text="▲ --°  ▼ --°"
+            android:textColor="#E0E0E0"
+            android:textSize="13sp" />
     </LinearLayout>
 
     <!-- Hàng dưới cùng: 4 mốc giờ bên trái + chữ ký bên phải cùng 1 hàng -->
