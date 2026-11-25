@@ -43,14 +43,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddToHomeScreen
 import androidx.compose.material.icons.filled.BatteryAlert
-import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Cake
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CheckCircleOutline
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.PersonSearch
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
@@ -144,6 +145,63 @@ private data class LunarResultPopupData(
     val solarLabel: String,
     val lunarSummary: String
 )
+
+private data class AgeResultPopupData(
+    val birthLabel: String,
+    val currentLabel: String,
+    val ageSummary: String
+)
+
+private data class AgeCalculationResult(
+    val years: Int,
+    val months: Int,
+    val currentLabel: String
+) {
+    val summary: String
+        get() = "$years tuổi $months tháng"
+}
+
+private fun calculateAgeFromNow(birthDay: Int, birthMonth: Int, birthYear: Int): AgeCalculationResult {
+    val tz = TimeZone.getTimeZone("Asia/Ho_Chi_Minh")
+    val birthCal = Calendar.getInstance(tz).apply {
+        isLenient = false
+        set(Calendar.YEAR, birthYear)
+        set(Calendar.MONTH, birthMonth - 1)
+        set(Calendar.DAY_OF_MONTH, birthDay)
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }
+    birthCal.timeInMillis
+
+    val nowCal = Calendar.getInstance(tz)
+    val curYear = nowCal.get(Calendar.YEAR)
+    val curMonth = nowCal.get(Calendar.MONTH) + 1
+    val curDay = nowCal.get(Calendar.DAY_OF_MONTH)
+
+    val birthTotalMonths = birthYear * 12 + birthMonth
+    val curTotalMonths = curYear * 12 + curMonth
+    if (curTotalMonths < birthTotalMonths || (curTotalMonths == birthTotalMonths && curDay < birthDay)) {
+        throw IllegalArgumentException("Ngày sinh lớn hơn ngày hiện tại")
+    }
+
+    var totalMonths = curTotalMonths - birthTotalMonths
+    if (curDay < birthDay) {
+        totalMonths -= 1
+    }
+    val safeMonths = totalMonths.coerceAtLeast(0)
+    val years = safeMonths / 12
+    val months = safeMonths % 12
+    val currentLabel =
+        "${curDay.toString().padStart(2, '0')}/${curMonth.toString().padStart(2, '0')}/$curYear"
+
+    return AgeCalculationResult(
+        years = years,
+        months = months,
+        currentLabel = currentLabel
+    )
+}
 
 private val CAN_NAMES = arrayOf(
     "Giáp", "Ất", "Bính", "Đinh", "Mậu", "Kỷ", "Canh", "Tân", "Nhâm", "Quý"
@@ -340,6 +398,15 @@ fun ThoiTietAmLichApp() {
     var lunarResultPopup by remember { mutableStateOf<LunarResultPopupData?>(null) }
     var showHistoryClearedPopup by remember { mutableStateOf(false) }
 
+    // Tính tuổi + lịch sử tính tuổi + pop-up kết quả & pop-up sau khi xóa lịch sử tính tuổi
+    var ageDayInput by remember { mutableStateOf("1") }
+    var ageMonthInput by remember { mutableStateOf("1") }
+    var ageYearInput by remember { mutableStateOf("2000") }
+    var ageError by remember { mutableStateOf<String?>(null) }
+    var ageHistory by remember { mutableStateOf(AppPrefs.getAgeHistory(context)) }
+    var ageResultPopup by remember { mutableStateOf<AgeResultPopupData?>(null) }
+    var showAgeHistoryClearedPopup by remember { mutableStateOf(false) }
+
     var birthdays by remember { mutableStateOf(AppPrefs.getBirthdays(context)) }
     var bdayNameInput by remember { mutableStateOf("") }
     var bdayDayInput by remember { mutableStateOf("1") }
@@ -347,6 +414,7 @@ fun ThoiTietAmLichApp() {
     var bdayError by remember { mutableStateOf<String?>(null) }
 
     val lookupSectionBringIntoView = remember { BringIntoViewRequester() }
+    val ageSectionBringIntoView = remember { BringIntoViewRequester() }
     val bdaySectionBringIntoView = remember { BringIntoViewRequester() }
 
     val todayBirthdays = remember(birthdays) { BirthdayHelper.getTodayBirthdays(context) }
@@ -420,6 +488,28 @@ fun ThoiTietAmLichApp() {
         lunarResultPopup = LunarResultPopupData(
             solarLabel = "Dương lịch: $solarFormatted",
             lunarSummary = summary
+        )
+    }
+
+    fun performAgeCalculation(day: Int, month: Int, year: Int) {
+        val calc = calculateAgeFromNow(day, month, year)
+        val birthFormatted = "${day.toString().padStart(2, '0')}/${month.toString().padStart(2, '0')}/$year"
+        val newItem = AgeHistoryItem(
+            id = UUID.randomUUID().toString(),
+            birthDay = day,
+            birthMonth = month,
+            birthYear = year,
+            ageSummary = calc.summary
+        )
+        val updatedHistory = (listOf(newItem) + ageHistory.filterNot {
+            it.birthDay == day && it.birthMonth == month && it.birthYear == year
+        }).take(20)
+        ageHistory = updatedHistory
+        AppPrefs.saveAgeHistory(context, updatedHistory)
+        ageResultPopup = AgeResultPopupData(
+            birthLabel = "Ngày sinh: $birthFormatted",
+            currentLabel = "Tính đến ngày: ${calc.currentLabel}",
+            ageSummary = calc.summary
         )
     }
 
@@ -748,7 +838,232 @@ fun ThoiTietAmLichApp() {
                         }
                     }
 
-                    // 3. Đồng hồ, Hiệu ứng thời tiết & Nền Widget
+                    // 3. Tính tuổi theo ngày tháng năm hiện tại trừ ngày sinh + lịch sử + xóa lịch sử
+                    item {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .bringIntoViewRequester(ageSectionBringIntoView)
+                        ) {
+                            SectionCard(title = "Tính tuổi") {
+                                Text(
+                                    "Nhập ngày, tháng, năm sinh để tính số tuổi kèm số tháng tính đến hiện tại.",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    OutlinedTextField(
+                                        value = ageDayInput,
+                                        onValueChange = {
+                                            ageDayInput = it.filter { ch -> ch.isDigit() }.take(2)
+                                            ageError = null
+                                        },
+                                        label = { Text("Ngày sinh") },
+                                        singleLine = true,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .onFocusChanged { focusState ->
+                                                if (focusState.isFocused) {
+                                                    scope.launch {
+                                                        delay(180)
+                                                        ageSectionBringIntoView.bringIntoView()
+                                                    }
+                                                }
+                                            }
+                                    )
+                                    OutlinedTextField(
+                                        value = ageMonthInput,
+                                        onValueChange = {
+                                            ageMonthInput = it.filter { ch -> ch.isDigit() }.take(2)
+                                            ageError = null
+                                        },
+                                        label = { Text("Tháng sinh") },
+                                        singleLine = true,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .onFocusChanged { focusState ->
+                                                if (focusState.isFocused) {
+                                                    scope.launch {
+                                                        delay(180)
+                                                        ageSectionBringIntoView.bringIntoView()
+                                                    }
+                                                }
+                                            }
+                                    )
+                                    OutlinedTextField(
+                                        value = ageYearInput,
+                                        onValueChange = {
+                                            ageYearInput = it.filter { ch -> ch.isDigit() }.take(4)
+                                            ageError = null
+                                        },
+                                        label = { Text("Năm sinh") },
+                                        singleLine = true,
+                                        modifier = Modifier
+                                            .weight(1.35f)
+                                            .onFocusChanged { focusState ->
+                                                if (focusState.isFocused) {
+                                                    scope.launch {
+                                                        delay(180)
+                                                        ageSectionBringIntoView.bringIntoView()
+                                                    }
+                                                }
+                                            }
+                                    )
+                                }
+
+                                if (ageError != null) {
+                                    Text(
+                                        ageError!!,
+                                        color = MaterialTheme.colorScheme.error,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        modifier = Modifier.padding(top = 6.dp)
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                Button(
+                                    onClick = {
+                                        val d = ageDayInput.toIntOrNull() ?: 0
+                                        val m = ageMonthInput.toIntOrNull() ?: 0
+                                        val y = ageYearInput.toIntOrNull() ?: 0
+                                        val currentYear = Calendar.getInstance(TimeZone.getTimeZone("Asia/Ho_Chi_Minh"))
+                                            .get(Calendar.YEAR)
+                                        if (y !in 1900..currentYear || m !in 1..12 || d !in 1..31) {
+                                            ageError = "Vui lòng nhập ngày (1–31), tháng (1–12), năm sinh (1900–$currentYear) hợp lệ."
+                                            return@Button
+                                        }
+                                        try {
+                                            performAgeCalculation(d, m, y)
+                                            ageError = null
+                                        } catch (_: IllegalArgumentException) {
+                                            ageError = "Ngày sinh không được lớn hơn ngày hiện tại."
+                                        } catch (_: Exception) {
+                                            ageError = "Ngày sinh không tồn tại trên lịch dương."
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Icon(Icons.Default.PersonSearch, contentDescription = null)
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Tính tuổi")
+                                }
+
+                                Spacer(modifier = Modifier.height(14.dp))
+
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            Icons.Default.History,
+                                            contentDescription = null,
+                                            tint = accentCompose,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            "Lịch sử tính tuổi (${ageHistory.size})",
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+
+                                    if (ageHistory.isNotEmpty()) {
+                                        OutlinedButton(
+                                            onClick = {
+                                                AppPrefs.clearAgeHistory(context)
+                                                ageHistory = emptyList()
+                                                showAgeHistoryClearedPopup = true
+                                            },
+                                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                                        ) {
+                                            Icon(
+                                                Icons.Default.DeleteSweep,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text("Xóa lịch sử", fontSize = 12.sp)
+                                        }
+                                    }
+                                }
+
+                                if (ageHistory.isEmpty()) {
+                                    Text(
+                                        "Chưa có lịch sử tính tuổi nào.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(top = 6.dp)
+                                    )
+                                } else {
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        ageHistory.forEach { item ->
+                                            val birthStr =
+                                                "${item.birthDay.toString().padStart(2, '0')}/${item.birthMonth.toString().padStart(2, '0')}/${item.birthYear}"
+                                            val liveCalc = remember(item) {
+                                                try {
+                                                    calculateAgeFromNow(item.birthDay, item.birthMonth, item.birthYear)
+                                                } catch (_: Exception) {
+                                                    null
+                                                }
+                                            }
+                                            val displayAge = liveCalc?.summary ?: item.ageSummary
+                                            Surface(
+                                                shape = RoundedCornerShape(12.dp),
+                                                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.65f),
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clip(RoundedCornerShape(12.dp))
+                                                    .clickable {
+                                                        ageDayInput = item.birthDay.toString()
+                                                        ageMonthInput = item.birthMonth.toString()
+                                                        ageYearInput = item.birthYear.toString()
+                                                        val curStr = liveCalc?.currentLabel ?: run {
+                                                            val c = Calendar.getInstance(TimeZone.getTimeZone("Asia/Ho_Chi_Minh"))
+                                                            "${c.get(Calendar.DAY_OF_MONTH).toString().padStart(2, '0')}/${(c.get(Calendar.MONTH) + 1).toString().padStart(2, '0')}/${c.get(Calendar.YEAR)}"
+                                                        }
+                                                        ageResultPopup = AgeResultPopupData(
+                                                            birthLabel = "Ngày sinh: $birthStr",
+                                                            currentLabel = "Tính đến ngày: $curStr",
+                                                            ageSummary = displayAge
+                                                        )
+                                                    }
+                                            ) {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
+                                                ) {
+                                                    Column(modifier = Modifier.weight(1f)) {
+                                                        Text(
+                                                            "🎂 Sinh: $birthStr",
+                                                            fontWeight = FontWeight.SemiBold,
+                                                            style = MaterialTheme.typography.bodyMedium
+                                                        )
+                                                        Text(
+                                                            displayAge,
+                                                            color = accentCompose,
+                                                            style = MaterialTheme.typography.bodySmall,
+                                                            modifier = Modifier.padding(top = 2.dp)
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // 4. Đồng hồ, Hiệu ứng thời tiết & Nền Widget
                     item {
                         SectionCard(title = "Đồng hồ, Giao diện & Nền Widget") {
                             Row(
@@ -842,7 +1157,7 @@ fun ThoiTietAmLichApp() {
                         }
                     }
 
-                    // 4. Màu chủ đề
+                    // 5. Màu chủ đề
                     item {
                         SectionCard(title = "Màu chủ đề (Áp dụng App & Widget)") {
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -878,7 +1193,7 @@ fun ThoiTietAmLichApp() {
                         }
                     }
 
-                    // 5. Vị trí thời tiết (Tự động GPS hoặc Nhập tên tìm kiếm thủ công)
+                    // 6. Vị trí thời tiết (Tự động GPS hoặc Nhập tên tìm kiếm thủ công)
                     item {
                         SectionCard(title = "Vị trí cập nhật thời tiết") {
                             Row(
@@ -996,7 +1311,7 @@ fun ThoiTietAmLichApp() {
                         }
                     }
 
-                    // 6. Chữ ký cá nhân & bật/tắt
+                    // 7. Chữ ký cá nhân & bật/tắt
                     item {
                         SectionCard(title = "Chữ ký trên Widget") {
                             Row(
@@ -1039,7 +1354,7 @@ fun ThoiTietAmLichApp() {
                         }
                     }
 
-                    // 7. Thanh trượt kích cỡ chữ (1 đến 20)
+                    // 8. Thanh trượt kích cỡ chữ (1 đến 20)
                     item {
                         SectionCard(title = "Kích cỡ chữ trên Widget (Mức 1 – 20)") {
                             ScaleSliderRow(
@@ -1081,7 +1396,7 @@ fun ThoiTietAmLichApp() {
                         }
                     }
 
-                    // 8. Danh sách ngày sinh nhật (tối đa 10)
+                    // 9. Danh sách ngày sinh nhật (tối đa 10)
                     item {
                         Column(
                             modifier = Modifier
@@ -1235,7 +1550,7 @@ fun ThoiTietAmLichApp() {
                         }
                     }
 
-                    // 9. Chân trang ở cuối ứng dụng
+                    // 10. Chân trang ở cuối ứng dụng
                     item {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
@@ -1250,6 +1565,246 @@ fun ThoiTietAmLichApp() {
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = TextAlign.Center
                             )
+                        }
+                    }
+                }
+            }
+
+            // Pop-up hiển thị kết quả tính tuổi (số tuổi kèm số tháng)
+            AnimatedVisibility(
+                visible = ageResultPopup != null,
+                enter = fadeIn() + scaleIn(initialScale = 0.92f),
+                exit = fadeOut() + scaleOut(targetScale = 0.92f),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                val ageData = ageResultPopup
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.58f))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { ageResultPopup = null }
+                        .padding(horizontal = 24.dp)
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(28.dp),
+                        tonalElevation = 8.dp,
+                        shadowElevation = 16.dp,
+                        color = MaterialTheme.colorScheme.surface,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) {}
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(22.dp)
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.End,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                IconButton(
+                                    onClick = { ageResultPopup = null },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Close,
+                                        contentDescription = "Đóng",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(64.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        Brush.linearGradient(
+                                            listOf(
+                                                accentCompose.copy(alpha = 0.25f),
+                                                accentCompose.copy(alpha = 0.12f)
+                                            )
+                                        )
+                                    )
+                                    .border(1.5.dp, accentCompose.copy(alpha = 0.55f), CircleShape)
+                            ) {
+                                Icon(
+                                    Icons.Default.PersonSearch,
+                                    contentDescription = null,
+                                    tint = accentCompose,
+                                    modifier = Modifier.size(32.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            Text(
+                                "Kết quả tính tuổi",
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            if (ageData != null) {
+                                Surface(
+                                    shape = RoundedCornerShape(999.dp),
+                                    color = accentCompose.copy(alpha = 0.16f)
+                                ) {
+                                    Text(
+                                        ageData.birthLabel,
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = accentCompose,
+                                        fontWeight = FontWeight.SemiBold,
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(6.dp))
+
+                                Text(
+                                    ageData.currentLabel,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+
+                                Spacer(modifier = Modifier.height(14.dp))
+
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        ageData.ageSummary,
+                                        style = MaterialTheme.typography.headlineSmall,
+                                        color = accentCompose,
+                                        fontWeight = FontWeight.Bold,
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp)
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(18.dp))
+
+                            Button(
+                                onClick = { ageResultPopup = null },
+                                shape = RoundedCornerShape(16.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = accentCompose),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp)
+                            ) {
+                                Text(
+                                    "Đóng",
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Pop-up hiển thị sau khi xóa lịch sử tính tuổi
+            AnimatedVisibility(
+                visible = showAgeHistoryClearedPopup,
+                enter = fadeIn() + scaleIn(initialScale = 0.92f),
+                exit = fadeOut() + scaleOut(targetScale = 0.92f),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.58f))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { showAgeHistoryClearedPopup = false }
+                        .padding(horizontal = 24.dp)
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(28.dp),
+                        tonalElevation = 8.dp,
+                        shadowElevation = 16.dp,
+                        color = MaterialTheme.colorScheme.surface,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) {}
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(22.dp)
+                        ) {
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(64.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        Brush.linearGradient(
+                                            listOf(
+                                                accentCompose.copy(alpha = 0.25f),
+                                                accentCompose.copy(alpha = 0.12f)
+                                            )
+                                        )
+                                    )
+                                    .border(1.5.dp, accentCompose.copy(alpha = 0.55f), CircleShape)
+                            ) {
+                                Icon(
+                                    Icons.Default.CheckCircleOutline,
+                                    contentDescription = null,
+                                    tint = accentCompose,
+                                    modifier = Modifier.size(32.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            Text(
+                                "Đã xóa lịch sử tính tuổi",
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Text(
+                                "Toàn bộ lịch sử tính tuổi đã được xóa thành công.",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center
+                            )
+
+                            Spacer(modifier = Modifier.height(18.dp))
+
+                            Button(
+                                onClick = { showAgeHistoryClearedPopup = false },
+                                shape = RoundedCornerShape(16.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = accentCompose),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp)
+                            ) {
+                                Text(
+                                    "Ok",
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
                     }
                 }
