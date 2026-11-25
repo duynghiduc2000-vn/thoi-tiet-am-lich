@@ -100,6 +100,8 @@ import java.util.UUID
 import kotlin.math.floor
 import kotlin.math.roundToInt
 
+private const val APP_VERSION_NAME = "31.12-HPBD"
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -255,7 +257,6 @@ private fun convertSolarToLunarSummary(day: Int, month: Int, year: Int): String 
         set(Calendar.MONTH, month - 1)
         set(Calendar.DAY_OF_MONTH, day)
     }
-    // Xác thực ngày hợp lệ theo lịch dương
     cal.timeInMillis
 
     val timeZoneOffset = 7.0
@@ -290,9 +291,6 @@ private fun convertSolarToLunarSummary(day: Int, month: Int, year: Int): String 
     }
     if (lunarMonth > 12) {
         lunarMonth -= 12
-    }
-    if (lunarMonth >= 11 && diff < 4) {
-        // Giữ năm âm lịch khớp với tháng 11/12 cuối năm
     }
 
     val leapText = if (lunarLeap) " (nhuận)" else ""
@@ -1246,7 +1244,7 @@ fun ThoiTietAmLichApp() {
                                 .padding(top = 6.dp, bottom = 8.dp)
                         ) {
                             Text(
-                                "Được tạo bởi Mr.WInd - Xiaomi Community Việt Nam\nỦng hộ anh ấy một cuốn triện gei qua MOMO: 0923032127",
+                                "Phiên bản $APP_VERSION_NAME\nĐược tạo bởi Mr.WInd - Xiaomi Community Việt Nam\nỦng hộ anh ấy một cuốn triện gei qua MOMO: 0923032127",
                                 fontSize = 11.sp,
                                 lineHeight = 16.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
