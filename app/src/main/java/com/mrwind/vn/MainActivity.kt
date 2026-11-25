@@ -1,6 +1,7 @@
 package com.mrwind.vn
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -41,10 +42,13 @@ import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AddTask
 import androidx.compose.material.icons.filled.AddToHomeScreen
+import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.BatteryAlert
 import androidx.compose.material.icons.filled.Cake
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CheckCircleOutline
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
@@ -90,6 +94,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -110,9 +115,21 @@ class MainActivity : ComponentActivity() {
         WeatherService.scheduleTwoHourlySync(this)
         BirthdayHelper.notifyTodayBirthdaysOncePerDay(this)
         WeatherLunarWidget.updateAllWidgets(this)
+        val initialTasks = TodoHelper.ensureCurrentDayOrReset(this)
+        TodoHelper.scheduleAllTodayAlarms(this, initialTasks)
+        intent?.getStringExtra(TodoHelper.EXTRA_TASK_ID)?.let { taskId ->
+            TodoHelper.setPendingPopupTaskId(this, taskId)
+        }
 
         setContent {
             ThoiTietAmLichApp()
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        intent.getStringExtra(TodoHelper.EXTRA_TASK_ID)?.let { taskId ->
+            TodoHelper.setPendingPopupTaskId(this, taskId)
         }
     }
 }
@@ -398,7 +415,6 @@ fun ThoiTietAmLichApp() {
     var lunarResultPopup by remember { mutableStateOf<LunarResultPopupData?>(null) }
     var showHistoryClearedPopup by remember { mutableStateOf(false) }
 
-    // Tính tuổi + lịch sử tính tuổi + pop-up kết quả & pop-up sau khi xóa lịch sử tính tuổi
     var ageDayInput by remember { mutableStateOf("1") }
     var ageMonthInput by remember { mutableStateOf("1") }
     var ageYearInput by remember { mutableStateOf("2000") }
@@ -406,6 +422,16 @@ fun ThoiTietAmLichApp() {
     var ageHistory by remember { mutableStateOf(AppPrefs.getAgeHistory(context)) }
     var ageResultPopup by remember { mutableStateOf<AgeResultPopupData?>(null) }
     var showAgeHistoryClearedPopup by remember { mutableStateOf(false) }
+
+    // Việc cần làm hôm nay (tối đa 10 việc/ngày, tự xóa 00:00 ngày hôm sau)
+    var todoTasks by remember { mutableStateOf(TodoHelper.ensureCurrentDayOrReset(context)) }
+    var todoHourInput by remember { mutableStateOf(nowCal.get(Calendar.HOUR_OF_DAY).toString()) }
+    var todoMinuteInput by remember {
+        mutableStateOf(((nowCal.get(Calendar.MINUTE) + 1) % 60).toString())
+    }
+    var todoTitleInput by remember { mutableStateOf("") }
+    var todoError by remember { mutableStateOf<String?>(null) }
+    var activeTodoPopup by remember { mutableStateOf<TodoTaskItem?>(null) }
 
     var birthdays by remember { mutableStateOf(AppPrefs.getBirthdays(context)) }
     var bdayNameInput by remember { mutableStateOf("") }
@@ -415,6 +441,7 @@ fun ThoiTietAmLichApp() {
 
     val lookupSectionBringIntoView = remember { BringIntoViewRequester() }
     val ageSectionBringIntoView = remember { BringIntoViewRequester() }
+    val todoSectionBringIntoView = remember { BringIntoViewRequester() }
     val bdaySectionBringIntoView = remember { BringIntoViewRequester() }
 
     val todayBirthdays = remember(birthdays) { BirthdayHelper.getTodayBirthdays(context) }
@@ -431,7 +458,37 @@ fun ThoiTietAmLichApp() {
         }
     }
 
+    fun refreshTodosAndCheckDueTasks() {
+        val currentList = TodoHelper.ensureCurrentDayOrReset(context)
+        val c = Calendar.getInstance(TimeZone.getTimeZone("Asia/Ho_Chi_Minh"))
+        val curH = c.get(Calendar.HOUR_OF_DAY)
+        val curM = c.get(Calendar.MINUTE)
+
+        val pendingId = TodoHelper.getPendingPopupTaskId(context)
+        val fromReceiver = pendingId?.let { id -> currentList.find { it.id == id } }
+        val dueNow = currentList.firstOrNull { task ->
+            !task.triggeredToday && !task.isDone &&
+                (task.hour < curH || (task.hour == curH && task.minute <= curM))
+        }
+
+        val popupTarget = fromReceiver ?: dueNow
+        if (popupTarget != null && activeTodoPopup?.id != popupTarget.id) {
+            val marked = currentList.map {
+                if (it.id == popupTarget.id) it.copy(triggeredToday = true) else it
+            }
+            TodoHelper.saveTasks(context, marked)
+            TodoHelper.setPendingPopupTaskId(context, null)
+            todoTasks = marked
+            activeTodoPopup = popupTarget.copy(triggeredToday = true)
+        } else {
+            todoTasks = currentList
+        }
+    }
+
     LaunchedEffect(Unit) {
+        TodoHelper.ensureChannel(context)
+        refreshTodosAndCheckDueTasks()
+
         if (BirthdayHelper.shouldShowAppPopupToday(context)) {
             showBirthdayPopup = true
             BirthdayHelper.markAppPopupShownToday(context)
@@ -451,6 +508,11 @@ fun ThoiTietAmLichApp() {
             isSyncing = true
             weather = WeatherService.syncWeather(context)
             isSyncing = false
+        }
+
+        while (true) {
+            delay(15_000L)
+            refreshTodosAndCheckDueTasks()
         }
     }
 
@@ -619,7 +681,200 @@ fun ThoiTietAmLichApp() {
                         }
                     }
 
-                    // 2. Tra cứu lịch âm theo ngày dương lịch + lịch sử tìm kiếm
+                    // 2. Việc cần làm trong ngày (tối đa 10 việc, tự xóa 00:00 ngày hôm sau)
+                    item {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .bringIntoViewRequester(todoSectionBringIntoView)
+                        ) {
+                            SectionCard(title = "Việc cần làm hôm nay (${todoTasks.size}/${TodoHelper.MAX_TASKS_PER_DAY})") {
+                                Text(
+                                    "Tối đa 10 việc/ngày. Đúng giờ đặt sẽ hiện pop-up; tự động xóa hết lúc 00:00 ngày hôm sau.",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    OutlinedTextField(
+                                        value = todoHourInput,
+                                        onValueChange = {
+                                            todoHourInput = it.filter { ch -> ch.isDigit() }.take(2)
+                                            todoError = null
+                                        },
+                                        label = { Text("Giờ (0-23)") },
+                                        singleLine = true,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .onFocusChanged { focusState ->
+                                                if (focusState.isFocused) {
+                                                    scope.launch {
+                                                        delay(180)
+                                                        todoSectionBringIntoView.bringIntoView()
+                                                    }
+                                                }
+                                            }
+                                    )
+                                    OutlinedTextField(
+                                        value = todoMinuteInput,
+                                        onValueChange = {
+                                            todoMinuteInput = it.filter { ch -> ch.isDigit() }.take(2)
+                                            todoError = null
+                                        },
+                                        label = { Text("Phút (0-59)") },
+                                        singleLine = true,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .onFocusChanged { focusState ->
+                                                if (focusState.isFocused) {
+                                                    scope.launch {
+                                                        delay(180)
+                                                        todoSectionBringIntoView.bringIntoView()
+                                                    }
+                                                }
+                                            }
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                OutlinedTextField(
+                                    value = todoTitleInput,
+                                    onValueChange = {
+                                        todoTitleInput = it
+                                        todoError = null
+                                    },
+                                    label = { Text("Nội dung việc cần làm") },
+                                    singleLine = true,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .onFocusChanged { focusState ->
+                                            if (focusState.isFocused) {
+                                                scope.launch {
+                                                    delay(180)
+                                                    todoSectionBringIntoView.bringIntoView()
+                                                }
+                                            }
+                                        }
+                                )
+
+                                if (todoError != null) {
+                                    Text(
+                                        todoError!!,
+                                        color = MaterialTheme.colorScheme.error,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        modifier = Modifier.padding(top = 6.dp)
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                Button(
+                                    onClick = {
+                                        val currentList = TodoHelper.ensureCurrentDayOrReset(context)
+                                        if (currentList.size >= TodoHelper.MAX_TASKS_PER_DAY) {
+                                            todoError = "Mỗi ngày chỉ được thêm tối đa ${TodoHelper.MAX_TASKS_PER_DAY} việc cần làm."
+                                            return@Button
+                                        }
+                                        val h = todoHourInput.toIntOrNull() ?: -1
+                                        val m = todoMinuteInput.toIntOrNull() ?: -1
+                                        val titleTrim = todoTitleInput.trim()
+                                        if (h !in 0..23 || m !in 0..59) {
+                                            todoError = "Vui lòng nhập giờ từ 0–23 và phút từ 0–59."
+                                            return@Button
+                                        }
+                                        if (titleTrim.isEmpty()) {
+                                            todoError = "Vui lòng nhập nội dung việc cần làm."
+                                            return@Button
+                                        }
+                                        val newTask = TodoTaskItem(
+                                            id = UUID.randomUUID().toString(),
+                                            hour = h,
+                                            minute = m,
+                                            title = titleTrim
+                                        )
+                                        val updated = (currentList + newTask).sortedWith(
+                                            compareBy({ it.hour }, { it.minute })
+                                        )
+                                        TodoHelper.saveTasks(context, updated)
+                                        TodoHelper.scheduleAllTodayAlarms(context, updated)
+                                        todoTasks = updated
+                                        todoTitleInput = ""
+                                        todoError = null
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Icon(Icons.Default.AddTask, contentDescription = null)
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Thêm việc cần làm")
+                                }
+
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                if (todoTasks.isEmpty()) {
+                                    Text(
+                                        "Hôm nay chưa có việc cần làm nào.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                } else {
+                                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        todoTasks.forEach { task ->
+                                            Surface(
+                                                shape = RoundedCornerShape(12.dp),
+                                                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.65f),
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                                                ) {
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        modifier = Modifier.weight(1f)
+                                                    ) {
+                                                        Text(
+                                                            task.timeFormatted,
+                                                            color = accentCompose,
+                                                            fontWeight = FontWeight.Bold,
+                                                            style = MaterialTheme.typography.bodyMedium
+                                                        )
+                                                        Spacer(modifier = Modifier.width(8.dp))
+                                                        Text(
+                                                            task.title,
+                                                            textDecoration = if (task.isDone) TextDecoration.LineThrough else TextDecoration.None,
+                                                            color = if (task.isDone) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+                                                            style = MaterialTheme.typography.bodyMedium
+                                                        )
+                                                    }
+                                                    IconButton(
+                                                        onClick = {
+                                                            val updated = todoTasks.filterNot { it.id == task.id }
+                                                            TodoHelper.saveTasks(context, updated)
+                                                            TodoHelper.scheduleAllTodayAlarms(context, updated)
+                                                            todoTasks = updated
+                                                        }
+                                                    ) {
+                                                        Icon(
+                                                            Icons.Default.Delete,
+                                                            contentDescription = "Xóa việc cần làm",
+                                                            tint = MaterialTheme.colorScheme.error
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // 3. Tra cứu lịch âm theo ngày dương lịch + lịch sử tìm kiếm
                     item {
                         Column(
                             modifier = Modifier
@@ -838,7 +1093,7 @@ fun ThoiTietAmLichApp() {
                         }
                     }
 
-                    // 3. Tính tuổi theo ngày tháng năm hiện tại trừ ngày sinh + lịch sử + xóa lịch sử
+                    // 4. Tính tuổi theo ngày tháng năm hiện tại trừ ngày sinh + lịch sử + xóa lịch sử
                     item {
                         Column(
                             modifier = Modifier
@@ -1063,7 +1318,7 @@ fun ThoiTietAmLichApp() {
                         }
                     }
 
-                    // 4. Đồng hồ, Hiệu ứng thời tiết & Nền Widget
+                    // 5. Đồng hồ, Hiệu ứng thời tiết & Nền Widget
                     item {
                         SectionCard(title = "Đồng hồ, Giao diện & Nền Widget") {
                             Row(
@@ -1157,7 +1412,7 @@ fun ThoiTietAmLichApp() {
                         }
                     }
 
-                    // 5. Màu chủ đề
+                    // 6. Màu chủ đề
                     item {
                         SectionCard(title = "Màu chủ đề (Áp dụng App & Widget)") {
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -1193,7 +1448,7 @@ fun ThoiTietAmLichApp() {
                         }
                     }
 
-                    // 6. Vị trí thời tiết (Tự động GPS hoặc Nhập tên tìm kiếm thủ công)
+                    // 7. Vị trí thời tiết (Tự động GPS hoặc Nhập tên tìm kiếm thủ công)
                     item {
                         SectionCard(title = "Vị trí cập nhật thời tiết") {
                             Row(
@@ -1311,7 +1566,7 @@ fun ThoiTietAmLichApp() {
                         }
                     }
 
-                    // 7. Chữ ký cá nhân & bật/tắt
+                    // 8. Chữ ký cá nhân & bật/tắt
                     item {
                         SectionCard(title = "Chữ ký trên Widget") {
                             Row(
@@ -1354,7 +1609,7 @@ fun ThoiTietAmLichApp() {
                         }
                     }
 
-                    // 8. Thanh trượt kích cỡ chữ (1 đến 20)
+                    // 9. Thanh trượt kích cỡ chữ (1 đến 20)
                     item {
                         SectionCard(title = "Kích cỡ chữ trên Widget (Mức 1 – 20)") {
                             ScaleSliderRow(
@@ -1396,7 +1651,7 @@ fun ThoiTietAmLichApp() {
                         }
                     }
 
-                    // 9. Danh sách ngày sinh nhật (tối đa 10)
+                    // 10. Danh sách ngày sinh nhật (tối đa 10)
                     item {
                         Column(
                             modifier = Modifier
@@ -1550,7 +1805,7 @@ fun ThoiTietAmLichApp() {
                         }
                     }
 
-                    // 10. Chân trang ở cuối ứng dụng
+                    // 11. Chân trang ở cuối ứng dụng
                     item {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
@@ -1565,6 +1820,158 @@ fun ThoiTietAmLichApp() {
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = TextAlign.Center
                             )
+                        }
+                    }
+                }
+            }
+
+            // Pop-up nhắc việc cần làm ngay khi tới giờ (2 nút: Ok, làm ngay đây / Tạm bỏ qua)
+            AnimatedVisibility(
+                visible = activeTodoPopup != null,
+                enter = fadeIn() + scaleIn(initialScale = 0.92f),
+                exit = fadeOut() + scaleOut(targetScale = 0.92f),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                val todoData = activeTodoPopup
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.62f))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {}
+                        .padding(horizontal = 24.dp)
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(28.dp),
+                        tonalElevation = 8.dp,
+                        shadowElevation = 16.dp,
+                        color = MaterialTheme.colorScheme.surface,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) {}
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(22.dp)
+                        ) {
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(64.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        Brush.linearGradient(
+                                            listOf(
+                                                accentCompose.copy(alpha = 0.25f),
+                                                accentCompose.copy(alpha = 0.12f)
+                                            )
+                                        )
+                                    )
+                                    .border(1.5.dp, accentCompose.copy(alpha = 0.55f), CircleShape)
+                            ) {
+                                Icon(
+                                    Icons.Default.Alarm,
+                                    contentDescription = null,
+                                    tint = accentCompose,
+                                    modifier = Modifier.size(32.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            Text(
+                                "Đến giờ làm việc!",
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center
+                            )
+
+                            if (todoData != null) {
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                Surface(
+                                    shape = RoundedCornerShape(999.dp),
+                                    color = accentCompose.copy(alpha = 0.16f)
+                                ) {
+                                    Text(
+                                        "Giờ đặt: ${todoData.timeFormatted}",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = accentCompose,
+                                        fontWeight = FontWeight.SemiBold,
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(14.dp))
+
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        todoData.title,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp)
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(20.dp))
+
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            todoTasks = TodoHelper.markTaskSkipped(context, todoData.id)
+                                            activeTodoPopup = null
+                                        },
+                                        shape = RoundedCornerShape(16.dp),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(48.dp)
+                                    ) {
+                                        Text(
+                                            "Tạm bỏ qua",
+                                            fontWeight = FontWeight.SemiBold,
+                                            maxLines = 1
+                                        )
+                                    }
+
+                                    Button(
+                                        onClick = {
+                                            todoTasks = TodoHelper.markTaskDone(context, todoData.id)
+                                            activeTodoPopup = null
+                                        },
+                                        shape = RoundedCornerShape(16.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = accentCompose),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(48.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.CheckCircle,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            "Ok, làm ngay đây",
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }
