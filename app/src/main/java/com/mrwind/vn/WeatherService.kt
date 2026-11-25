@@ -30,6 +30,15 @@ import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
 import kotlin.math.roundToInt
 
+data class DailyForecastItem(
+    val dayLabel: String,
+    val dateLabel: String,
+    val weatherCode: Int,
+    val maxTemp: String,
+    val minTemp: String,
+    val description: String
+)
+
 object WeatherService {
 
     data class SearchLocationResult(
@@ -121,6 +130,79 @@ object WeatherService {
             currentCache
         }
     }
+
+    suspend fun fetchFiveDayForecast(context: Context): List<DailyForecastItem> =
+        withContext(Dispatchers.IO) {
+            val cached = AppPrefs.getWeather(context)
+            val lat = cached.latitude
+            val lon = cached.longitude
+            try {
+                val urlStr =
+                    "https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon" +
+                        "&daily=weather_code,temperature_2m_max,temperature_2m_min" +
+                        "&timezone=Asia%2FBangkok&forecast_days=5"
+                val conn = (URL(urlStr).openConnection() as HttpURLConnection).apply {
+                    requestMethod = "GET"
+                    connectTimeout = 10000
+                    readTimeout = 10000
+                }
+                if (conn.responseCode != HttpURLConnection.HTTP_OK) {
+                    conn.disconnect()
+                    return@withContext emptyList()
+                }
+                val body = conn.inputStream.bufferedReader().use { it.readText() }
+                conn.disconnect()
+
+                val root = JSONObject(body)
+                val daily = root.optJSONObject("daily") ?: return@withContext emptyList()
+                val times = daily.optJSONArray("time") ?: return@withContext emptyList()
+                val codes = daily.optJSONArray("weather_code")
+                val maxArr = daily.optJSONArray("temperature_2m_max")
+                val minArr = daily.optJSONArray("temperature_2m_min")
+
+                val vnTz = TimeZone.getTimeZone("Asia/Ho_Chi_Minh")
+                val parser = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply {
+                    timeZone = vnTz
+                }
+                val dayFmt = SimpleDateFormat("EEE", Locale("vi", "VN")).apply {
+                    timeZone = vnTz
+                }
+                val dateFmt = SimpleDateFormat("dd/MM", Locale.US).apply {
+                    timeZone = vnTz
+                }
+
+                val out = mutableListOf<DailyForecastItem>()
+                for (i in 0 until times.length()) {
+                    val dateStr = times.optString(i, "")
+                    if (dateStr.isEmpty()) continue
+                    val dateObj = parser.parse(dateStr)
+                    val code = codes?.optInt(i, 0) ?: 0
+                    val maxVal = maxArr?.optDouble(i, Double.NaN) ?: Double.NaN
+                    val minVal = minArr?.optDouble(i, Double.NaN) ?: Double.NaN
+                    val maxStr = if (maxVal.isNaN()) "--°" else "${maxVal.roundToInt()}°"
+                    val minStr = if (minVal.isNaN()) "--°" else "${minVal.roundToInt()}°"
+                    val dayLbl = if (i == 0) {
+                        "Hôm nay"
+                    } else {
+                        dateObj?.let { dayFmt.format(it) } ?: "Ngày ${i + 1}"
+                    }
+                    val dateLbl = dateObj?.let { dateFmt.format(it) } ?: dateStr
+                    out.add(
+                        DailyForecastItem(
+                            dayLabel = dayLbl,
+                            dateLabel = dateLbl,
+                            weatherCode = code,
+                            maxTemp = maxStr,
+                            minTemp = minStr,
+                            description = describeWeatherCode(code)
+                        )
+                    )
+                }
+                out
+            } catch (_: Exception) {
+                emptyList()
+            }
+        }
 
     @SuppressLint("MissingPermission")
     private suspend fun getBestDeviceLocation(context: Context): Location? {
