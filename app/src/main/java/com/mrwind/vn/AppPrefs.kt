@@ -64,6 +64,14 @@ object AppPrefs {
         prefs(context).edit().putBoolean("show_seconds", show).apply()
     }
 
+    // Hiển thị chữ ký trên Widget
+    fun isShowSignature(context: Context): Boolean =
+        prefs(context).getBoolean("show_signature", true)
+
+    fun setShowSignature(context: Context, show: Boolean) {
+        prefs(context).edit().putBoolean("show_signature", show).apply()
+    }
+
     // Chữ ký cá nhân
     fun getSignature(context: Context): String =
         prefs(context).getString("signature", "Gió Độc") ?: "Gió Độc"
