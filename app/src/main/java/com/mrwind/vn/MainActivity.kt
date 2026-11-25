@@ -113,6 +113,7 @@ fun ThoiTietAmLichApp() {
     var widgetBgMode by remember { mutableIntStateOf(AppPrefs.getWidgetBgMode(context)) }
     var accentColorInt by remember { mutableIntStateOf(AppPrefs.getAccentColor(context)) }
     var showSeconds by remember { mutableStateOf(AppPrefs.isShowSeconds(context)) }
+    var showSignature by remember { mutableStateOf(AppPrefs.isShowSignature(context)) }
     var signature by remember { mutableStateOf(AppPrefs.getSignature(context)) }
 
     var clockScale by remember { mutableIntStateOf(AppPrefs.getClockScale(context)) }
@@ -528,20 +529,46 @@ fun ThoiTietAmLichApp() {
                     }
                 }
 
-                // 5. Chữ ký cá nhân
+                // 5. Chữ ký cá nhân & bật/tắt
                 item {
                     SectionCard(title = "Chữ ký trên Widget") {
-                        OutlinedTextField(
-                            value = signature,
-                            onValueChange = { newText ->
-                                signature = newText
-                                AppPrefs.setSignature(context, newText)
-                                WeatherLunarWidget.updateAllWidgets(context)
-                            },
-                            label = { Text("Nhập chữ ký (có dấu tiếng Việt)") },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = if (showSignature) 10.dp else 0.dp)
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Hiển thị chữ ký", fontWeight = FontWeight.Medium)
+                                Text(
+                                    "Tắt nếu không muốn hiện chữ ký dưới Widget",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                            Switch(
+                                checked = showSignature,
+                                onCheckedChange = { checked ->
+                                    showSignature = checked
+                                    AppPrefs.setShowSignature(context, checked)
+                                    WeatherLunarWidget.updateAllWidgets(context)
+                                }
+                            )
+                        }
+
+                        if (showSignature) {
+                            OutlinedTextField(
+                                value = signature,
+                                onValueChange = { newText ->
+                                    signature = newText
+                                    AppPrefs.setSignature(context, newText)
+                                    WeatherLunarWidget.updateAllWidgets(context)
+                                },
+                                label = { Text("Nhập chữ ký (có dấu tiếng Việt)") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
                     }
                 }
 
