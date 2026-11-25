@@ -85,6 +85,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -779,6 +780,24 @@ fun ThoiTietAmLichApp() {
                                     }
                                 }
                             }
+                        }
+                    }
+
+                    // 8. Chân trang ở cuối ứng dụng
+                    item {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 6.dp, bottom = 8.dp)
+                        ) {
+                            Text(
+                                "Được tạo bởi Mr.WInd - Xiaomi Community Việt Nam\Ủng hộ anh ấy một cuốn triện gei qua MOMO: 0923032127",
+                                fontSize = 11.sp,
+                                lineHeight = 16.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center
+                            )
                         }
                     }
                 }
