@@ -178,6 +178,18 @@ private data class AgeCalculationResult(
         get() = "$years tuổi $months tháng"
 }
 
+private fun forecastEmojiForCode(code: Int): String = when (code) {
+    0 -> "☀️"
+    1, 2 -> "⛅"
+    3 -> "☁️"
+    45, 48 -> "🌫️"
+    51, 53, 55, 56, 57 -> "🌦️"
+    61, 63, 65, 66, 67, 80, 81, 82 -> "🌧️"
+    71, 73, 75, 77, 85, 86 -> "❄️"
+    95, 96, 99 -> "⛈️"
+    else -> "🌤️"
+}
+
 private fun calculateAgeFromNow(birthDay: Int, birthMonth: Int, birthYear: Int): AgeCalculationResult {
     val tz = TimeZone.getTimeZone("Asia/Ho_Chi_Minh")
     val birthCal = Calendar.getInstance(tz).apply {
@@ -400,6 +412,7 @@ fun ThoiTietAmLichApp() {
 
     var autoLocation by remember { mutableStateOf(AppPrefs.isAutoLocation(context)) }
     var weather by remember { mutableStateOf(AppPrefs.getWeather(context)) }
+    var fiveDayForecast by remember { mutableStateOf<List<DailyForecastItem>>(emptyList()) }
     var isSyncing by remember { mutableStateOf(false) }
 
     var locationQuery by remember { mutableStateOf("") }
@@ -423,7 +436,6 @@ fun ThoiTietAmLichApp() {
     var ageResultPopup by remember { mutableStateOf<AgeResultPopupData?>(null) }
     var showAgeHistoryClearedPopup by remember { mutableStateOf(false) }
 
-    // Việc cần làm hôm nay (tối đa 10 việc/ngày, tự xóa 00:00 ngày hôm sau)
     var todoTasks by remember { mutableStateOf(TodoHelper.ensureCurrentDayOrReset(context)) }
     var todoHourInput by remember { mutableStateOf(nowCal.get(Calendar.HOUR_OF_DAY).toString()) }
     var todoMinuteInput by remember {
@@ -448,13 +460,18 @@ fun ThoiTietAmLichApp() {
     val showAdminBirthdayToday = remember { BirthdayHelper.isAdminBirthdayToday() }
     var showBirthdayPopup by remember { mutableStateOf(false) }
 
+    suspend fun syncWeatherAndForecast() {
+        isSyncing = true
+        weather = WeatherService.syncWeather(context)
+        fiveDayForecast = WeatherService.fetchFiveDayForecast(context)
+        isSyncing = false
+    }
+
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { _ ->
         scope.launch {
-            isSyncing = true
-            weather = WeatherService.syncWeather(context)
-            isSyncing = false
+            syncWeatherAndForecast()
         }
     }
 
@@ -488,6 +505,7 @@ fun ThoiTietAmLichApp() {
     LaunchedEffect(Unit) {
         TodoHelper.ensureChannel(context)
         refreshTodosAndCheckDueTasks()
+        fiveDayForecast = WeatherService.fetchFiveDayForecast(context)
 
         if (BirthdayHelper.shouldShowAppPopupToday(context)) {
             showBirthdayPopup = true
@@ -505,9 +523,7 @@ fun ThoiTietAmLichApp() {
         if (neededPerms.isNotEmpty()) {
             permissionLauncher.launch(neededPerms.toTypedArray())
         } else {
-            isSyncing = true
-            weather = WeatherService.syncWeather(context)
-            isSyncing = false
+            syncWeatherAndForecast()
         }
 
         while (true) {
@@ -590,9 +606,7 @@ fun ThoiTietAmLichApp() {
                             IconButton(
                                 onClick = {
                                     scope.launch {
-                                        isSyncing = true
-                                        weather = WeatherService.syncWeather(context)
-                                        isSyncing = false
+                                        syncWeatherAndForecast()
                                     }
                                 }
                             ) {
@@ -610,7 +624,7 @@ fun ThoiTietAmLichApp() {
                     contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 120.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    // 1. Thẻ tổng quan Lịch Âm - Dương, Thời tiết & Ghim Widget
+                    // 1. Thẻ tổng quan trên đầu app: Lịch Âm - Dương, Thời tiết hiện tại, Dự báo 5 ngày tới & Ghim Widget
                     item {
                         Card(
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
@@ -649,9 +663,7 @@ fun ThoiTietAmLichApp() {
                                     Button(
                                         onClick = {
                                             scope.launch {
-                                                isSyncing = true
-                                                weather = WeatherService.syncWeather(context)
-                                                isSyncing = false
+                                                syncWeatherAndForecast()
                                             }
                                         },
                                         enabled = !isSyncing
@@ -659,6 +671,68 @@ fun ThoiTietAmLichApp() {
                                         Text(if (isSyncing) "Đang tải..." else "Cập nhật")
                                     }
                                 }
+
+                                if (fiveDayForecast.isNotEmpty()) {
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Text(
+                                        "Dự báo 5 ngày tới",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = accentCompose
+                                    )
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    LazyRow(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        items(fiveDayForecast) { dayItem ->
+                                            Surface(
+                                                shape = RoundedCornerShape(14.dp),
+                                                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.72f),
+                                                modifier = Modifier.width(104.dp)
+                                            ) {
+                                                Column(
+                                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 10.dp)
+                                                ) {
+                                                    Text(
+                                                        dayItem.dayLabel,
+                                                        style = MaterialTheme.typography.labelLarge,
+                                                        fontWeight = FontWeight.Bold,
+                                                        maxLines = 1
+                                                    )
+                                                    Text(
+                                                        dayItem.dateLabel,
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        maxLines = 1
+                                                    )
+                                                    Text(
+                                                        forecastEmojiForCode(dayItem.weatherCode),
+                                                        fontSize = 22.sp,
+                                                        modifier = Modifier.padding(vertical = 4.dp)
+                                                    )
+                                                    Text(
+                                                        "▲ ${dayItem.maxTemp} ▼ ${dayItem.minTemp}",
+                                                        style = MaterialTheme.typography.labelMedium,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        color = accentCompose,
+                                                        maxLines = 1
+                                                    )
+                                                    Text(
+                                                        dayItem.description,
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        textAlign = TextAlign.Center,
+                                                        maxLines = 1,
+                                                        modifier = Modifier.padding(top = 2.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
                                 Spacer(modifier = Modifier.height(12.dp))
                                 OutlinedButton(
                                     onClick = {
@@ -1469,9 +1543,7 @@ fun ThoiTietAmLichApp() {
                                         autoLocation = checked
                                         AppPrefs.setAutoLocation(context, checked)
                                         scope.launch {
-                                            isSyncing = true
-                                            weather = WeatherService.syncWeather(context)
-                                            isSyncing = false
+                                            syncWeatherAndForecast()
                                         }
                                     }
                                 )
@@ -1542,9 +1614,7 @@ fun ThoiTietAmLichApp() {
                                                 weather = updatedCache
                                                 WeatherLunarWidget.updateAllWidgets(context)
                                                 scope.launch {
-                                                    isSyncing = true
-                                                    weather = WeatherService.syncWeather(context)
-                                                    isSyncing = false
+                                                    syncWeatherAndForecast()
                                                 }
                                             }
                                             .padding(vertical = 8.dp, horizontal = 6.dp)
@@ -1814,7 +1884,7 @@ fun ThoiTietAmLichApp() {
                                 .padding(top = 6.dp, bottom = 8.dp)
                         ) {
                             Text(
-                                "Phiên bản $APP_VERSION_NAME\nĐược tạo bởi Mr.Wind - Xiaomi Community Việt Nam\nỦng hộ anh ấy một cốc cà hê qua MOMO: 0923032127",
+                                "Phiên bản $APP_VERSION_NAME\nĐược tạo bởi Mr.Wind - Xiaomi Community Việt Nam\nỦng hộ anh ấy một cốc cà hê qua MOMO nhé: 0923032127",
                                 fontSize = 11.sp,
                                 lineHeight = 16.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
