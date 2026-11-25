@@ -165,6 +165,7 @@ class WeatherLunarWidget : AppWidgetProvider() {
             val weather = AppPrefs.getWeather(context)
             val accentColor = AppPrefs.getAccentColor(context)
             val showSeconds = AppPrefs.isShowSeconds(context)
+            val showWeatherEffect = AppPrefs.isShowWeatherEffect(context)
             val showSignature = AppPrefs.isShowSignature(context)
 
             val clockSp = AppPrefs.clockSp(AppPrefs.getClockScale(context), showSeconds)
@@ -194,6 +195,10 @@ class WeatherLunarWidget : AppWidgetProvider() {
                 }
             }
 
+            views.setViewVisibility(
+                R.id.iv_weather_effect,
+                if (showWeatherEffect) View.VISIBLE else View.GONE
+            )
             views.setImageViewResource(R.id.iv_weather_effect, weatherEffectDrawableForCode(weather.weatherCode))
 
             val isLightGlass = (bgMode == 1)
