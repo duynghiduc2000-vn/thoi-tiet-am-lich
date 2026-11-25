@@ -20,18 +20,16 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
+      - name: Check Xmx64m in repo and env
+        run: |
+          env | grep -i -E "java|gradle|_java" || true
+          grep -rn "Xmx64m" . || true
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
 
       - name: Build Debug APK
-        env:
-          _JAVA_OPTIONS: ""
-          JAVA_OPTS: ""
-          JAVA_TOOL_OPTIONS: ""
-          GRADLE_OPTS: ""
-        run: |
-          unset _JAVA_OPTIONS JAVA_OPTS JAVA_TOOL_OPTIONS GRADLE_OPTS
-          ./gradlew assembleDebug --no-daemon --stacktrace
+        run: gradle assembleDebug --no-daemon --stacktrace
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
