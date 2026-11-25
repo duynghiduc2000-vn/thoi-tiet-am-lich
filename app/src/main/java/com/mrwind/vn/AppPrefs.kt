@@ -11,6 +11,15 @@ data class BirthdayItem(
     val month: Int
 )
 
+data class LunarLookupHistoryItem(
+    val id: String,
+    val solarDay: Int,
+    val solarMonth: Int,
+    val solarYear: Int,
+    val lunarSummary: String,
+    val searchedAt: Long = System.currentTimeMillis()
+)
+
 data class WeatherCache(
     val locationName: String = "Chưa có vị trí",
     val latitude: Double = 11.15,
@@ -158,6 +167,48 @@ object AppPrefs {
             hour4 = p.getString("w_h4", "--:-- --°") ?: "--:-- --°",
             lastUpdated = p.getLong("w_updated", 0L)
         )
+    }
+
+    fun getLunarHistory(context: Context): List<LunarLookupHistoryItem> {
+        val raw = prefs(context).getString("lunar_lookup_history_json", "[]") ?: "[]"
+        val list = mutableListOf<LunarLookupHistoryItem>()
+        try {
+            val arr = JSONArray(raw)
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                list.add(
+                    LunarLookupHistoryItem(
+                        id = obj.optString("id"),
+                        solarDay = obj.optInt("solarDay", 1),
+                        solarMonth = obj.optInt("solarMonth", 1),
+                        solarYear = obj.optInt("solarYear", 2026),
+                        lunarSummary = obj.optString("lunarSummary", ""),
+                        searchedAt = obj.optLong("searchedAt", 0L)
+                    )
+                )
+            }
+        } catch (_: Exception) {
+        }
+        return list
+    }
+
+    fun saveLunarHistory(context: Context, list: List<LunarLookupHistoryItem>) {
+        val arr = JSONArray()
+        list.take(20).forEach { item ->
+            val obj = JSONObject()
+            obj.put("id", item.id)
+            obj.put("solarDay", item.solarDay)
+            obj.put("solarMonth", item.solarMonth)
+            obj.put("solarYear", item.solarYear)
+            obj.put("lunarSummary", item.lunarSummary)
+            obj.put("searchedAt", item.searchedAt)
+            arr.put(obj)
+        }
+        prefs(context).edit().putString("lunar_lookup_history_json", arr.toString()).apply()
+    }
+
+    fun clearLunarHistory(context: Context) {
+        prefs(context).edit().remove("lunar_lookup_history_json").apply()
     }
 
     fun getBirthdays(context: Context): List<BirthdayItem> {
