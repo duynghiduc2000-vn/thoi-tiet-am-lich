@@ -13,7 +13,7 @@ android {
         minSdk = 24
         targetSdk = 35
         versionCode = 1
-        versionName = "1.0"
+        versionName = "31.12-HPBD"
         resValue("string", "app_name", "Thời tiết và Âm lịch")
     }
 
