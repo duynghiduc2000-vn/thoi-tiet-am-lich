@@ -193,6 +193,13 @@ object AppPrefs {
         prefs(context).edit().putString("last_popup_date", dateStr).apply()
     }
 
+    fun getLastAdminPopupDate(context: Context): String =
+        prefs(context).getString("last_admin_popup_date", "") ?: ""
+
+    fun setLastAdminPopupDate(context: Context, dateStr: String) {
+        prefs(context).edit().putString("last_admin_popup_date", dateStr).apply()
+    }
+
     fun getLastNotifyDate(context: Context): String =
         prefs(context).getString("last_notify_date", "") ?: ""
 
