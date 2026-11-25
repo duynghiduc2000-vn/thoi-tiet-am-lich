@@ -6,6 +6,15 @@
     android:background="@drawable/bg_widget_glass_dark"
     android:padding="14dp">
 
+    <!-- Lớp hiệu ứng thời tiết hiện tại phủ nền -->
+    <ImageView
+        android:id="@+id/iv_weather_effect"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:contentDescription="Hiệu ứng thời tiết"
+        android:scaleType="fitXY"
+        android:src="@drawable/fx_weather_clear" />
+
     <!-- Dòng Âm lịch trên cùng bên trái: chỉ chừa chỗ cho cụm nhiệt độ nhỏ gọn bên phải -->
     <TextView
         android:id="@+id/tv_lunar_date"
