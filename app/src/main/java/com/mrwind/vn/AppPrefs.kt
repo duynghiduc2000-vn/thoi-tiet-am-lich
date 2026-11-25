@@ -91,7 +91,7 @@ object AppPrefs {
         val step = if (showSeconds) 0.9f else 1.3f
         return base + (scale - 1) * step
     }
-    fun lunarSp(scale: Int): Float = 10f + (scale - 1) * 0.45f
+    fun lunarSp(scale: Int): Float = 8.5f + (scale - 1) * 0.35f
     fun solarSp(scale: Int): Float = 11f + (scale - 1) * 0.5f
     fun sigSp(scale: Int): Float = 10f + (scale - 1) * 0.45f
 
