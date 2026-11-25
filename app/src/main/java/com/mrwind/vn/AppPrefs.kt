@@ -56,6 +56,14 @@ object AppPrefs {
         prefs(context).edit().putInt("accent_color", color).apply()
     }
 
+    // Hiển thị giây chạy liên tục trên đồng hồ Widget
+    fun isShowSeconds(context: Context): Boolean =
+        prefs(context).getBoolean("show_seconds", false)
+
+    fun setShowSeconds(context: Context, show: Boolean) {
+        prefs(context).edit().putBoolean("show_seconds", show).apply()
+    }
+
     // Chữ ký cá nhân
     fun getSignature(context: Context): String =
         prefs(context).getString("signature", "Gió Độc") ?: "Gió Độc"
@@ -78,10 +86,14 @@ object AppPrefs {
     fun setSigScale(context: Context, v: Int) = prefs(context).edit().putInt("scale_sig", v.coerceIn(1, 20)).apply()
 
     // Quy đổi mức 1..20 sang cỡ chữ sp thực tế trên Widget
-    fun clockSp(scale: Int): Float = 26f + (scale - 1) * 1.3f   // 26sp -> 50.7sp
-    fun lunarSp(scale: Int): Float = 10f + (scale - 1) * 0.45f  // 10sp -> 18.5sp
-    fun solarSp(scale: Int): Float = 11f + (scale - 1) * 0.5f   // 11sp -> 20.5sp
-    fun sigSp(scale: Int): Float = 10f + (scale - 1) * 0.45f    // 10sp -> 18.5sp
+    fun clockSp(scale: Int, showSeconds: Boolean = false): Float {
+        val base = if (showSeconds) 20f else 26f
+        val step = if (showSeconds) 0.9f else 1.3f
+        return base + (scale - 1) * step
+    }
+    fun lunarSp(scale: Int): Float = 10f + (scale - 1) * 0.45f
+    fun solarSp(scale: Int): Float = 11f + (scale - 1) * 0.5f
+    fun sigSp(scale: Int): Float = 10f + (scale - 1) * 0.45f
 
     // Chế độ vị trí: true = tự động GPS, false = chọn địa điểm thủ công
     fun isAutoLocation(context: Context): Boolean =
@@ -91,7 +103,6 @@ object AppPrefs {
         prefs(context).edit().putBoolean("auto_location", auto).apply()
     }
 
-    // Lưu & đọc dữ liệu thời tiết
     fun saveWeather(context: Context, w: WeatherCache) {
         prefs(context).edit()
             .putString("w_loc", w.locationName)
@@ -133,7 +144,6 @@ object AppPrefs {
         )
     }
 
-    // Quản lý danh sách sinh nhật (tối đa 10)
     fun getBirthdays(context: Context): List<BirthdayItem> {
         val raw = prefs(context).getString("birthdays_json", "[]") ?: "[]"
         val list = mutableListOf<BirthdayItem>()
@@ -168,7 +178,6 @@ object AppPrefs {
         prefs(context).edit().putString("birthdays_json", arr.toString()).apply()
     }
 
-    // Đánh dấu ngày đã hiển thị Pop-up hoặc thông báo sinh nhật (yyyy-MM-dd)
     fun getLastPopupDate(context: Context): String =
         prefs(context).getString("last_popup_date", "") ?: ""
 
