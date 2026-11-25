@@ -43,9 +43,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddToHomeScreen
 import androidx.compose.material.icons.filled.BatteryAlert
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Cake
+import androidx.compose.material.icons.filled.CheckCircleOutline
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
@@ -90,6 +94,8 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.util.Calendar
+import java.util.TimeZone
 import java.util.UUID
 import kotlin.math.roundToInt
 
@@ -131,11 +137,51 @@ private val ACCENT_OPTIONS = listOf(
     AccentOption("Trắng ngà", 0xFFF5F5F5.toInt())
 )
 
+private data class LunarResultPopupData(
+    val solarLabel: String,
+    val lunarSummary: String
+)
+
+private fun convertSolarToLunarSummary(day: Int, month: Int, year: Int): String {
+    val cal = Calendar.getInstance(TimeZone.getTimeZone("Asia/Ho_Chi_Minh")).apply {
+        isLenient = false
+        set(Calendar.YEAR, year)
+        set(Calendar.MONTH, month - 1)
+        set(Calendar.DAY_OF_MONTH, day)
+    }
+    // Đảm bảo ngày hợp lệ theo lịch dương
+    cal.timeInMillis
+
+    return try {
+        val kClass = LunarCalendar::class.java
+        val method = kClass.declaredMethods.firstOrNull { m ->
+            m.parameterCount == 3 &&
+                m.parameterTypes[0] == Int::class.javaPrimitiveType &&
+                m.parameterTypes[1] == Int::class.javaPrimitiveType &&
+                m.parameterTypes[2] == Int::class.javaPrimitiveType
+        }
+        val res = method?.invoke(LunarCalendar, day, month, year)
+        when (res) {
+            null -> LunarCalendar.todayLunar().fullSummary()
+            is String -> res
+            else -> {
+                val fullFn = res.javaClass.methods.firstOrNull { it.name == "fullSummary" && it.parameterCount == 0 }
+                val shortFn = res.javaClass.methods.firstOrNull { it.name == "shortSummary" && it.parameterCount == 0 }
+                (fullFn?.invoke(res) ?: shortFn?.invoke(res) ?: res).toString()
+            }
+        }
+    } catch (_: Exception) {
+        LunarCalendar.todayLunar().fullSummary()
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun ThoiTietAmLichApp() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+
+    val nowCal = remember { Calendar.getInstance(TimeZone.getTimeZone("Asia/Ho_Chi_Minh")) }
 
     var appThemeMode by remember { mutableIntStateOf(AppPrefs.getAppThemeMode(context)) }
     var widgetBgMode by remember { mutableIntStateOf(AppPrefs.getWidgetBgMode(context)) }
@@ -160,12 +206,22 @@ fun ThoiTietAmLichApp() {
     var searchResults by remember { mutableStateOf<List<WeatherService.SearchLocationResult>>(emptyList()) }
     var locationSearchMsg by remember { mutableStateOf<String?>(null) }
 
+    // Tra cứu lịch âm + lịch sử + pop-up kết quả & pop-up sau khi xóa lịch sử
+    var lookupDayInput by remember { mutableStateOf(nowCal.get(Calendar.DAY_OF_MONTH).toString()) }
+    var lookupMonthInput by remember { mutableStateOf((nowCal.get(Calendar.MONTH) + 1).toString()) }
+    var lookupYearInput by remember { mutableStateOf(nowCal.get(Calendar.YEAR).toString()) }
+    var lookupError by remember { mutableStateOf<String?>(null) }
+    var lunarHistory by remember { mutableStateOf(AppPrefs.getLunarHistory(context)) }
+    var lunarResultPopup by remember { mutableStateOf<LunarResultPopupData?>(null) }
+    var showHistoryClearedPopup by remember { mutableStateOf(false) }
+
     var birthdays by remember { mutableStateOf(AppPrefs.getBirthdays(context)) }
     var bdayNameInput by remember { mutableStateOf("") }
     var bdayDayInput by remember { mutableStateOf("1") }
     var bdayMonthInput by remember { mutableStateOf("1") }
     var bdayError by remember { mutableStateOf<String?>(null) }
 
+    val lookupSectionBringIntoView = remember { BringIntoViewRequester() }
     val bdaySectionBringIntoView = remember { BringIntoViewRequester() }
 
     val todayBirthdays = remember(birthdays) { BirthdayHelper.getTodayBirthdays(context) }
@@ -220,6 +276,27 @@ fun ThoiTietAmLichApp() {
 
     val lunarToday = remember { LunarCalendar.todayLunar() }
     val solarToday = remember { LunarCalendar.formatVietnameseSolarDate() }
+
+    fun performLunarLookup(day: Int, month: Int, year: Int) {
+        val summary = convertSolarToLunarSummary(day, month, year)
+        val solarFormatted = "${day.toString().padStart(2, '0')}/${month.toString().padStart(2, '0')}/$year"
+        val newItem = LunarLookupHistoryItem(
+            id = UUID.randomUUID().toString(),
+            solarDay = day,
+            solarMonth = month,
+            solarYear = year,
+            lunarSummary = summary
+        )
+        val updatedHistory = (listOf(newItem) + lunarHistory.filterNot {
+            it.solarDay == day && it.solarMonth == month && it.solarYear == year
+        }).take(20)
+        lunarHistory = updatedHistory
+        AppPrefs.saveLunarHistory(context, updatedHistory)
+        lunarResultPopup = LunarResultPopupData(
+            solarLabel = "Dương lịch: $solarFormatted",
+            lunarSummary = summary
+        )
+    }
 
     MaterialTheme(colorScheme = colorScheme) {
         Box(modifier = Modifier.fillMaxSize()) {
@@ -327,7 +404,215 @@ fun ThoiTietAmLichApp() {
                         }
                     }
 
-                    // 2. Đồng hồ, Hiệu ứng thời tiết & Nền Widget
+                    // 2. Tra cứu lịch âm theo ngày dương lịch + lịch sử tìm kiếm
+                    item {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .bringIntoViewRequester(lookupSectionBringIntoView)
+                        ) {
+                            SectionCard(title = "Tra cứu lịch âm") {
+                                Text(
+                                    "Nhập ngày, tháng, năm dương lịch và bấm Tìm kiếm để xem thông báo lịch âm.",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    OutlinedTextField(
+                                        value = lookupDayInput,
+                                        onValueChange = {
+                                            lookupDayInput = it.filter { ch -> ch.isDigit() }.take(2)
+                                            lookupError = null
+                                        },
+                                        label = { Text("Ngày") },
+                                        singleLine = true,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .onFocusChanged { focusState ->
+                                                if (focusState.isFocused) {
+                                                    scope.launch {
+                                                        delay(180)
+                                                        lookupSectionBringIntoView.bringIntoView()
+                                                    }
+                                                }
+                                            }
+                                    )
+                                    OutlinedTextField(
+                                        value = lookupMonthInput,
+                                        onValueChange = {
+                                            lookupMonthInput = it.filter { ch -> ch.isDigit() }.take(2)
+                                            lookupError = null
+                                        },
+                                        label = { Text("Tháng") },
+                                        singleLine = true,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .onFocusChanged { focusState ->
+                                                if (focusState.isFocused) {
+                                                    scope.launch {
+                                                        delay(180)
+                                                        lookupSectionBringIntoView.bringIntoView()
+                                                    }
+                                                }
+                                            }
+                                    )
+                                    OutlinedTextField(
+                                        value = lookupYearInput,
+                                        onValueChange = {
+                                            lookupYearInput = it.filter { ch -> ch.isDigit() }.take(4)
+                                            lookupError = null
+                                        },
+                                        label = { Text("Năm") },
+                                        singleLine = true,
+                                        modifier = Modifier
+                                            .weight(1.35f)
+                                            .onFocusChanged { focusState ->
+                                                if (focusState.isFocused) {
+                                                    scope.launch {
+                                                        delay(180)
+                                                        lookupSectionBringIntoView.bringIntoView()
+                                                    }
+                                                }
+                                            }
+                                    )
+                                }
+
+                                if (lookupError != null) {
+                                    Text(
+                                        lookupError!!,
+                                        color = MaterialTheme.colorScheme.error,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        modifier = Modifier.padding(top = 6.dp)
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                Button(
+                                    onClick = {
+                                        val d = lookupDayInput.toIntOrNull() ?: 0
+                                        val m = lookupMonthInput.toIntOrNull() ?: 0
+                                        val y = lookupYearInput.toIntOrNull() ?: 0
+                                        if (y !in 1900..2100 || m !in 1..12 || d !in 1..31) {
+                                            lookupError = "Vui lòng nhập ngày (1–31), tháng (1–12), năm (1900–2100) hợp lệ."
+                                            return@Button
+                                        }
+                                        try {
+                                            performLunarLookup(d, m, y)
+                                            lookupError = null
+                                        } catch (_: Exception) {
+                                            lookupError = "Ngày dương lịch không tồn tại (ví dụ 30/02 hoặc 31/04)."
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Icon(Icons.Default.Search, contentDescription = null)
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Tìm kiếm")
+                                }
+
+                                Spacer(modifier = Modifier.height(14.dp))
+
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            Icons.Default.History,
+                                            contentDescription = null,
+                                            tint = accentCompose,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            "Lịch sử tìm kiếm (${lunarHistory.size})",
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+
+                                    if (lunarHistory.isNotEmpty()) {
+                                        OutlinedButton(
+                                            onClick = {
+                                                AppPrefs.clearLunarHistory(context)
+                                                lunarHistory = emptyList()
+                                                showHistoryClearedPopup = true
+                                            },
+                                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                                        ) {
+                                            Icon(
+                                                Icons.Default.DeleteSweep,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text("Xóa lịch sử", fontSize = 12.sp)
+                                        }
+                                    }
+                                }
+
+                                if (lunarHistory.isEmpty()) {
+                                    Text(
+                                        "Chưa có lịch sử tra cứu nào.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(top = 6.dp)
+                                    )
+                                } else {
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        lunarHistory.forEach { item ->
+                                            val solarStr =
+                                                "${item.solarDay.toString().padStart(2, '0')}/${item.solarMonth.toString().padStart(2, '0')}/${item.solarYear}"
+                                            Surface(
+                                                shape = RoundedCornerShape(12.dp),
+                                                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.65f),
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clip(RoundedCornerShape(12.dp))
+                                                    .clickable {
+                                                        lookupDayInput = item.solarDay.toString()
+                                                        lookupMonthInput = item.solarMonth.toString()
+                                                        lookupYearInput = item.solarYear.toString()
+                                                        lunarResultPopup = LunarResultPopupData(
+                                                            solarLabel = "Dương lịch: $solarStr",
+                                                            lunarSummary = item.lunarSummary
+                                                        )
+                                                    }
+                                            ) {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
+                                                ) {
+                                                    Column(modifier = Modifier.weight(1f)) {
+                                                        Text(
+                                                            "📅 Dương: $solarStr",
+                                                            fontWeight = FontWeight.SemiBold,
+                                                            style = MaterialTheme.typography.bodyMedium
+                                                        )
+                                                        Text(
+                                                            item.lunarSummary,
+                                                            color = accentCompose,
+                                                            style = MaterialTheme.typography.bodySmall,
+                                                            modifier = Modifier.padding(top = 2.dp)
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // 3. Đồng hồ, Hiệu ứng thời tiết & Nền Widget
                     item {
                         SectionCard(title = "Đồng hồ, Giao diện & Nền Widget") {
                             Row(
@@ -421,7 +706,7 @@ fun ThoiTietAmLichApp() {
                         }
                     }
 
-                    // 3. Màu chủ đề
+                    // 4. Màu chủ đề
                     item {
                         SectionCard(title = "Màu chủ đề (Áp dụng App & Widget)") {
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -457,7 +742,7 @@ fun ThoiTietAmLichApp() {
                         }
                     }
 
-                    // 4. Vị trí thời tiết (Tự động GPS hoặc Nhập tên tìm kiếm thủ công)
+                    // 5. Vị trí thời tiết (Tự động GPS hoặc Nhập tên tìm kiếm thủ công)
                     item {
                         SectionCard(title = "Vị trí cập nhật thời tiết") {
                             Row(
@@ -575,7 +860,7 @@ fun ThoiTietAmLichApp() {
                         }
                     }
 
-                    // 5. Chữ ký cá nhân & bật/tắt
+                    // 6. Chữ ký cá nhân & bật/tắt
                     item {
                         SectionCard(title = "Chữ ký trên Widget") {
                             Row(
@@ -618,7 +903,7 @@ fun ThoiTietAmLichApp() {
                         }
                     }
 
-                    // 6. Thanh trượt kích cỡ chữ (1 đến 20)
+                    // 7. Thanh trượt kích cỡ chữ (1 đến 20)
                     item {
                         SectionCard(title = "Kích cỡ chữ trên Widget (Mức 1 – 20)") {
                             ScaleSliderRow(
@@ -660,7 +945,7 @@ fun ThoiTietAmLichApp() {
                         }
                     }
 
-                    // 7. Danh sách ngày sinh nhật (tối đa 10)
+                    // 8. Danh sách ngày sinh nhật (tối đa 10)
                     item {
                         Column(
                             modifier = Modifier
@@ -814,7 +1099,7 @@ fun ThoiTietAmLichApp() {
                         }
                     }
 
-                    // 8. Chân trang ở cuối ứng dụng
+                    // 9. Chân trang ở cuối ứng dụng
                     item {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
@@ -829,6 +1114,237 @@ fun ThoiTietAmLichApp() {
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = TextAlign.Center
                             )
+                        }
+                    }
+                }
+            }
+
+            // Pop-up thông báo kết quả tra cứu lịch âm
+            AnimatedVisibility(
+                visible = lunarResultPopup != null,
+                enter = fadeIn() + scaleIn(initialScale = 0.92f),
+                exit = fadeOut() + scaleOut(targetScale = 0.92f),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                val data = lunarResultPopup
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.58f))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { lunarResultPopup = null }
+                        .padding(horizontal = 24.dp)
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(28.dp),
+                        tonalElevation = 8.dp,
+                        shadowElevation = 16.dp,
+                        color = MaterialTheme.colorScheme.surface,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) {}
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(22.dp)
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.End,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                IconButton(
+                                    onClick = { lunarResultPopup = null },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Close,
+                                        contentDescription = "Đóng",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(64.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        Brush.linearGradient(
+                                            listOf(
+                                                accentCompose.copy(alpha = 0.25f),
+                                                accentCompose.copy(alpha = 0.12f)
+                                            )
+                                        )
+                                    )
+                                    .border(1.5.dp, accentCompose.copy(alpha = 0.55f), CircleShape)
+                            ) {
+                                Icon(
+                                    Icons.Default.CalendarMonth,
+                                    contentDescription = null,
+                                    tint = accentCompose,
+                                    modifier = Modifier.size(32.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            Text(
+                                "Thông báo lịch âm",
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            if (data != null) {
+                                Surface(
+                                    shape = RoundedCornerShape(999.dp),
+                                    color = accentCompose.copy(alpha = 0.16f)
+                                ) {
+                                    Text(
+                                        data.solarLabel,
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = accentCompose,
+                                        fontWeight = FontWeight.SemiBold,
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(14.dp))
+
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        data.lunarSummary,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp)
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(18.dp))
+
+                            Button(
+                                onClick = { lunarResultPopup = null },
+                                shape = RoundedCornerShape(16.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = accentCompose),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp)
+                            ) {
+                                Text(
+                                    "Đóng",
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Pop-up hiển thị sau khi xóa lịch sử tìm kiếm
+            AnimatedVisibility(
+                visible = showHistoryClearedPopup,
+                enter = fadeIn() + scaleIn(initialScale = 0.92f),
+                exit = fadeOut() + scaleOut(targetScale = 0.92f),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.58f))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { showHistoryClearedPopup = false }
+                        .padding(horizontal = 24.dp)
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(28.dp),
+                        tonalElevation = 8.dp,
+                        shadowElevation = 16.dp,
+                        color = MaterialTheme.colorScheme.surface,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) {}
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(22.dp)
+                        ) {
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(64.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        Brush.linearGradient(
+                                            listOf(
+                                                accentCompose.copy(alpha = 0.25f),
+                                                accentCompose.copy(alpha = 0.12f)
+                                            )
+                                        )
+                                    )
+                                    .border(1.5.dp, accentCompose.copy(alpha = 0.55f), CircleShape)
+                            ) {
+                                Icon(
+                                    Icons.Default.CheckCircleOutline,
+                                    contentDescription = null,
+                                    tint = accentCompose,
+                                    modifier = Modifier.size(32.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            Text(
+                                "Đã xóa lịch sử",
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Text(
+                                "Toàn bộ lịch sử tra cứu lịch âm đã được xóa thành công.",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center
+                            )
+
+                            Spacer(modifier = Modifier.height(18.dp))
+
+                            Button(
+                                onClick = { showHistoryClearedPopup = false },
+                                shape = RoundedCornerShape(16.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = accentCompose),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp)
+                            ) {
+                                Text(
+                                    "Ok",
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
                     }
                 }
