@@ -25,10 +25,13 @@ jobs:
 
       - name: Build Debug APK
         env:
-          JAVA_OPTS: ""
           _JAVA_OPTIONS: ""
-          GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.jvmargs=-Xmx2048m"
-        run: ./gradlew assembleDebug --no-daemon --stacktrace
+          JAVA_OPTS: ""
+          JAVA_TOOL_OPTIONS: ""
+          GRADLE_OPTS: ""
+        run: |
+          unset _JAVA_OPTIONS JAVA_OPTS JAVA_TOOL_OPTIONS GRADLE_OPTS
+          ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
