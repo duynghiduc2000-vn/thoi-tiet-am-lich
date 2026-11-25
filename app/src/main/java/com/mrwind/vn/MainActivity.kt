@@ -9,10 +9,16 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -37,12 +43,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddToHomeScreen
 import androidx.compose.material.icons.filled.Cake
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -54,6 +61,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -71,9 +79,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.delay
@@ -206,582 +216,726 @@ fun ThoiTietAmLichApp() {
     val lunarToday = remember { LunarCalendar.todayLunar() }
     val solarToday = remember { LunarCalendar.formatVietnameseSolarDate() }
 
-    if (showBirthdayPopup && todayBirthdays.isNotEmpty()) {
-        val namesText = todayBirthdays.joinToString(", ") { it.name }
-        AlertDialog(
-            onDismissRequest = { showBirthdayPopup = false },
-            icon = { Icon(Icons.Default.Cake, contentDescription = null, tint = accentCompose) },
-            title = { Text("Nhắc sinh nhật hôm nay") },
-            text = {
-                Text("Hôm nay là ngày sinh nhật của $namesText. Đừng quên gửi lời chúc tốt đẹp nhất nhé!")
-            },
-            confirmButton = {
-                Button(onClick = { showBirthdayPopup = false }) {
-                    Text("Đã rõ")
-                }
-            }
-        )
-    }
-
     MaterialTheme(colorScheme = colorScheme) {
-        Scaffold(
-            topBar = {
-                TopAppBar(
-                    title = {
-                        Text(
-                            "Thời tiết và Âm lịch",
-                            fontWeight = FontWeight.Bold
-                        )
-                    },
-                    actions = {
-                        IconButton(
-                            onClick = {
-                                scope.launch {
-                                    isSyncing = true
-                                    weather = WeatherService.syncWeather(context)
-                                    isSyncing = false
-                                }
-                            }
-                        ) {
-                            Icon(Icons.Default.Refresh, contentDescription = "Đồng bộ thời tiết")
-                        }
-                    }
-                )
-            }
-        ) { innerPadding ->
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-                    .imePadding(),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 120.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                // 1. Thẻ tổng quan Lịch Âm - Dương, Thời tiết & Ghim Widget
-                item {
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                        shape = RoundedCornerShape(20.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Scaffold(
+                topBar = {
+                    TopAppBar(
+                        title = {
                             Text(
-                                solarToday,
-                                style = MaterialTheme.typography.titleMedium,
+                                "Thời tiết và Âm lịch",
                                 fontWeight = FontWeight.Bold
                             )
-                            Text(
-                                lunarToday.fullSummary(),
-                                color = accentCompose,
-                                fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.padding(top = 4.dp)
-                            )
-                            Spacer(modifier = Modifier.height(10.dp))
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        "${weather.currentTemp} • ${weather.description}",
-                                        style = MaterialTheme.typography.titleLarge,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Text(
-                                        "${weather.locationName} • ▲ ${weather.maxTemp} ▼ ${weather.minTemp}",
-                                        style = MaterialTheme.typography.bodyMedium
-                                    )
-                                }
-                                Button(
-                                    onClick = {
-                                        scope.launch {
-                                            isSyncing = true
-                                            weather = WeatherService.syncWeather(context)
-                                            isSyncing = false
-                                        }
-                                    },
-                                    enabled = !isSyncing
-                                ) {
-                                    Text(if (isSyncing) "Đang tải..." else "Cập nhật")
-                                }
-                            }
-                            Spacer(modifier = Modifier.height(12.dp))
-                            OutlinedButton(
+                        },
+                        actions = {
+                            IconButton(
                                 onClick = {
-                                    val pinned = WeatherLunarWidget.requestPinWidget(context)
-                                    if (!pinned) {
-                                        Toast.makeText(
-                                            context,
-                                            "Launcher hiện tại không hỗ trợ ghim tự động. Bạn nhấn giữ màn hình chính -> Tiện ích để thêm nhé.",
-                                            Toast.LENGTH_LONG
-                                        ).show()
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Icon(Icons.Default.AddToHomeScreen, contentDescription = null)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Ghim Widget ra màn hình chính")
-                            }
-                        }
-                    }
-                }
-
-                // 2. Đồng hồ & Nền Widget
-                item {
-                    SectionCard(title = "Đồng hồ, Giao diện & Nền Widget") {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 10.dp)
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("Hiển thị giây (chạy liên tục)", fontWeight = FontWeight.Medium)
-                                Text(
-                                    "Định dạng HH:mm:ss trên đồng hồ Widget",
-                                    style = MaterialTheme.typography.bodySmall
-                                )
-                            }
-                            Switch(
-                                checked = showSeconds,
-                                onCheckedChange = { checked ->
-                                    showSeconds = checked
-                                    AppPrefs.setShowSeconds(context, checked)
-                                    WeatherLunarWidget.updateAllWidgets(context)
-                                }
-                            )
-                        }
-
-                        Text("Chế độ giao diện ứng dụng", fontWeight = FontWeight.Medium)
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.padding(top = 6.dp, bottom = 12.dp)
-                        ) {
-                            val themeLabels = listOf("Hệ thống", "Sáng", "Tối")
-                            themeLabels.forEachIndexed { idx, label ->
-                                FilterChip(
-                                    selected = appThemeMode == idx,
-                                    onClick = {
-                                        appThemeMode = idx
-                                        AppPrefs.setAppThemeMode(context, idx)
-                                    },
-                                    label = { Text(label) }
-                                )
-                            }
-                        }
-
-                        Text("Kiểu nền Widget trên màn hình chính", fontWeight = FontWeight.Medium)
-                        val bgLabels = listOf("Kính lỏng tối", "Kính lỏng sáng", "Trong suốt", "Theo chủ đề app")
-                        LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.padding(top = 6.dp)
-                        ) {
-                            items(bgLabels.size) { idx ->
-                                FilterChip(
-                                    selected = widgetBgMode == idx,
-                                    onClick = {
-                                        widgetBgMode = idx
-                                        AppPrefs.setWidgetBgMode(context, idx)
-                                        WeatherLunarWidget.updateAllWidgets(context)
-                                    },
-                                    label = { Text(bgLabels[idx]) }
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // 3. Màu chủ đề
-                item {
-                    SectionCard(title = "Màu chủ đề (Áp dụng App & Widget)") {
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            items(ACCENT_OPTIONS) { opt ->
-                                val selected = opt.colorInt == accentColorInt
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    modifier = Modifier.clickable {
-                                        accentColorInt = opt.colorInt
-                                        AppPrefs.setAccentColor(context, opt.colorInt)
-                                        WeatherLunarWidget.updateAllWidgets(context)
-                                    }
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(38.dp)
-                                            .clip(CircleShape)
-                                            .background(Color(opt.colorInt))
-                                            .border(
-                                                width = if (selected) 3.dp else 1.dp,
-                                                color = if (selected) MaterialTheme.colorScheme.onSurface else Color.Gray,
-                                                shape = CircleShape
-                                            )
-                                    )
-                                    Text(
-                                        opt.name,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        modifier = Modifier.padding(top = 4.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // 4. Vị trí thời tiết (Tự động GPS hoặc Nhập tên tìm kiếm thủ công)
-                item {
-                    SectionCard(title = "Vị trí cập nhật thời tiết") {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("Tự động theo vị trí hiện tại (GPS)", fontWeight = FontWeight.Medium)
-                                Text(
-                                    "Tắt để nhập tên tìm địa điểm bất kỳ",
-                                    style = MaterialTheme.typography.bodySmall
-                                )
-                            }
-                            Switch(
-                                checked = autoLocation,
-                                onCheckedChange = { checked ->
-                                    autoLocation = checked
-                                    AppPrefs.setAutoLocation(context, checked)
                                     scope.launch {
                                         isSyncing = true
                                         weather = WeatherService.syncWeather(context)
                                         isSyncing = false
                                     }
                                 }
-                            )
-                        }
-
-                        if (!autoLocation) {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                modifier = Modifier.fillMaxWidth()
                             ) {
-                                OutlinedTextField(
-                                    value = locationQuery,
-                                    onValueChange = {
-                                        locationQuery = it
-                                        locationSearchMsg = null
-                                    },
-                                    label = { Text("Nhập tên địa điểm (VD: Nghi Đức, Đà Lạt...)") },
-                                    singleLine = true,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                Button(
-                                    onClick = {
-                                        scope.launch {
-                                            isSearchingLocation = true
-                                            locationSearchMsg = null
-                                            val found = WeatherService.searchLocationsByName(locationQuery)
-                                            searchResults = found
-                                            if (found.isEmpty()) {
-                                                locationSearchMsg = "Không tìm thấy địa điểm phù hợp."
-                                            }
-                                            isSearchingLocation = false
-                                        }
-                                    },
-                                    enabled = !isSearchingLocation
-                                ) {
-                                    Icon(Icons.Default.Search, contentDescription = null)
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(if (isSearchingLocation) "..." else "Tìm")
-                                }
+                                Icon(Icons.Default.Refresh, contentDescription = "Đồng bộ thời tiết")
                             }
-
-                            if (locationSearchMsg != null) {
+                        }
+                    )
+                }
+            ) { innerPadding ->
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                        .imePadding(),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 120.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    // 1. Thẻ tổng quan Lịch Âm - Dương, Thời tiết & Ghim Widget
+                    item {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                            shape = RoundedCornerShape(20.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
                                 Text(
-                                    locationSearchMsg!!,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(top = 6.dp)
+                                    solarToday,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
                                 )
-                            }
-
-                            searchResults.forEach { item ->
-                                val isCurrent = weather.locationName == item.displayName
+                                Text(
+                                    lunarToday.fullSummary(),
+                                    color = accentCompose,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.padding(top = 4.dp)
+                                )
+                                Spacer(modifier = Modifier.height(10.dp))
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(top = 4.dp)
-                                        .clip(RoundedCornerShape(10.dp))
-                                        .clickable {
-                                            val updatedCache = weather.copy(
-                                                locationName = item.displayName,
-                                                latitude = item.lat,
-                                                longitude = item.lon
-                                            )
-                                            AppPrefs.saveWeather(context, updatedCache)
-                                            weather = updatedCache
-                                            WeatherLunarWidget.updateAllWidgets(context)
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            "${weather.currentTemp} • ${weather.description}",
+                                            style = MaterialTheme.typography.titleLarge,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            "${weather.locationName} • ▲ ${weather.maxTemp} ▼ ${weather.minTemp}",
+                                            style = MaterialTheme.typography.bodyMedium
+                                        )
+                                    }
+                                    Button(
+                                        onClick = {
                                             scope.launch {
                                                 isSyncing = true
                                                 weather = WeatherService.syncWeather(context)
                                                 isSyncing = false
                                             }
+                                        },
+                                        enabled = !isSyncing
+                                    ) {
+                                        Text(if (isSyncing) "Đang tải..." else "Cập nhật")
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(12.dp))
+                                OutlinedButton(
+                                    onClick = {
+                                        val pinned = WeatherLunarWidget.requestPinWidget(context)
+                                        if (!pinned) {
+                                            Toast.makeText(
+                                                context,
+                                                "Launcher hiện tại không hỗ trợ ghim tự động. Bạn nhấn giữ màn hình chính -> Tiện ích để thêm nhé.",
+                                                Toast.LENGTH_LONG
+                                            ).show()
                                         }
-                                        .padding(vertical = 8.dp, horizontal = 6.dp)
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Icon(
-                                        Icons.Default.LocationOn,
-                                        contentDescription = null,
-                                        tint = if (isCurrent) accentCompose else MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
+                                    Icon(Icons.Default.AddToHomeScreen, contentDescription = null)
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        item.displayName,
-                                        fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
-                                        color = if (isCurrent) accentCompose else MaterialTheme.colorScheme.onSurface
-                                    )
+                                    Text("Ghim Widget ra màn hình chính")
                                 }
                             }
                         }
                     }
-                }
 
-                // 5. Chữ ký cá nhân & bật/tắt
-                item {
-                    SectionCard(title = "Chữ ký trên Widget") {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = if (showSignature) 10.dp else 0.dp)
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("Hiển thị chữ ký", fontWeight = FontWeight.Medium)
-                                Text(
-                                    "Tắt nếu không muốn hiện chữ ký dưới Widget",
-                                    style = MaterialTheme.typography.bodySmall
-                                )
-                            }
-                            Switch(
-                                checked = showSignature,
-                                onCheckedChange = { checked ->
-                                    showSignature = checked
-                                    AppPrefs.setShowSignature(context, checked)
-                                    WeatherLunarWidget.updateAllWidgets(context)
-                                }
-                            )
-                        }
-
-                        if (showSignature) {
-                            OutlinedTextField(
-                                value = signature,
-                                onValueChange = { newText ->
-                                    signature = newText
-                                    AppPrefs.setSignature(context, newText)
-                                    WeatherLunarWidget.updateAllWidgets(context)
-                                },
-                                label = { Text("Nhập chữ ký (có dấu tiếng Việt)") },
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                    }
-                }
-
-                // 6. Thanh trượt kích cỡ chữ (1 đến 20)
-                item {
-                    SectionCard(title = "Kích cỡ chữ trên Widget (Mức 1 – 20)") {
-                        ScaleSliderRow(
-                            label = "Đồng hồ",
-                            value = clockScale,
-                            onValueChange = { v ->
-                                clockScale = v
-                                AppPrefs.setClockScale(context, v)
-                                WeatherLunarWidget.updateAllWidgets(context)
-                            }
-                        )
-                        ScaleSliderRow(
-                            label = "Lịch âm",
-                            value = lunarScale,
-                            onValueChange = { v ->
-                                lunarScale = v
-                                AppPrefs.setLunarScale(context, v)
-                                WeatherLunarWidget.updateAllWidgets(context)
-                            }
-                        )
-                        ScaleSliderRow(
-                            label = "Dương lịch",
-                            value = solarScale,
-                            onValueChange = { v ->
-                                solarScale = v
-                                AppPrefs.setSolarScale(context, v)
-                                WeatherLunarWidget.updateAllWidgets(context)
-                            }
-                        )
-                        ScaleSliderRow(
-                            label = "Chữ ký",
-                            value = sigScale,
-                            onValueChange = { v ->
-                                sigScale = v
-                                AppPrefs.setSigScale(context, v)
-                                WeatherLunarWidget.updateAllWidgets(context)
-                            }
-                        )
-                    }
-                }
-
-                // 7. Danh sách ngày sinh nhật (tối đa 10)
-                item {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .bringIntoViewRequester(bdaySectionBringIntoView)
-                    ) {
-                        SectionCard(title = "Nhắc ngày sinh nhật (${birthdays.size}/10)") {
-                            Text(
-                                "Tự động hiện Pop-up khi mở app và gửi thông báo 1 lần/ngày vào đúng ngày sinh nhật.",
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            OutlinedTextField(
-                                value = bdayNameInput,
-                                onValueChange = {
-                                    bdayNameInput = it
-                                    bdayError = null
-                                },
-                                label = { Text("Tên người sinh nhật") },
-                                singleLine = true,
+                    // 2. Đồng hồ & Nền Widget
+                    item {
+                        SectionCard(title = "Đồng hồ, Giao diện & Nền Widget") {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .onFocusChanged { focusState ->
-                                        if (focusState.isFocused) {
-                                            scope.launch {
-                                                delay(180)
-                                                bdaySectionBringIntoView.bringIntoView()
-                                            }
-                                        }
-                                    }
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                OutlinedTextField(
-                                    value = bdayDayInput,
-                                    onValueChange = {
-                                        bdayDayInput = it.filter { ch -> ch.isDigit() }.take(2)
-                                        bdayError = null
-                                    },
-                                    label = { Text("Ngày (1-31)") },
-                                    singleLine = true,
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .onFocusChanged { focusState ->
-                                            if (focusState.isFocused) {
-                                                scope.launch {
-                                                    delay(180)
-                                                    bdaySectionBringIntoView.bringIntoView()
-                                                }
-                                            }
-                                        }
-                                )
-                                OutlinedTextField(
-                                    value = bdayMonthInput,
-                                    onValueChange = {
-                                        bdayMonthInput = it.filter { ch -> ch.isDigit() }.take(2)
-                                        bdayError = null
-                                    },
-                                    label = { Text("Tháng (1-12)") },
-                                    singleLine = true,
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .onFocusChanged { focusState ->
-                                            if (focusState.isFocused) {
-                                                scope.launch {
-                                                    delay(180)
-                                                    bdaySectionBringIntoView.bringIntoView()
-                                                }
-                                            }
-                                        }
-                                )
-                            }
-
-                            if (bdayError != null) {
-                                Text(
-                                    bdayError!!,
-                                    color = MaterialTheme.colorScheme.error,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    modifier = Modifier.padding(top = 4.dp)
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            OutlinedButton(
-                                onClick = {
-                                    if (birthdays.size >= 10) {
-                                        bdayError = "Đã đạt giới hạn tối đa 10 ngày sinh nhật."
-                                        return@OutlinedButton
-                                    }
-                                    val nameTrim = bdayNameInput.trim()
-                                    val d = bdayDayInput.toIntOrNull() ?: 0
-                                    val m = bdayMonthInput.toIntOrNull() ?: 0
-                                    if (nameTrim.isEmpty()) {
-                                        bdayError = "Vui lòng nhập tên."
-                                        return@OutlinedButton
-                                    }
-                                    if (d !in 1..31 || m !in 1..12) {
-                                        bdayError = "Ngày phải từ 1–31 và tháng từ 1–12."
-                                        return@OutlinedButton
-                                    }
-                                    val updated = birthdays + BirthdayItem(
-                                        id = UUID.randomUUID().toString(),
-                                        name = nameTrim,
-                                        day = d,
-                                        month = m
-                                    )
-                                    birthdays = updated
-                                    AppPrefs.saveBirthdays(context, updated)
-                                    bdayNameInput = ""
-                                    bdayError = null
-                                    BirthdayHelper.notifyTodayBirthdaysOncePerDay(context)
-                                },
-                                modifier = Modifier.fillMaxWidth()
+                                    .padding(bottom = 10.dp)
                             ) {
-                                Text("Thêm ngày sinh nhật")
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Hiển thị giây (chạy liên tục)", fontWeight = FontWeight.Medium)
+                                    Text(
+                                        "Định dạng HH:mm:ss trên đồng hồ Widget",
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
+                                Switch(
+                                    checked = showSeconds,
+                                    onCheckedChange = { checked ->
+                                        showSeconds = checked
+                                        AppPrefs.setShowSeconds(context, checked)
+                                        WeatherLunarWidget.updateAllWidgets(context)
+                                    }
+                                )
                             }
 
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            birthdays.forEach { item ->
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 4.dp)
-                                ) {
-                                    Text(
-                                        "🎂 ${item.name} — ${item.day.toString().padStart(2, '0')}/${item.month.toString().padStart(2, '0')}",
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                    IconButton(
+                            Text("Chế độ giao diện ứng dụng", fontWeight = FontWeight.Medium)
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.padding(top = 6.dp, bottom = 12.dp)
+                            ) {
+                                val themeLabels = listOf("Hệ thống", "Sáng", "Tối")
+                                themeLabels.forEachIndexed { idx, label ->
+                                    FilterChip(
+                                        selected = appThemeMode == idx,
                                         onClick = {
-                                            val updated = birthdays.filterNot { it.id == item.id }
-                                            birthdays = updated
-                                            AppPrefs.saveBirthdays(context, updated)
+                                            appThemeMode = idx
+                                            AppPrefs.setAppThemeMode(context, idx)
+                                        },
+                                        label = { Text(label) }
+                                    )
+                                }
+                            }
+
+                            Text("Kiểu nền Widget trên màn hình chính", fontWeight = FontWeight.Medium)
+                            val bgLabels = listOf("Kính lỏng tối", "Kính lỏng sáng", "Trong suốt", "Theo chủ đề app")
+                            LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.padding(top = 6.dp)
+                            ) {
+                                items(bgLabels.size) { idx ->
+                                    FilterChip(
+                                        selected = widgetBgMode == idx,
+                                        onClick = {
+                                            widgetBgMode = idx
+                                            AppPrefs.setWidgetBgMode(context, idx)
+                                            WeatherLunarWidget.updateAllWidgets(context)
+                                        },
+                                        label = { Text(bgLabels[idx]) }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // 3. Màu chủ đề
+                    item {
+                        SectionCard(title = "Màu chủ đề (Áp dụng App & Widget)") {
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                items(ACCENT_OPTIONS) { opt ->
+                                    val selected = opt.colorInt == accentColorInt
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        modifier = Modifier.clickable {
+                                            accentColorInt = opt.colorInt
+                                            AppPrefs.setAccentColor(context, opt.colorInt)
+                                            WeatherLunarWidget.updateAllWidgets(context)
                                         }
                                     ) {
-                                        Icon(
-                                            Icons.Default.Delete,
-                                            contentDescription = "Xóa sinh nhật",
-                                            tint = MaterialTheme.colorScheme.error
+                                        Box(
+                                            modifier = Modifier
+                                                .size(38.dp)
+                                                .clip(CircleShape)
+                                                .background(Color(opt.colorInt))
+                                                .border(
+                                                    width = if (selected) 3.dp else 1.dp,
+                                                    color = if (selected) MaterialTheme.colorScheme.onSurface else Color.Gray,
+                                                    shape = CircleShape
+                                                )
+                                        )
+                                        Text(
+                                            opt.name,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            modifier = Modifier.padding(top = 4.dp)
                                         )
                                     }
                                 }
+                            }
+                        }
+                    }
+
+                    // 4. Vị trí thời tiết (Tự động GPS hoặc Nhập tên tìm kiếm thủ công)
+                    item {
+                        SectionCard(title = "Vị trí cập nhật thời tiết") {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Tự động theo vị trí hiện tại (GPS)", fontWeight = FontWeight.Medium)
+                                    Text(
+                                        "Tắt để nhập tên tìm địa điểm bất kỳ",
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
+                                Switch(
+                                    checked = autoLocation,
+                                    onCheckedChange = { checked ->
+                                        autoLocation = checked
+                                        AppPrefs.setAutoLocation(context, checked)
+                                        scope.launch {
+                                            isSyncing = true
+                                            weather = WeatherService.syncWeather(context)
+                                            isSyncing = false
+                                        }
+                                    }
+                                )
+                            }
+
+                            if (!autoLocation) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    OutlinedTextField(
+                                        value = locationQuery,
+                                        onValueChange = {
+                                            locationQuery = it
+                                            locationSearchMsg = null
+                                        },
+                                        label = { Text("Nhập tên địa điểm (VD: Nghi Đức, Đà Lạt...)") },
+                                        singleLine = true,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Button(
+                                        onClick = {
+                                            scope.launch {
+                                                isSearchingLocation = true
+                                                locationSearchMsg = null
+                                                val found = WeatherService.searchLocationsByName(locationQuery)
+                                                searchResults = found
+                                                if (found.isEmpty()) {
+                                                    locationSearchMsg = "Không tìm thấy địa điểm phù hợp."
+                                                }
+                                                isSearchingLocation = false
+                                            }
+                                        },
+                                        enabled = !isSearchingLocation
+                                    ) {
+                                        Icon(Icons.Default.Search, contentDescription = null)
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(if (isSearchingLocation) "..." else "Tìm")
+                                    }
+                                }
+
+                                if (locationSearchMsg != null) {
+                                    Text(
+                                        locationSearchMsg!!,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(top = 6.dp)
+                                    )
+                                }
+
+                                searchResults.forEach { item ->
+                                    val isCurrent = weather.locationName == item.displayName
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(top = 4.dp)
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .clickable {
+                                                val updatedCache = weather.copy(
+                                                    locationName = item.displayName,
+                                                    latitude = item.lat,
+                                                    longitude = item.lon
+                                                )
+                                                AppPrefs.saveWeather(context, updatedCache)
+                                                weather = updatedCache
+                                                WeatherLunarWidget.updateAllWidgets(context)
+                                                scope.launch {
+                                                    isSyncing = true
+                                                    weather = WeatherService.syncWeather(context)
+                                                    isSyncing = false
+                                                }
+                                            }
+                                            .padding(vertical = 8.dp, horizontal = 6.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.LocationOn,
+                                            contentDescription = null,
+                                            tint = if (isCurrent) accentCompose else MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            item.displayName,
+                                            fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (isCurrent) accentCompose else MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // 5. Chữ ký cá nhân & bật/tắt
+                    item {
+                        SectionCard(title = "Chữ ký trên Widget") {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = if (showSignature) 10.dp else 0.dp)
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Hiển thị chữ ký", fontWeight = FontWeight.Medium)
+                                    Text(
+                                        "Tắt nếu không muốn hiện chữ ký dưới Widget",
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
+                                Switch(
+                                    checked = showSignature,
+                                    onCheckedChange = { checked ->
+                                        showSignature = checked
+                                        AppPrefs.setShowSignature(context, checked)
+                                        WeatherLunarWidget.updateAllWidgets(context)
+                                    }
+                                )
+                            }
+
+                            if (showSignature) {
+                                OutlinedTextField(
+                                    value = signature,
+                                    onValueChange = { newText ->
+                                        signature = newText
+                                        AppPrefs.setSignature(context, newText)
+                                        WeatherLunarWidget.updateAllWidgets(context)
+                                    },
+                                    label = { Text("Nhập chữ ký (có dấu tiếng Việt)") },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        }
+                    }
+
+                    // 6. Thanh trượt kích cỡ chữ (1 đến 20)
+                    item {
+                        SectionCard(title = "Kích cỡ chữ trên Widget (Mức 1 – 20)") {
+                            ScaleSliderRow(
+                                label = "Đồng hồ",
+                                value = clockScale,
+                                onValueChange = { v ->
+                                    clockScale = v
+                                    AppPrefs.setClockScale(context, v)
+                                    WeatherLunarWidget.updateAllWidgets(context)
+                                }
+                            )
+                            ScaleSliderRow(
+                                label = "Lịch âm",
+                                value = lunarScale,
+                                onValueChange = { v ->
+                                    lunarScale = v
+                                    AppPrefs.setLunarScale(context, v)
+                                    WeatherLunarWidget.updateAllWidgets(context)
+                                }
+                            )
+                            ScaleSliderRow(
+                                label = "Dương lịch",
+                                value = solarScale,
+                                onValueChange = { v ->
+                                    solarScale = v
+                                    AppPrefs.setSolarScale(context, v)
+                                    WeatherLunarWidget.updateAllWidgets(context)
+                                }
+                            )
+                            ScaleSliderRow(
+                                label = "Chữ ký",
+                                value = sigScale,
+                                onValueChange = { v ->
+                                    sigScale = v
+                                    AppPrefs.setSigScale(context, v)
+                                    WeatherLunarWidget.updateAllWidgets(context)
+                                }
+                            )
+                        }
+                    }
+
+                    // 7. Danh sách ngày sinh nhật (tối đa 10)
+                    item {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .bringIntoViewRequester(bdaySectionBringIntoView)
+                        ) {
+                            SectionCard(title = "Nhắc ngày sinh nhật (${birthdays.size}/10)") {
+                                Text(
+                                    "Tự động hiện Pop-up khi mở app và gửi thông báo 1 lần/ngày vào đúng ngày sinh nhật.",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                OutlinedTextField(
+                                    value = bdayNameInput,
+                                    onValueChange = {
+                                        bdayNameInput = it
+                                        bdayError = null
+                                    },
+                                    label = { Text("Tên người sinh nhật") },
+                                    singleLine = true,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .onFocusChanged { focusState ->
+                                            if (focusState.isFocused) {
+                                                scope.launch {
+                                                    delay(180)
+                                                    bdaySectionBringIntoView.bringIntoView()
+                                                }
+                                            }
+                                        }
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    OutlinedTextField(
+                                        value = bdayDayInput,
+                                        onValueChange = {
+                                            bdayDayInput = it.filter { ch -> ch.isDigit() }.take(2)
+                                            bdayError = null
+                                        },
+                                        label = { Text("Ngày (1-31)") },
+                                        singleLine = true,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .onFocusChanged { focusState ->
+                                                if (focusState.isFocused) {
+                                                    scope.launch {
+                                                        delay(180)
+                                                        bdaySectionBringIntoView.bringIntoView()
+                                                    }
+                                                }
+                                            }
+                                    )
+                                    OutlinedTextField(
+                                        value = bdayMonthInput,
+                                        onValueChange = {
+                                            bdayMonthInput = it.filter { ch -> ch.isDigit() }.take(2)
+                                            bdayError = null
+                                        },
+                                        label = { Text("Tháng (1-12)") },
+                                        singleLine = true,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .onFocusChanged { focusState ->
+                                                if (focusState.isFocused) {
+                                                    scope.launch {
+                                                        delay(180)
+                                                        bdaySectionBringIntoView.bringIntoView()
+                                                    }
+                                                }
+                                            }
+                                    )
+                                }
+
+                                if (bdayError != null) {
+                                    Text(
+                                        bdayError!!,
+                                        color = MaterialTheme.colorScheme.error,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        modifier = Modifier.padding(top = 4.dp)
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                OutlinedButton(
+                                    onClick = {
+                                        if (birthdays.size >= 10) {
+                                            bdayError = "Đã đạt giới hạn tối đa 10 ngày sinh nhật."
+                                            return@OutlinedButton
+                                        }
+                                        val nameTrim = bdayNameInput.trim()
+                                        val d = bdayDayInput.toIntOrNull() ?: 0
+                                        val m = bdayMonthInput.toIntOrNull() ?: 0
+                                        if (nameTrim.isEmpty()) {
+                                            bdayError = "Vui lòng nhập tên."
+                                            return@OutlinedButton
+                                        }
+                                        if (d !in 1..31 || m !in 1..12) {
+                                            bdayError = "Ngày phải từ 1–31 và tháng từ 1–12."
+                                            return@OutlinedButton
+                                        }
+                                        val updated = birthdays + BirthdayItem(
+                                            id = UUID.randomUUID().toString(),
+                                            name = nameTrim,
+                                            day = d,
+                                            month = m
+                                        )
+                                        birthdays = updated
+                                        AppPrefs.saveBirthdays(context, updated)
+                                        bdayNameInput = ""
+                                        bdayError = null
+                                        BirthdayHelper.notifyTodayBirthdaysOncePerDay(context)
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text("Thêm ngày sinh nhật")
+                                }
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                birthdays.forEach { item ->
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 4.dp)
+                                    ) {
+                                        Text(
+                                            "🎂 ${item.name} — ${item.day.toString().padStart(2, '0')}/${item.month.toString().padStart(2, '0')}",
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                        IconButton(
+                                            onClick = {
+                                                val updated = birthdays.filterNot { it.id == item.id }
+                                                birthdays = updated
+                                                AppPrefs.saveBirthdays(context, updated)
+                                            }
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Delete,
+                                                contentDescription = "Xóa sinh nhật",
+                                                tint = MaterialTheme.colorScheme.error
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Pop-up nhắc sinh nhật hiện đại (bo góc 28dp, huy hiệu nổi bật, nền mờ)
+            AnimatedVisibility(
+                visible = showBirthdayPopup && todayBirthdays.isNotEmpty(),
+                enter = fadeIn() + scaleIn(initialScale = 0.92f),
+                exit = fadeOut() + scaleOut(targetScale = 0.92f),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.58f))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { showBirthdayPopup = false }
+                        .padding(horizontal = 24.dp)
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(28.dp),
+                        tonalElevation = 8.dp,
+                        shadowElevation = 16.dp,
+                        color = MaterialTheme.colorScheme.surface,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) {}
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(22.dp)
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.End,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                IconButton(
+                                    onClick = { showBirthdayPopup = false },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Close,
+                                        contentDescription = "Đóng",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(64.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        Brush.linearGradient(
+                                            listOf(
+                                                accentCompose.copy(alpha = 0.25f),
+                                                accentCompose.copy(alpha = 0.12f)
+                                            )
+                                        )
+                                    )
+                                    .border(1.5.dp, accentCompose.copy(alpha = 0.55f), CircleShape)
+                            ) {
+                                Icon(
+                                    Icons.Default.Cake,
+                                    contentDescription = null,
+                                    tint = accentCompose,
+                                    modifier = Modifier.size(32.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            Text(
+                                "Sinh nhật hôm nay",
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center
+                            )
+
+                            Spacer(modifier = Modifier.height(6.dp))
+
+                            Surface(
+                                shape = RoundedCornerShape(999.dp),
+                                color = accentCompose.copy(alpha = 0.16f)
+                            ) {
+                                Text(
+                                    solarToday,
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = accentCompose,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                todayBirthdays.forEach { person ->
+                                    Surface(
+                                        shape = RoundedCornerShape(16.dp),
+                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+                                        ) {
+                                            Text(
+                                                "🎉 ${person.name}",
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Text(
+                                                "${person.day.toString().padStart(2, '0')}/${person.month.toString().padStart(2, '0')}",
+                                                style = MaterialTheme.typography.labelLarge,
+                                                color = accentCompose,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            Text(
+                                "Đừng quên gửi lời chúc mừng sinh nhật thật ấm áp đến mọi người nhé!",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center
+                            )
+
+                            Spacer(modifier = Modifier.height(18.dp))
+
+                            Button(
+                                onClick = { showBirthdayPopup = false },
+                                shape = RoundedCornerShape(16.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = accentCompose),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp)
+                            ) {
+                                Text(
+                                    "Tuyệt vời, đã nhớ!",
+                                    fontWeight = FontWeight.Bold
+                                )
                             }
                         }
                     }
