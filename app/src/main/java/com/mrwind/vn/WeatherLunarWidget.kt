@@ -143,6 +143,17 @@ class WeatherLunarWidget : AppWidgetProvider() {
             else -> "🌤️"
         }
 
+        private fun weatherEffectDrawableForCode(code: Int): Int = when (code) {
+            0 -> R.drawable.fx_weather_clear
+            1, 2 -> R.drawable.fx_weather_partly_cloudy
+            3 -> R.drawable.fx_weather_cloudy
+            45, 48 -> R.drawable.fx_weather_fog
+            51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82 -> R.drawable.fx_weather_rain
+            71, 73, 75, 77, 85, 86 -> R.drawable.fx_weather_snow
+            95, 96, 99 -> R.drawable.fx_weather_storm
+            else -> R.drawable.fx_weather_partly_cloudy
+        }
+
         fun updateSingleWidget(
             context: Context,
             appWidgetManager: AppWidgetManager,
@@ -182,6 +193,8 @@ class WeatherLunarWidget : AppWidgetProvider() {
                     }
                 }
             }
+
+            views.setImageViewResource(R.id.iv_weather_effect, weatherEffectDrawableForCode(weather.weatherCode))
 
             val isLightGlass = (bgMode == 1)
             val primaryTextColor = if (isLightGlass) Color.parseColor("#111827") else Color.WHITE
