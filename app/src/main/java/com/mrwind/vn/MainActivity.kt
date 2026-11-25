@@ -97,10 +97,20 @@ private data class AccentOption(
 private val ACCENT_OPTIONS = listOf(
     AccentOption("Xanh ngọc trời", 0xFF4FC3F7.toInt()),
     AccentOption("Xanh ngọc bích", 0xFF26A69A.toInt()),
+    AccentOption("Xanh dương đậm", 0xFF29B6F6.toInt()),
+    AccentOption("Xanh coban", 0xFF5C6BC0.toInt()),
+    AccentOption("Xanh bạc hà", 0xFF4DB6AC.toInt()),
+    AccentOption("Xanh lá rừng", 0xFF66BB6A.toInt()),
+    AccentOption("Xanh chanh", 0xFF9CCC65.toInt()),
+    AccentOption("Vàng nắng", 0xFFFFD54F.toInt()),
     AccentOption("Hổ phách ấm", 0xFFFFB74D.toInt()),
+    AccentOption("Cam hoàng hôn", 0xFFFF8A65.toInt()),
+    AccentOption("Đỏ san hô", 0xFFEF5350.toInt()),
     AccentOption("Hồng san hô", 0xFFF06292.toInt()),
+    AccentOption("Hồng phấn", 0xFFF48FB1.toInt()),
     AccentOption("Tím oải hương", 0xFFBA68C8.toInt()),
-    AccentOption("Xanh lá rừng", 0xFF66BB6A.toInt())
+    AccentOption("Tím hoa cà", 0xFF9575CD.toInt()),
+    AccentOption("Trắng ngà", 0xFFF5F5F5.toInt())
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
