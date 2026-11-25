@@ -29,7 +29,7 @@
             android:textSize="15sp"
             android:textStyle="bold" />
 
-        <!-- Lịch âm & Can Chi (đổi màu theo chủ đề) -->
+        <!-- Ngày âm & Năm Can Chi (đổi màu theo chủ đề) -->
         <TextView
             android:id="@+id/tv_lunar_date"
             android:layout_width="wrap_content"
@@ -37,12 +37,12 @@
             android:layout_marginTop="2dp"
             android:ellipsize="end"
             android:maxLines="1"
-            android:text="Âm lịch • Can Chi"
+            android:text="Ngày 17/10 ÂL • Bính Ngọ"
             android:textColor="#4FC3F7"
             android:textSize="13sp"
             android:textStyle="bold" />
 
-        <!-- Đồng hồ lớn tự cập nhật -->
+        <!-- Đồng hồ lớn tự cập nhật (hỗ trợ cả HH:mm và HH:mm:ss) -->
         <TextClock
             android:id="@+id/tv_clock"
             android:layout_width="wrap_content"
@@ -112,13 +112,13 @@
         </LinearLayout>
     </LinearLayout>
 
-    <!-- Cột phải -->
+    <!-- Cột phải: đẩy thời tiết lên cao ngang hàng ngày tháng năm -->
     <LinearLayout
         android:id="@+id/right_column"
         android:layout_width="wrap_content"
         android:layout_height="match_parent"
         android:layout_alignParentEnd="true"
-        android:gravity="end|center_vertical"
+        android:gravity="end|top"
         android:orientation="vertical">
 
         <!-- Khu vực thời tiết hiện tại + nút đồng bộ thủ công khi bấm -->
@@ -189,7 +189,7 @@
             android:id="@+id/tv_signature"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="10dp"
             android:ellipsize="end"
             android:maxLines="1"
             android:text="Gió Độc"
