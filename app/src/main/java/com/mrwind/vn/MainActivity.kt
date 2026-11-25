@@ -92,6 +92,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
@@ -100,7 +101,10 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 import java.util.TimeZone
 import java.util.UUID
 import kotlin.math.floor
@@ -388,6 +392,222 @@ private fun convertSolarToLunarSummary(day: Int, month: Int, year: Int): String 
     return "Âm lịch: Ngày $lunarDay/$lunarMonth/$lunarYear$leapText • Ngày $dCanChi • Tháng $mCanChi • Năm $yCanChi"
 }
 
+@Composable
+private fun WidgetPreviewBox(
+    weather: WeatherCache,
+    solarToday: String,
+    lunarSummary: String,
+    widgetBgMode: Int,
+    accentColor: Color,
+    showSeconds: Boolean,
+    showWeatherEffect: Boolean,
+    showSignature: Boolean,
+    signature: String,
+    clockScale: Int,
+    lunarScale: Int,
+    solarScale: Int,
+    sigScale: Int,
+    isDarkApp: Boolean,
+    modifier: Modifier = Modifier
+) {
+    var liveClockText by remember(showSeconds) {
+        val pattern = if (showSeconds) "HH:mm:ss" else "HH:mm"
+        val fmt = SimpleDateFormat(pattern, Locale.US).apply {
+            timeZone = TimeZone.getTimeZone("Asia/Ho_Chi_Minh")
+        }
+        mutableStateOf(fmt.format(Date()))
+    }
+
+    LaunchedEffect(showSeconds) {
+        val pattern = if (showSeconds) "HH:mm:ss" else "HH:mm"
+        val fmt = SimpleDateFormat(pattern, Locale.US).apply {
+            timeZone = TimeZone.getTimeZone("Asia/Ho_Chi_Minh")
+        }
+        while (true) {
+            liveClockText = fmt.format(Date())
+            delay(if (showSeconds) 1_000L else 15_000L)
+        }
+    }
+
+    val effectiveDarkBg = when (widgetBgMode) {
+        0 -> true
+        1 -> false
+        2 -> isDarkApp
+        else -> isDarkApp
+    }
+
+    val bgBrush = when (widgetBgMode) {
+        0 -> Brush.linearGradient(
+            listOf(Color(0xD91E202B), Color(0xCC12141C))
+        )
+        1 -> Brush.linearGradient(
+            listOf(Color(0xE6FFFFFF), Color(0xD9ECEFF6))
+        )
+        2 -> Brush.verticalGradient(
+            listOf(Color.Transparent, Color.Transparent)
+        )
+        else -> if (isDarkApp) {
+            Brush.linearGradient(listOf(Color(0xCC232530), Color(0xB3161822)))
+        } else {
+            Brush.linearGradient(listOf(Color(0xD9FFFFFF), Color(0xCCF3F5FA)))
+        }
+    }
+
+    val primaryText = if (effectiveDarkBg) Color.White else Color(0xFF14171F)
+    val secondaryText = if (effectiveDarkBg) Color(0xFFD0D5E3) else Color(0xFF4A5060)
+    val borderColor = if (widgetBgMode == 2) {
+        accentColor.copy(alpha = 0.45f)
+    } else if (effectiveDarkBg) {
+        Color.White.copy(alpha = 0.16f)
+    } else {
+        Color.Black.copy(alpha = 0.10f)
+    }
+
+    val clockSp = (24 + (clockScale - 10) * 0.7f).coerceIn(18f, 34f).sp
+    val lunarSp = (12.5f + (lunarScale - 10) * 0.35f).coerceIn(10f, 17f).sp
+    val solarSp = (13f + (solarScale - 10) * 0.35f).coerceIn(10.5f, 17.5f).sp
+    val sigSp = (11.5f + (sigScale - 10) * 0.3f).coerceIn(9.5f, 15.5f).sp
+
+    val effectBadge = remember(weather.weatherCode) {
+        when (weather.weatherCode) {
+            0 -> "☀️ Nắng"
+            1, 2, 3 -> "☁️ Mây"
+            45, 48 -> "🌫️ Sương mù"
+            51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82 -> "🌧️ Mưa"
+            95, 96, 99 -> "⛈️ Dông"
+            else -> "🌤️ Thời tiết"
+        }
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(22.dp))
+            .background(bgBrush)
+            .border(1.dp, borderColor, RoundedCornerShape(22.dp))
+            .padding(14.dp)
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    lunarSummary,
+                    fontSize = lunarSp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = accentColor,
+                    maxLines = 2,
+                    modifier = Modifier.weight(1f)
+                )
+                if (showWeatherEffect) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Surface(
+                        shape = RoundedCornerShape(999.dp),
+                        color = accentColor.copy(alpha = 0.16f)
+                    ) {
+                        Text(
+                            effectBadge,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = primaryText,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        solarToday,
+                        fontSize = solarSp,
+                        fontWeight = FontWeight.Medium,
+                        color = secondaryText,
+                        maxLines = 1
+                    )
+                    Text(
+                        liveClockText,
+                        fontSize = clockSp,
+                        fontWeight = FontWeight.Bold,
+                        color = primaryText,
+                        maxLines = 1
+                    )
+                }
+
+                Column(
+                    horizontalAlignment = Alignment.End,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        "${forecastEmojiForCode(weather.weatherCode)} ${weather.currentTemp}",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = primaryText,
+                        maxLines = 1
+                    )
+                    Text(
+                        weather.locationName,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = secondaryText,
+                        textAlign = TextAlign.End,
+                        maxLines = 1
+                    )
+                    Text(
+                        "${weather.description} • ${weather.humidity} • ${weather.windSpeed}",
+                        fontSize = 11.sp,
+                        color = secondaryText,
+                        textAlign = TextAlign.End,
+                        maxLines = 1
+                    )
+                    Text(
+                        "▲ ${weather.maxTemp}  ▼ ${weather.minTemp}",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = accentColor,
+                        maxLines = 1
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    "${weather.hour1}  ${weather.hour2}  ${weather.hour3}  ${weather.hour4}",
+                    fontSize = 11.sp,
+                    color = secondaryText,
+                    maxLines = 1,
+                    modifier = Modifier.weight(1f)
+                )
+                if (showSignature && signature.isNotBlank()) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        signature,
+                        fontSize = sigSp,
+                        fontStyle = FontStyle.Italic,
+                        fontWeight = FontWeight.SemiBold,
+                        color = accentColor,
+                        maxLines = 1
+                    )
+                }
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun ThoiTietAmLichApp() {
@@ -624,7 +844,7 @@ fun ThoiTietAmLichApp() {
                     contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 120.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    // 1. Thẻ tổng quan trên đầu app: Lịch Âm - Dương, Thời tiết hiện tại, Dự báo 5 ngày tới & Ghim Widget
+                    // 1. Thẻ đầu app: Xem trước Widget (kèm nút Cập nhật), Dự báo 5 ngày tới & Ghim Widget
                     item {
                         Card(
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
@@ -632,34 +852,16 @@ fun ThoiTietAmLichApp() {
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(modifier = Modifier.padding(16.dp)) {
-                                Text(
-                                    solarToday,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    lunarToday.fullSummary(),
-                                    color = accentCompose,
-                                    fontWeight = FontWeight.SemiBold,
-                                    modifier = Modifier.padding(top = 4.dp)
-                                )
-                                Spacer(modifier = Modifier.height(10.dp))
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            "${weather.currentTemp} • ${weather.description}",
-                                            style = MaterialTheme.typography.titleLarge,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                        Text(
-                                            "${weather.locationName} • ▲ ${weather.maxTemp} ▼ ${weather.minTemp}",
-                                            style = MaterialTheme.typography.bodyMedium
-                                        )
-                                    }
+                                    Text(
+                                        "Xem trước Widget",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold
+                                    )
                                     Button(
                                         onClick = {
                                             scope.launch {
@@ -672,8 +874,27 @@ fun ThoiTietAmLichApp() {
                                     }
                                 }
 
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                WidgetPreviewBox(
+                                    weather = weather,
+                                    solarToday = solarToday,
+                                    lunarSummary = lunarToday.fullSummary(),
+                                    widgetBgMode = widgetBgMode,
+                                    accentColor = accentCompose,
+                                    showSeconds = showSeconds,
+                                    showWeatherEffect = showWeatherEffect,
+                                    showSignature = showSignature,
+                                    signature = signature,
+                                    clockScale = clockScale,
+                                    lunarScale = lunarScale,
+                                    solarScale = solarScale,
+                                    sigScale = sigScale,
+                                    isDarkApp = isDark
+                                )
+
                                 if (fiveDayForecast.isNotEmpty()) {
-                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Spacer(modifier = Modifier.height(14.dp))
                                     Text(
                                         "Dự báo 5 ngày tới",
                                         style = MaterialTheme.typography.labelLarge,
@@ -1884,7 +2105,7 @@ fun ThoiTietAmLichApp() {
                                 .padding(top = 6.dp, bottom = 8.dp)
                         ) {
                             Text(
-                                "Phiên bản $APP_VERSION_NAME\nĐược tạo bởi Mr.Wind - Xiaomi Community Việt Nam\nỦng hộ anh ấy một cốc cà hê qua MOMO nhé: 0923032127",
+                                "Phiên bản $APP_VERSION_NAME\nĐược tạo bởi Mr.Wind - Xiaomi Community Việt Nam\nỦng hộ anh ấy một cốc cà hê qua MOMO: 0923032127",
                                 fontSize = 11.sp,
                                 lineHeight = 16.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
