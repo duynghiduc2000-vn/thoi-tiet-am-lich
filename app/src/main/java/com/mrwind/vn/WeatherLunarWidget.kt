@@ -78,6 +78,18 @@ class WeatherLunarWidget : AppWidgetProvider() {
             }
         }
 
+        private fun weatherEmojiForCode(code: Int): String = when (code) {
+            0 -> "☀️"
+            1, 2 -> "⛅"
+            3 -> "☁️"
+            45, 48 -> "🌫️"
+            51, 53, 55, 56, 57 -> "🌦️"
+            61, 63, 65, 66, 67, 80, 81, 82 -> "🌧️"
+            71, 73, 75, 77, 85, 86 -> "❄️"
+            95, 96, 99 -> "⛈️"
+            else -> "🌤️"
+        }
+
         fun updateSingleWidget(
             context: Context,
             appWidgetManager: AppWidgetManager,
@@ -121,13 +133,13 @@ class WeatherLunarWidget : AppWidgetProvider() {
             val primaryTextColor = if (isLightGlass) Color.parseColor("#111827") else Color.WHITE
             val secondaryTextColor = if (isLightGlass) Color.parseColor("#374151") else Color.parseColor("#E5E7EB")
 
-            views.setTextViewText(R.id.tv_solar_date, LunarCalendar.formatVietnameseSolarDate(cal))
-            views.setTextColor(R.id.tv_solar_date, primaryTextColor)
-            views.setTextViewTextSize(R.id.tv_solar_date, TypedValue.COMPLEX_UNIT_SP, solarSp)
-
             views.setTextViewText(R.id.tv_lunar_date, lunar.shortSummary())
             views.setTextColor(R.id.tv_lunar_date, accentColor)
             views.setTextViewTextSize(R.id.tv_lunar_date, TypedValue.COMPLEX_UNIT_SP, lunarSp)
+
+            views.setTextViewText(R.id.tv_solar_date, LunarCalendar.formatVietnameseSolarDate(cal))
+            views.setTextColor(R.id.tv_solar_date, primaryTextColor)
+            views.setTextViewTextSize(R.id.tv_solar_date, TypedValue.COMPLEX_UNIT_SP, solarSp)
 
             val clockFormat = if (showSeconds) "HH:mm:ss" else "HH:mm"
             views.setCharSequence(R.id.tv_clock, "setFormat12Hour", clockFormat)
@@ -146,6 +158,7 @@ class WeatherLunarWidget : AppWidgetProvider() {
                 views.setTextColor(id, secondaryTextColor)
             }
 
+            views.setTextViewText(R.id.tv_weather_emoji, weatherEmojiForCode(weather.weatherCode))
             views.setTextViewText(R.id.tv_current_temp, weather.currentTemp)
             views.setTextColor(R.id.tv_current_temp, accentColor)
 
