@@ -15,7 +15,9 @@ data class LunarDateInfo(
 ) {
     fun shortSummary(): String {
         val leapText = if (isLeap) " nhuận" else ""
-        return "Ngày $day/${month}$leapText ÂL • $yearCanChi"
+        val dStr = day.toString().padStart(2, '0')
+        val mStr = month.toString().padStart(2, '0')
+        return "Âm: $dStr/$mStr$leapText - Ngày $dayCanChi, $yearCanChi"
     }
 
     fun fullSummary(): String {
@@ -25,15 +27,37 @@ data class LunarDateInfo(
 }
 
 object LunarCalendar {
-    private val CANS = arrayOf(
-        "Giáp", "Ất", "Bính", "Đinh", "Mậu",
-        "Kỷ", "Canh", "Tân", "Nhâm", "Quý"
+    private val CANS = listOf(
+        "Giáp",
+        "\u1EA4t",
+        "B\u00EDnh",
+        "\u0110inh",
+        "M\u1EADu",
+        "K\u1EF7",
+        "Canh",
+        "T\u00E2n",
+        "Nh\u00E2m",
+        "Qu\u00FD"
     )
 
-    private val CHIS = arrayOf(
-        "Tý", "Sửu", "Dần", "Mão", "Thìn", "Tỵ",
-        "Ngọ", "Mùi", "Thân", "Dậu", "Tuất", "Hợi"
+    private val CHIS = listOf(
+        "T\u00FD",
+        "S\u1EEDu",
+        "D\u1EA7n",
+        "M\u00E3o",
+        "Th\u00ECn",
+        "T\u1EF5",
+        "Ng\u1ECD",
+        "M\u00F9i",
+        "Th\u00E2n",
+        "D\u1EADu",
+        "Tu\u1EA5t",
+        "H\u1EE3i"
     )
+
+    private fun joinCanChi(can: String, chi: String): String {
+        return "${can.trim()} ${chi.trim()}"
+    }
 
     private fun jdFromDate(dd: Int, mm: Int, yy: Int): Int {
         val a = (14 - mm) / 12
@@ -165,20 +189,20 @@ object LunarCalendar {
     fun canChiOfDay(jd: Int): String {
         val can = CANS[(jd + 9) % 10]
         val chi = CHIS[(jd + 1) % 12]
-        return "$can$chi"
+        return joinCanChi(can, chi)
     }
 
     fun canChiOfMonth(lunarYear: Int, lunarMonth: Int): String {
         val yearCanIndex = (lunarYear + 6) % 10
         val monthCanIndex = (yearCanIndex * 2 + lunarMonth + 1) % 10
         val monthChiIndex = (lunarMonth + 1) % 12
-        return "${CANS[monthCanIndex]}${CHIS[monthChiIndex]}"
+        return joinCanChi(CANS[monthCanIndex], CHIS[monthChiIndex])
     }
 
     fun canChiOfYear(lunarYear: Int): String {
         val can = CANS[(lunarYear + 6) % 10]
         val chi = CHIS[(lunarYear + 8) % 12]
-        return "$can$chi"
+        return joinCanChi(can, chi)
     }
 
     fun todayLunar(): LunarDateInfo {
@@ -193,13 +217,13 @@ object LunarCalendar {
 
     fun formatVietnameseSolarDate(cal: Calendar = Calendar.getInstance(TimeZone.getTimeZone("Asia/Ho_Chi_Minh"))): String {
         val thu = when (cal.get(Calendar.DAY_OF_WEEK)) {
-            Calendar.SUNDAY -> "Chủ Nhật"
-            Calendar.MONDAY -> "Thứ Hai"
-            Calendar.TUESDAY -> "Thứ Ba"
-            Calendar.WEDNESDAY -> "Thứ Tư"
-            Calendar.THURSDAY -> "Thứ Năm"
-            Calendar.FRIDAY -> "Thứ Sáu"
-            else -> "Thứ Bảy"
+            Calendar.SUNDAY -> "Ch\u1EE7 Nh\u1EADt"
+            Calendar.MONDAY -> "Th\u1EE9 Hai"
+            Calendar.TUESDAY -> "Th\u1EE9 Ba"
+            Calendar.WEDNESDAY -> "Th\u1EE9 T\u01B0"
+            Calendar.THURSDAY -> "Th\u1EE9 N\u0103m"
+            Calendar.FRIDAY -> "Th\u1EE9 S\u00E1u"
+            else -> "Th\u1EE9 B\u1EA3y"
         }
         val d = cal.get(Calendar.DAY_OF_MONTH).toString().padStart(2, '0')
         val m = (cal.get(Calendar.MONTH) + 1).toString().padStart(2, '0')
