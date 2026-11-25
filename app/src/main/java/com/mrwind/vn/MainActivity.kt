@@ -818,7 +818,7 @@ fun ThoiTietAmLichApp() {
                                 .padding(top = 6.dp, bottom = 8.dp)
                         ) {
                             Text(
-                                "Được tạo bởi Mr.WInd - Xiaomi Community Việt Nam\nỦng hộ anh ấy một cuốn triện gei qua MOMO: 0923032127",
+                                "Được tạo bởi Mr.Wind - Xiaomi Community Việt Nam\nỦng hộ anh ấy một cốc cà hê qua MOMO: 0923032127",
                                 fontSize = 11.sp,
                                 lineHeight = 16.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
