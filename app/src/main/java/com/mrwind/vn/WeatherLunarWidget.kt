@@ -60,7 +60,7 @@ class WeatherLunarWidget : AppWidgetProvider() {
         private fun openSystemClockApp(context: Context) {
             val candidates = listOf(
                 Intent(AlarmClock.ACTION_SHOW_ALARMS),
-                Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_CLOCK)
+                Intent(Intent.ACTION_MAIN).addCategory("android.intent.category.APP_CLOCK")
             )
             for (candidate in candidates) {
                 candidate.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
