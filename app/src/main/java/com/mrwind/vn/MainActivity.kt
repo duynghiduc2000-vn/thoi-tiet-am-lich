@@ -165,6 +165,7 @@ fun ThoiTietAmLichApp() {
     val bdaySectionBringIntoView = remember { BringIntoViewRequester() }
 
     val todayBirthdays = remember(birthdays) { BirthdayHelper.getTodayBirthdays(context) }
+    val showAdminBirthdayToday = remember { BirthdayHelper.isAdminBirthdayToday() }
     var showBirthdayPopup by remember { mutableStateOf(false) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -783,9 +784,9 @@ fun ThoiTietAmLichApp() {
                 }
             }
 
-            // Pop-up nhắc sinh nhật hiện đại (bo góc 28dp, huy hiệu nổi bật, nền mờ)
+            // Pop-up nhắc sinh nhật hiện đại (hỗ trợ cả danh sách cá nhân lẫn thông điệp ẩn 31/12 cho Mr.Wind)
             AnimatedVisibility(
-                visible = showBirthdayPopup && todayBirthdays.isNotEmpty(),
+                visible = showBirthdayPopup && (todayBirthdays.isNotEmpty() || showAdminBirthdayToday),
                 enter = fadeIn() + scaleIn(initialScale = 0.92f),
                 exit = fadeOut() + scaleOut(targetScale = 0.92f),
                 modifier = Modifier.fillMaxSize()
@@ -859,7 +860,10 @@ fun ThoiTietAmLichApp() {
                             Spacer(modifier = Modifier.height(14.dp))
 
                             Text(
-                                "Sinh nhật hôm nay",
+                                if (showAdminBirthdayToday && todayBirthdays.isEmpty())
+                                    "Chúc mừng sinh nhật!"
+                                else
+                                    "Sinh nhật hôm nay",
                                 style = MaterialTheme.typography.headlineSmall,
                                 fontWeight = FontWeight.Bold,
                                 textAlign = TextAlign.Center
@@ -882,32 +886,53 @@ fun ThoiTietAmLichApp() {
 
                             Spacer(modifier = Modifier.height(14.dp))
 
-                            Column(
-                                verticalArrangement = Arrangement.spacedBy(8.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                todayBirthdays.forEach { person ->
-                                    Surface(
-                                        shape = RoundedCornerShape(16.dp),
-                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+                            if (showAdminBirthdayToday) {
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = accentCompose.copy(alpha = 0.12f),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(bottom = if (todayBirthdays.isNotEmpty()) 8.dp else 0.dp)
+                                ) {
+                                    Text(
+                                        BirthdayHelper.ADMIN_BIRTHDAY_MESSAGE,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)
+                                    )
+                                }
+                            }
+
+                            if (todayBirthdays.isNotEmpty()) {
+                                Column(
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    todayBirthdays.forEach { person ->
+                                        Surface(
+                                            shape = RoundedCornerShape(16.dp),
+                                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                                            modifier = Modifier.fillMaxWidth()
                                         ) {
-                                            Text(
-                                                "🎉 ${person.name}",
-                                                style = MaterialTheme.typography.titleMedium,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                            Text(
-                                                "${person.day.toString().padStart(2, '0')}/${person.month.toString().padStart(2, '0')}",
-                                                style = MaterialTheme.typography.labelLarge,
-                                                color = accentCompose,
-                                                fontWeight = FontWeight.SemiBold
-                                            )
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+                                            ) {
+                                                Text(
+                                                    "🎉 ${person.name}",
+                                                    style = MaterialTheme.typography.titleMedium,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                                Text(
+                                                    "${person.day.toString().padStart(2, '0')}/${person.month.toString().padStart(2, '0')}",
+                                                    style = MaterialTheme.typography.labelLarge,
+                                                    color = accentCompose,
+                                                    fontWeight = FontWeight.SemiBold
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -916,7 +941,7 @@ fun ThoiTietAmLichApp() {
                             Spacer(modifier = Modifier.height(12.dp))
 
                             Text(
-                                "Đừng quên gửi lời chúc mừng sinh nhật thật ấm áp đến mọi người nhé!",
+                                "Đừng quên gửi lời chúc mừng sinh nhật thật ấm áp nhé!",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = TextAlign.Center
