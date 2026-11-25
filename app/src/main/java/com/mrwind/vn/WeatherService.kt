@@ -21,6 +21,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.URLEncoder
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -31,22 +32,65 @@ import kotlin.math.roundToInt
 
 object WeatherService {
 
-    data class PresetLocation(
-        val name: String,
+    data class SearchLocationResult(
+        val displayName: String,
         val lat: Double,
         val lon: Double
     )
 
-    val PRESET_LOCATIONS = listOf(
-        PresetLocation("Nghi Đức, Lâm Đồng", 11.49, 108.15),
-        PresetLocation("Đà Lạt, Lâm Đồng", 11.9404, 108.4583),
-        PresetLocation("TP. Hồ Chí Minh", 10.8231, 106.6297),
-        PresetLocation("Hà Nội", 21.0285, 105.8542),
-        PresetLocation("Đà Nẵng", 16.0544, 108.2022),
-        PresetLocation("Nha Trang, Khánh Hòa", 12.2388, 110.1967),
-        PresetLocation("Cần Thơ", 10.0452, 105.7469),
-        PresetLocation("Huế", 16.4637, 107.5909)
-    )
+    suspend fun searchLocationsByName(query: String): List<SearchLocationResult> =
+        withContext(Dispatchers.IO) {
+            val trimmed = query.trim()
+            if (trimmed.isEmpty()) return@withContext emptyList()
+            try {
+                val encoded = URLEncoder.encode(trimmed, "UTF-8")
+                val urlStr =
+                    "https://geocoding-api.open-meteo.com/v1/search?name=$encoded&count=8&language=vi&format=json"
+                val conn = (URL(urlStr).openConnection() as HttpURLConnection).apply {
+                    requestMethod = "GET"
+                    connectTimeout = 10000
+                    readTimeout = 10000
+                }
+                if (conn.responseCode != HttpURLConnection.HTTP_OK) {
+                    conn.disconnect()
+                    return@withContext emptyList()
+                }
+                val body = conn.inputStream.bufferedReader().use { it.readText() }
+                conn.disconnect()
+
+                val root = JSONObject(body)
+                val arr = root.optJSONArray("results") ?: return@withContext emptyList()
+                val out = mutableListOf<SearchLocationResult>()
+                for (i in 0 until arr.length()) {
+                    val item = arr.optJSONObject(i) ?: continue
+                    val name = item.optString("name", "").trim()
+                    if (name.isEmpty()) continue
+                    val admin2 = item.optString("admin2", "").trim().takeIf { it.isNotEmpty() }
+                    val admin1 = item.optString("admin1", "").trim().takeIf { it.isNotEmpty() }
+                    val country = item.optString("country", "").trim().takeIf { it.isNotEmpty() }
+                    val parts = listOfNotNull(
+                        name,
+                        admin2?.takeIf { it != name },
+                        admin1?.takeIf { it != name && it != admin2 },
+                        country?.takeIf { it != "Việt Nam" && it != "Vietnam" }
+                    )
+                    val lat = item.optDouble("latitude", Double.NaN)
+                    val lon = item.optDouble("longitude", Double.NaN)
+                    if (!lat.isNaN() && !lon.isNaN()) {
+                        out.add(
+                            SearchLocationResult(
+                                displayName = parts.joinToString(", "),
+                                lat = lat,
+                                lon = lon
+                            )
+                        )
+                    }
+                }
+                out
+            } catch (_: Exception) {
+                emptyList()
+            }
+        }
 
     suspend fun syncWeather(context: Context): WeatherCache = withContext(Dispatchers.IO) {
         val currentCache = AppPrefs.getWeather(context)
