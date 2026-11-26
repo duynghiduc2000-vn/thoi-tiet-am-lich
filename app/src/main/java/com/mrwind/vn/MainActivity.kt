@@ -294,27 +294,6 @@ private fun shortWeekdayVi(calendar: Calendar): String = when (calendar.get(Cale
     else -> ""
 }
 
-private fun readShowSevenDayForecastPref(context: Context): Boolean {
-    return try {
-        val m = AppPrefs::class.java.getMethod("isShowSevenDayForecast", Context::class.java)
-        (m.invoke(null, context) as? Boolean) ?: true
-    } catch (_: Exception) {
-        true
-    }
-}
-
-private fun writeShowSevenDayForecastPref(context: Context, show: Boolean) {
-    try {
-        val m = AppPrefs::class.java.getMethod(
-            "setShowSevenDayForecast",
-            Context::class.java,
-            Boolean::class.javaPrimitiveType
-        )
-        m.invoke(null, context, show)
-    } catch (_: Exception) {
-    }
-}
-
 private fun resolvePreviewSevenDays(context: Context, fallbackCode: Int): List<PreviewDayChip> {
     val tz = TimeZone.getTimeZone("Asia/Ho_Chi_Minh")
     val defaultIcon = forecastEmojiForCode(fallbackCode)
@@ -925,7 +904,7 @@ fun ThoiTietAmLichApp() {
     var showWeatherInfo by remember { mutableStateOf(AppPrefs.isShowWeatherInfo(context)) }
     var showSolarDate by remember { mutableStateOf(AppPrefs.isShowSolarDate(context)) }
     var showLocationName by remember { mutableStateOf(AppPrefs.isShowLocationName(context)) }
-    var showSevenDayForecast by remember { mutableStateOf(readShowSevenDayForecastPref(context)) }
+    val showSevenDayForecast = true
     var showSignature by remember { mutableStateOf(AppPrefs.isShowSignature(context)) }
     var signature by remember { mutableStateOf(AppPrefs.getSignature(context)) }
 
@@ -1006,7 +985,7 @@ fun ThoiTietAmLichApp() {
     val showAdminBirthdayToday = remember { BirthdayHelper.isAdminBirthdayToday() }
     var showBirthdayPopup by remember { mutableStateOf(false) }
 
-    val previewSevenDays = remember(weather, showSevenDayForecast) {
+    val previewSevenDays = remember(weather) {
         resolvePreviewSevenDays(context, weather.weatherCode)
     }
 
@@ -1627,7 +1606,7 @@ fun ThoiTietAmLichApp() {
                                     color = palette.subtleBg,
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(bottom = 10.dp)
+                                        .padding(bottom = 14.dp)
                                 ) {
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
@@ -1655,45 +1634,6 @@ fun ThoiTietAmLichApp() {
                                             onCheckedChange = { checked ->
                                                 showLocationName = checked
                                                 AppPrefs.setShowLocationName(context, checked)
-                                                WeatherLunarWidget.updateAllWidgets(context)
-                                            }
-                                        )
-                                    }
-                                }
-
-                                Surface(
-                                    shape = RoundedCornerShape(16.dp),
-                                    color = palette.subtleBg,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(bottom = 14.dp)
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 14.dp, vertical = 10.dp)
-                                    ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                "Hiển thị dự báo 7 ngày",
-                                                color = palette.textPrimary,
-                                                fontWeight = FontWeight.SemiBold
-                                            )
-                                            Text(
-                                                "Bật/tắt dãy 7 ô dự báo ngày tiếp theo trên Widget",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = palette.textSecondary
-                                            )
-                                        }
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Switch(
-                                            checked = showSevenDayForecast,
-                                            colors = SwitchDefaults.colors(checkedTrackColor = accentCompose),
-                                            onCheckedChange = { checked ->
-                                                showSevenDayForecast = checked
-                                                writeShowSevenDayForecastPref(context, checked)
                                                 WeatherLunarWidget.updateAllWidgets(context)
                                             }
                                         )
