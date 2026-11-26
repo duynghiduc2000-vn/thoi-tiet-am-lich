@@ -97,6 +97,7 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -138,6 +139,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
@@ -484,6 +487,138 @@ private fun buildSoftCloudPath(baseX: Float, baseY: Float, scale: Float): Path {
             baseX + 6f * scale, baseY + 11f * scale
         )
         close()
+    }
+}
+
+@Composable
+private fun BatteryOptimizationIconGlyph(
+    tint: Color,
+    isAnimated: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val pulseScale: Float
+    if (isAnimated) {
+        val transition = rememberInfiniteTransition(label = "battery_opt_glyph_pulse")
+        pulseScale = transition.animateFloat(
+            initialValue = 0.94f,
+            targetValue = 1.07f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 850, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "bolt_pulse"
+        ).value
+    } else {
+        pulseScale = 1f
+    }
+
+    Canvas(
+        modifier = modifier.graphicsLayer {
+            scaleX = pulseScale
+            scaleY = pulseScale
+        }
+    ) {
+        val w = size.width
+        val h = size.height
+        val strokeW = w * 0.085f
+
+        // Thân pin tối giản gọn gàng
+        val bodyLeft = w * 0.24f
+        val bodyTop = h * 0.26f
+        val bodyWidth = w * 0.52f
+        val bodyHeight = h * 0.54f
+        drawRoundRect(
+            color = tint,
+            topLeft = Offset(bodyLeft, bodyTop),
+            size = Size(bodyWidth, bodyHeight),
+            cornerRadius = CornerRadius(w * 0.11f, w * 0.11f),
+            style = Stroke(width = strokeW, join = StrokeJoin.Round)
+        )
+
+        // Đầu cực dương của pin
+        drawRoundRect(
+            color = tint,
+            topLeft = Offset(w * 0.40f, h * 0.15f),
+            size = Size(w * 0.20f, h * 0.08f),
+            cornerRadius = CornerRadius(w * 0.03f, w * 0.03f)
+        )
+
+        // Tia sét tối ưu hóa bên trong pin
+        val boltPath = Path().apply {
+            moveTo(w * 0.53f, h * 0.35f)
+            lineTo(w * 0.41f, h * 0.55f)
+            lineTo(w * 0.51f, h * 0.55f)
+            lineTo(w * 0.47f, h * 0.71f)
+            lineTo(w * 0.60f, h * 0.50f)
+            lineTo(w * 0.50f, h * 0.50f)
+            close()
+        }
+        drawPath(path = boltPath, color = tint)
+    }
+}
+
+@Composable
+private fun TopBarBatteryOptimizeButton(
+    palette: AdaptivePalette,
+    accentColor: Color,
+    isOptimizing: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val ringRotation: Float
+    if (isOptimizing) {
+        val transition = rememberInfiniteTransition(label = "top_battery_opt_spin")
+        ringRotation = transition.animateFloat(
+            initialValue = 0f,
+            targetValue = 360f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 1200, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "opt_ring_rotation"
+        ).value
+    } else {
+        ringRotation = 0f
+    }
+
+    Surface(
+        shape = CircleShape,
+        color = palette.cardBg,
+        modifier = modifier
+            .size(40.dp)
+            .clip(CircleShape)
+            .border(
+                width = 1.dp,
+                color = accentColor.copy(alpha = if (isOptimizing) 0.80f else 0.45f),
+                shape = CircleShape
+            )
+            .clickable(enabled = !isOptimizing, onClick = onClick)
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.fillMaxSize()
+        ) {
+            if (isOptimizing) {
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    rotate(degrees = ringRotation) {
+                        drawArc(
+                            color = accentColor,
+                            startAngle = 0f,
+                            sweepAngle = 115f,
+                            useCenter = false,
+                            topLeft = Offset(2.dp.toPx(), 2.dp.toPx()),
+                            size = Size(size.width - 4.dp.toPx(), size.height - 4.dp.toPx()),
+                            style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round)
+                        )
+                    }
+                }
+            }
+            BatteryOptimizationIconGlyph(
+                tint = accentColor,
+                isAnimated = isOptimizing,
+                modifier = Modifier.size(22.dp)
+            )
+        }
     }
 }
 
@@ -1754,6 +1889,10 @@ fun ThoiTietAmLichApp() {
         BirthdayHelper.DEFAULT_VIETNAM_AND_INTERNATIONAL_HOLIDAYS.map { it.id }.toSet()
     }
 
+    var isOptimizingBattery by remember { mutableStateOf(false) }
+    var optimizationStepText by remember { mutableStateOf("Đang chuẩn bị tối ưu hóa...") }
+    var optimizationProgress by remember { mutableFloatStateOf(0f) }
+
     var appThemeMode by remember { mutableIntStateOf(AppPrefs.getAppThemeMode(context)) }
     var cardBounceEnabled by remember { mutableStateOf(AppPrefs.isCardBounceEnabled(context)) }
     var topWeatherBgEnabled by remember { mutableStateOf(false) }
@@ -1954,6 +2093,37 @@ fun ThoiTietAmLichApp() {
         }
     }
 
+    LaunchedEffect(isOptimizingBattery) {
+        if (!isOptimizingBattery) return@LaunchedEffect
+
+        optimizationProgress = 0.20f
+        optimizationStepText = "Đang rà soát & đồng bộ báo thức việc cần làm..."
+        val syncedTasks = TodoHelper.ensureCurrentDayOrReset(appContext)
+        TodoHelper.scheduleAllTodayAlarms(appContext, syncedTasks)
+        todoTasks = syncedTasks
+        delay(500L)
+
+        optimizationProgress = 0.62f
+        optimizationStepText = "Đang kiểm tra nhắc nhở ngày mới & lịch âm..."
+        BirthdayHelper.runDailyBackgroundReminders(appContext)
+        delay(500L)
+
+        optimizationProgress = 0.92f
+        optimizationStepText = "Đang đồng bộ trạng thái Widget..."
+        WeatherLunarWidget.updateAllWidgets(appContext)
+        delay(450L)
+
+        optimizationProgress = 1.0f
+        isOptimizingBattery = false
+        if (isAppResumed) {
+            Toast.makeText(
+                appContext,
+                "Đã tối ưu hóa pin và ứng dụng",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
@@ -1989,6 +2159,7 @@ fun ThoiTietAmLichApp() {
     }
 
     val hasBlockingPopup = remember(
+        isOptimizingBattery,
         showHolidayPopup,
         activeHolidayAlerts,
         activeTodoPopup,
@@ -2002,7 +2173,8 @@ fun ThoiTietAmLichApp() {
         todayBirthdays,
         showAdminBirthdayToday
     ) {
-        (showHolidayPopup && activeHolidayAlerts.isNotEmpty()) ||
+        isOptimizingBattery ||
+            (showHolidayPopup && activeHolidayAlerts.isNotEmpty()) ||
             activeTodoPopup != null ||
             ageResultPopup != null ||
             showAgeHistoryClearedPopup ||
@@ -2198,6 +2370,19 @@ fun ThoiTietAmLichApp() {
                                 }
                             },
                             actions = {
+                                TopBarBatteryOptimizeButton(
+                                    palette = palette,
+                                    accentColor = accentCompose,
+                                    isOptimizing = isOptimizingBattery,
+                                    onClick = {
+                                        if (!isOptimizingBattery) {
+                                            optimizationProgress = 0.05f
+                                            optimizationStepText = "Đang khởi động tối ưu hóa..."
+                                            isOptimizingBattery = true
+                                        }
+                                    }
+                                )
+                                Spacer(modifier = Modifier.width(14.dp))
                                 TopBarDayNightIndicator(
                                     palette = palette,
                                     accentColor = accentCompose,
@@ -4481,6 +4666,124 @@ fun ThoiTietAmLichApp() {
                 }
 
                 AnimatedVisibility(
+                    visible = isOptimizingBattery,
+                    enter = fadeIn(tween(180)) + scaleIn(initialScale = 0.92f),
+                    exit = fadeOut(tween(180)) + scaleOut(targetScale = 0.92f),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    val animTransition = rememberInfiniteTransition(label = "liquid_battery_opt_popup")
+                    val haloAngle by animTransition.animateFloat(
+                        initialValue = 0f,
+                        targetValue = 360f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(durationMillis = 1500, easing = LinearEasing),
+                            repeatMode = RepeatMode.Restart
+                        ),
+                        label = "halo_angle"
+                    )
+                    val animatedProgress by animateFloatAsState(
+                        targetValue = optimizationProgress.coerceIn(0f, 1f),
+                        animationSpec = tween(durationMillis = 320, easing = FastOutSlowInEasing),
+                        label = "opt_progress_bar"
+                    )
+
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.72f))
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) {}
+                            .padding(horizontal = 24.dp)
+                    ) {
+                        LiquidGlassPopupSurface(palette = palette) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.padding(24.dp)
+                            ) {
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier.size(80.dp)
+                                ) {
+                                    Canvas(modifier = Modifier.fillMaxSize()) {
+                                        drawCircle(
+                                            color = accentCompose.copy(alpha = 0.14f),
+                                            radius = size.minDimension * 0.46f
+                                        )
+                                        rotate(degrees = haloAngle) {
+                                            drawArc(
+                                                color = accentCompose,
+                                                startAngle = 0f,
+                                                sweepAngle = 140f,
+                                                useCenter = false,
+                                                topLeft = Offset(3.dp.toPx(), 3.dp.toPx()),
+                                                size = Size(
+                                                    size.width - 6.dp.toPx(),
+                                                    size.height - 6.dp.toPx()
+                                                ),
+                                                style = Stroke(
+                                                    width = 3.dp.toPx(),
+                                                    cap = StrokeCap.Round
+                                                )
+                                            )
+                                        }
+                                    }
+
+                                    Box(
+                                        contentAlignment = Alignment.Center,
+                                        modifier = Modifier
+                                            .size(58.dp)
+                                            .clip(CircleShape)
+                                            .background(accentCompose.copy(alpha = 0.16f))
+                                            .border(1.2.dp, accentCompose.copy(alpha = 0.45f), CircleShape)
+                                    ) {
+                                        BatteryOptimizationIconGlyph(
+                                            tint = accentCompose,
+                                            isAnimated = true,
+                                            modifier = Modifier.size(30.dp)
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(16.dp))
+
+                                Text(
+                                    "Đang tối ưu hóa pin và ứng dụng...",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = palette.popupTextPrimary,
+                                    fontWeight = FontWeight.Bold,
+                                    textAlign = TextAlign.Center
+                                )
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                Text(
+                                    optimizationStepText,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = palette.popupTextSecondary,
+                                    textAlign = TextAlign.Center
+                                )
+
+                                Spacer(modifier = Modifier.height(16.dp))
+
+                                LinearProgressIndicator(
+                                    progress = { animatedProgress },
+                                    color = accentCompose,
+                                    trackColor = palette.popupBoxBg,
+                                    strokeCap = StrokeCap.Round,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(6.dp)
+                                        .clip(CircleShape)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                AnimatedVisibility(
                     visible = showHolidayPopup && activeHolidayAlerts.isNotEmpty(),
                     enter = fadeIn() + scaleIn(initialScale = 0.92f),
                     exit = fadeOut() + scaleOut(targetScale = 0.92f),
@@ -5489,7 +5792,7 @@ private fun rememberCardBounceScale(
 
     LaunchedEffect(pulseKey, bounceEnabled) {
         if (firstRender) {
-            firstRender = false
+            firstRender = firstRender.not()
             return@LaunchedEffect
         }
         if (bounceEnabled) {
