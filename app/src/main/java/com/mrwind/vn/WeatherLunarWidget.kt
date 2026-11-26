@@ -350,6 +350,7 @@ class WeatherLunarWidget : AppWidgetProvider() {
             views.setViewVisibility(R.id.tv_location_name, if (showLocationName) View.VISIBLE else View.GONE)
             views.setTextViewText(R.id.tv_location_name, formatShortLocationName(weather.locationName))
             views.setTextColor(R.id.tv_location_name, primaryTextColor)
+            views.setTextViewTextSize(R.id.tv_location_name, TypedValue.COMPLEX_UNIT_PX, solarPx)
 
             views.setTextViewText(R.id.tv_weather_desc, weather.description)
             views.setTextColor(R.id.tv_weather_desc, secondaryTextColor)
