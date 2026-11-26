@@ -590,6 +590,10 @@ private fun WidgetPreviewBox(
     accentColor: Color,
     showSeconds: Boolean,
     showWeatherEffect: Boolean,
+    showLunarDate: Boolean,
+    showWeatherInfo: Boolean,
+    showSolarDate: Boolean,
+    showLocationName: Boolean,
     showSevenDayForecast: Boolean,
     sevenDayChips: List<PreviewDayChip>,
     showSignature: Boolean,
@@ -697,14 +701,16 @@ private fun WidgetPreviewBox(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        lunarSummary,
-                        fontSize = lunarSp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = accentColor,
-                        maxLines = 2
-                    )
-                    if (showWeatherEffect) {
+                    if (showLunarDate) {
+                        Text(
+                            lunarSummary,
+                            fontSize = lunarSp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = accentColor,
+                            maxLines = 2
+                        )
+                    }
+                    if (showWeatherEffect && showWeatherInfo) {
                         Spacer(modifier = Modifier.height(4.dp))
                         Surface(
                             shape = RoundedCornerShape(999.dp),
@@ -721,57 +727,67 @@ private fun WidgetPreviewBox(
                     }
                 }
 
-                Spacer(modifier = Modifier.width(8.dp))
+                if (showWeatherInfo) {
+                    Spacer(modifier = Modifier.width(8.dp))
 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(chipBg)
-                        .border(1.dp, borderColor, RoundedCornerShape(12.dp))
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Text(
-                        forecastEmojiForCode(weather.weatherCode),
-                        fontSize = 19.sp,
-                        maxLines = 1
-                    )
-                    Spacer(modifier = Modifier.width(5.dp))
-                    Text(
-                        weather.currentTemp,
-                        fontSize = 21.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = accentColor,
-                        maxLines = 1
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(chipBg)
+                            .border(1.dp, borderColor, RoundedCornerShape(12.dp))
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            forecastEmojiForCode(weather.weatherCode),
+                            fontSize = 19.sp,
+                            maxLines = 1
+                        )
+                        Spacer(modifier = Modifier.width(5.dp))
+                        Text(
+                            weather.currentTemp,
+                            fontSize = 21.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = accentColor,
+                            maxLines = 1
+                        )
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(6.dp))
+            if (showSolarDate || showLocationName) {
+                Spacer(modifier = Modifier.height(6.dp))
 
-            // Hàng 2: Dương lịch bên trái + Địa danh bên phải
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    solarToday,
-                    fontSize = solarSp,
-                    fontWeight = FontWeight.Bold,
-                    color = primaryText,
-                    maxLines = 1,
-                    modifier = Modifier.weight(1f)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    weather.locationName,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = primaryText,
-                    textAlign = TextAlign.End,
-                    maxLines = 1
-                )
+                // Hàng 2: Dương lịch bên trái + Địa danh bên phải
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    if (showSolarDate) {
+                        Text(
+                            solarToday,
+                            fontSize = solarSp,
+                            fontWeight = FontWeight.Bold,
+                            color = primaryText,
+                            maxLines = 1,
+                            modifier = Modifier.weight(1f)
+                        )
+                    } else {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
+                    if (showLocationName) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            weather.locationName,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = primaryText,
+                            textAlign = TextAlign.End,
+                            maxLines = 1
+                        )
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(6.dp))
@@ -793,32 +809,34 @@ private fun WidgetPreviewBox(
                     )
                 }
 
-                Spacer(modifier = Modifier.width(8.dp))
+                if (showWeatherInfo) {
+                    Spacer(modifier = Modifier.width(8.dp))
 
-                Column(
-                    horizontalAlignment = Alignment.End
-                ) {
-                    Text(
-                        weather.description,
-                        fontSize = 11.sp,
-                        color = secondaryText,
-                        textAlign = TextAlign.End,
-                        maxLines = 1
-                    )
-                    Text(
-                        "💧 ${weather.humidity} • 💨 ${weather.windSpeed}",
-                        fontSize = 10.5.sp,
-                        color = secondaryText,
-                        textAlign = TextAlign.End,
-                        maxLines = 1
-                    )
-                    Text(
-                        "▲ ${weather.maxTemp}  ▼ ${weather.minTemp}",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = accentColor,
-                        maxLines = 1
-                    )
+                    Column(
+                        horizontalAlignment = Alignment.End
+                    ) {
+                        Text(
+                            weather.description,
+                            fontSize = 11.sp,
+                            color = secondaryText,
+                            textAlign = TextAlign.End,
+                            maxLines = 1
+                        )
+                        Text(
+                            "💧 ${weather.humidity} • 💨 ${weather.windSpeed}",
+                            fontSize = 10.5.sp,
+                            color = secondaryText,
+                            textAlign = TextAlign.End,
+                            maxLines = 1
+                        )
+                        Text(
+                            "▲ ${weather.maxTemp}  ▼ ${weather.minTemp}",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = accentColor,
+                            maxLines = 1
+                        )
+                    }
                 }
             }
 
@@ -901,6 +919,10 @@ fun ThoiTietAmLichApp() {
     var showSeconds by remember { mutableStateOf(AppPrefs.isShowSeconds(context)) }
     var showSecondsWarningPopup by remember { mutableStateOf(false) }
     var showWeatherEffect by remember { mutableStateOf(AppPrefs.isShowWeatherEffect(context)) }
+    var showLunarDate by remember { mutableStateOf(AppPrefs.isShowLunarDate(context)) }
+    var showWeatherInfo by remember { mutableStateOf(AppPrefs.isShowWeatherInfo(context)) }
+    var showSolarDate by remember { mutableStateOf(AppPrefs.isShowSolarDate(context)) }
+    var showLocationName by remember { mutableStateOf(AppPrefs.isShowLocationName(context)) }
     var showSevenDayForecast by remember { mutableStateOf(readShowSevenDayForecastPref(context)) }
     var showSignature by remember { mutableStateOf(AppPrefs.isShowSignature(context)) }
     var signature by remember { mutableStateOf(AppPrefs.getSignature(context)) }
@@ -1287,6 +1309,10 @@ fun ThoiTietAmLichApp() {
                                         accentColor = accentCompose,
                                         showSeconds = showSeconds,
                                         showWeatherEffect = showWeatherEffect,
+                                        showLunarDate = showLunarDate,
+                                        showWeatherInfo = showWeatherInfo,
+                                        showSolarDate = showSolarDate,
+                                        showLocationName = showLocationName,
                                         showSevenDayForecast = showSevenDayForecast,
                                         sevenDayChips = previewSevenDays,
                                         showSignature = showSignature,
@@ -1375,7 +1401,7 @@ fun ThoiTietAmLichApp() {
                             }
                         }
 
-                        // 2. Đồng hồ, giao diện, nền widget (kèm nút bật/tắt dự báo 7 ngày)
+                        // 2. Đồng hồ, giao diện, nền widget (kèm các nút bật/tắt thành phần trên Widget)
                         item(key = "clock_theme_bg_section") {
                             CollapsibleSectionCard(
                                 title = "Đồng hồ, Giao diện & Nền Widget",
@@ -1461,6 +1487,162 @@ fun ThoiTietAmLichApp() {
                                             onCheckedChange = { checked ->
                                                 showWeatherEffect = checked
                                                 AppPrefs.setShowWeatherEffect(context, checked)
+                                                WeatherLunarWidget.updateAllWidgets(context)
+                                            }
+                                        )
+                                    }
+                                }
+
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = palette.subtleBg,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(bottom = 10.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 14.dp, vertical = 10.dp)
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                "Hiển thị lịch âm",
+                                                color = palette.textPrimary,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                            Text(
+                                                "Bật/tắt dòng thông tin Âm lịch trên Widget",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = palette.textSecondary
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Switch(
+                                            checked = showLunarDate,
+                                            colors = SwitchDefaults.colors(checkedTrackColor = accentCompose),
+                                            onCheckedChange = { checked ->
+                                                showLunarDate = checked
+                                                AppPrefs.setShowLunarDate(context, checked)
+                                                WeatherLunarWidget.updateAllWidgets(context)
+                                            }
+                                        )
+                                    }
+                                }
+
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = palette.subtleBg,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(bottom = 10.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 14.dp, vertical = 10.dp)
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                "Hiển thị nhiệt độ (kèm thời tiết)",
+                                                color = palette.textPrimary,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                            Text(
+                                                "Bật/tắt nhiệt độ, trạng thái, độ ẩm, gió & biên độ nhiệt",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = palette.textSecondary
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Switch(
+                                            checked = showWeatherInfo,
+                                            colors = SwitchDefaults.colors(checkedTrackColor = accentCompose),
+                                            onCheckedChange = { checked ->
+                                                showWeatherInfo = checked
+                                                AppPrefs.setShowWeatherInfo(context, checked)
+                                                WeatherLunarWidget.updateAllWidgets(context)
+                                            }
+                                        )
+                                    }
+                                }
+
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = palette.subtleBg,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(bottom = 10.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 14.dp, vertical = 10.dp)
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                "Hiển thị dương lịch",
+                                                color = palette.textPrimary,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                            Text(
+                                                "Bật/tắt dòng thứ và ngày tháng Dương lịch trên Widget",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = palette.textSecondary
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Switch(
+                                            checked = showSolarDate,
+                                            colors = SwitchDefaults.colors(checkedTrackColor = accentCompose),
+                                            onCheckedChange = { checked ->
+                                                showSolarDate = checked
+                                                AppPrefs.setShowSolarDate(context, checked)
+                                                WeatherLunarWidget.updateAllWidgets(context)
+                                            }
+                                        )
+                                    }
+                                }
+
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = palette.subtleBg,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(bottom = 10.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 14.dp, vertical = 10.dp)
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                "Hiển thị địa điểm",
+                                                color = palette.textPrimary,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                            Text(
+                                                "Bật/tắt tên địa danh cập nhật thời tiết trên Widget",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = palette.textSecondary
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Switch(
+                                            checked = showLocationName,
+                                            colors = SwitchDefaults.colors(checkedTrackColor = accentCompose),
+                                            onCheckedChange = { checked ->
+                                                showLocationName = checked
+                                                AppPrefs.setShowLocationName(context, checked)
                                                 WeatherLunarWidget.updateAllWidgets(context)
                                             }
                                         )
