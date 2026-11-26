@@ -116,12 +116,12 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 import java.util.UUID
-import java.text.SimpleDateFormat
 import kotlin.math.floor
 import kotlin.math.roundToInt
 
@@ -604,6 +604,7 @@ private fun WidgetPreviewBox(
     val effectiveDarkBg = when (widgetBgMode) {
         0 -> true
         1 -> false
+        4 -> true
         else -> isDarkApp
     }
 
@@ -624,6 +625,14 @@ private fun WidgetPreviewBox(
                 )
             )
             2 -> Brush.verticalGradient(listOf(Color.Transparent, Color.Transparent))
+            4 -> Brush.linearGradient(
+                listOf(
+                    Color(0xFF263552).copy(alpha = 0.85f),
+                    Color(0xFF1A2438).copy(alpha = 0.72f),
+                    accentColor.copy(alpha = 0.18f),
+                    Color(0xFF0D1320).copy(alpha = 0.78f)
+                )
+            )
             else -> if (isDarkApp) {
                 Brush.linearGradient(
                     listOf(
@@ -650,6 +659,7 @@ private fun WidgetPreviewBox(
     val borderColor = remember(widgetBgMode, effectiveDarkBg, accentColor) {
         when {
             widgetBgMode == 2 -> accentColor.copy(alpha = 0.55f)
+            widgetBgMode == 4 -> Color(0xFF90CAF9).copy(alpha = 0.55f)
             effectiveDarkBg -> Color.White.copy(alpha = 0.16f)
             else -> Color.Black.copy(alpha = 0.12f)
         }
@@ -1501,7 +1511,13 @@ fun ThoiTietAmLichApp() {
                                     color = palette.textPrimary,
                                     fontWeight = FontWeight.SemiBold
                                 )
-                                val bgLabels = listOf("Kính lỏng tối", "Kính lỏng sáng", "Trong suốt", "Theo chủ đề app")
+                                val bgLabels = listOf(
+                                    "Kính lỏng tối",
+                                    "Kính lỏng sáng",
+                                    "Trong suốt",
+                                    "Theo chủ đề app",
+                                    "Liquid Glass"
+                                )
                                 LazyRow(
                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                                     modifier = Modifier.padding(top = 6.dp)
