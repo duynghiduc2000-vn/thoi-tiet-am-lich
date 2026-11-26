@@ -86,7 +86,7 @@ object AppPrefs {
 
     // Hiển thị lớp hiệu ứng thời tiết trên Widget
     fun isShowWeatherEffect(context: Context): Boolean =
-        prefs(context).getBoolean("show_weather_effect", true)
+        prefs(context).getBoolean("show_weather_effect", false)
 
     fun setShowWeatherEffect(context: Context, show: Boolean) {
         prefs(context).edit().putBoolean("show_weather_effect", show).apply()
@@ -102,7 +102,7 @@ object AppPrefs {
 
     // Hiển thị chữ ký trên Widget
     fun isShowSignature(context: Context): Boolean =
-        prefs(context).getBoolean("show_signature", true)
+        prefs(context).getBoolean("show_signature", false)
 
     fun setShowSignature(context: Context, show: Boolean) {
         prefs(context).edit().putBoolean("show_signature", show).apply()
