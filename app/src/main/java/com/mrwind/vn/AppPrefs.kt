@@ -317,6 +317,43 @@ object AppPrefs {
         prefs(context).edit().putString("last_notify_date", dateStr).apply()
     }
 
+    // Nhắc ngày lễ / kỷ niệm Việt Nam & quốc tế tại Việt Nam
+    fun isHolidayReminderEnabled(context: Context): Boolean =
+        prefs(context).getBoolean("holiday_reminder_enabled", true)
+
+    fun setHolidayReminderEnabled(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean("holiday_reminder_enabled", enabled).apply()
+    }
+
+    fun getEnabledHolidayIds(context: Context): Set<String>? {
+        if (!prefs(context).contains("enabled_holiday_ids_json")) return null
+        val raw = prefs(context).getString("enabled_holiday_ids_json", "[]") ?: "[]"
+        val set = mutableSetOf<String>()
+        try {
+            val arr = JSONArray(raw)
+            for (i in 0 until arr.length()) {
+                val id = arr.optString(i, "")
+                if (id.isNotBlank()) set.add(id)
+            }
+        } catch (_: Exception) {
+            return null
+        }
+        return set
+    }
+
+    fun setEnabledHolidayIds(context: Context, ids: Set<String>) {
+        val arr = JSONArray()
+        ids.forEach { arr.put(it) }
+        prefs(context).edit().putString("enabled_holiday_ids_json", arr.toString()).apply()
+    }
+
+    fun getLastHolidayAlertKey(context: Context): String =
+        prefs(context).getString("last_holiday_alert_key", "") ?: ""
+
+    fun setLastHolidayAlertKey(context: Context, key: String) {
+        prefs(context).edit().putString("last_holiday_alert_key", key).apply()
+    }
+
     private fun prefs(context: Context) =
         context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
 }
