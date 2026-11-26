@@ -60,8 +60,16 @@ object AppPrefs {
         prefs(context).edit().putInt("app_theme_mode", mode).apply()
     }
 
+    // Hiệu ứng nảy khi bấm vào các thẻ (mặc định tắt)
+    fun isCardBounceEnabled(context: Context): Boolean =
+        prefs(context).getBoolean("card_bounce_enabled", false)
+
+    fun setCardBounceEnabled(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean("card_bounce_enabled", enabled).apply()
+    }
+
     // Nhạc nền trong ứng dụng (mặc định tắt, âm lượng nhỏ vừa phải 0.15f)
-        fun isBgMusicEnabled(context: Context): Boolean {
+    fun isBgMusicEnabled(context: Context): Boolean {
         return prefs(context).getBoolean("bg_music_enabled", false)
     }
 
