@@ -1407,7 +1407,6 @@ private fun WidgetPreviewBox(
     isClockActive: Boolean,
     showWeatherEffect: Boolean,
     showLunarDate: Boolean,
-    showWeatherInfo: Boolean,
     showSolarDate: Boolean,
     showLocationName: Boolean,
     showSevenDayForecast: Boolean,
@@ -1525,7 +1524,7 @@ private fun WidgetPreviewBox(
                             maxLines = 2
                         )
                     }
-                    if (showWeatherEffect && showWeatherInfo) {
+                    if (showWeatherEffect) {
                         Spacer(modifier = Modifier.height(4.dp))
                         Surface(
                             shape = RoundedCornerShape(999.dp),
@@ -1542,31 +1541,29 @@ private fun WidgetPreviewBox(
                     }
                 }
 
-                if (showWeatherInfo) {
-                    Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(8.dp))
 
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(chipBg)
-                            .border(1.dp, borderColor, RoundedCornerShape(12.dp))
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            forecastEmojiForCode(weather.weatherCode),
-                            fontSize = 19.sp,
-                            maxLines = 1
-                        )
-                        Spacer(modifier = Modifier.width(5.dp))
-                        Text(
-                            weather.currentTemp,
-                            fontSize = 21.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = accentColor,
-                            maxLines = 1
-                        )
-                    }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(chipBg)
+                        .border(1.dp, borderColor, RoundedCornerShape(12.dp))
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        forecastEmojiForCode(weather.weatherCode),
+                        fontSize = 19.sp,
+                        maxLines = 1
+                    )
+                    Spacer(modifier = Modifier.width(5.dp))
+                    Text(
+                        weather.currentTemp,
+                        fontSize = 21.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = accentColor,
+                        maxLines = 1
+                    )
                 }
             }
 
@@ -1623,34 +1620,32 @@ private fun WidgetPreviewBox(
                     )
                 }
 
-                if (showWeatherInfo) {
-                    Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(8.dp))
 
-                    Column(
-                        horizontalAlignment = Alignment.End
-                    ) {
-                        Text(
-                            weather.description,
-                            fontSize = 11.sp,
-                            color = secondaryText,
-                            textAlign = TextAlign.End,
-                            maxLines = 1
-                        )
-                        Text(
-                            "💧 ${weather.humidity} • 💨 ${weather.windSpeed}",
-                            fontSize = 10.5.sp,
-                            color = secondaryText,
-                            textAlign = TextAlign.End,
-                            maxLines = 1
-                        )
-                        Text(
-                            "▲ ${weather.maxTemp}  ▼ ${weather.minTemp}",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = accentColor,
-                            maxLines = 1
-                        )
-                    }
+                Column(
+                    horizontalAlignment = Alignment.End
+                ) {
+                    Text(
+                        weather.description,
+                        fontSize = 11.sp,
+                        color = secondaryText,
+                        textAlign = TextAlign.End,
+                        maxLines = 1
+                    )
+                    Text(
+                        "💧 ${weather.humidity} • 💨 ${weather.windSpeed}",
+                        fontSize = 10.5.sp,
+                        color = secondaryText,
+                        textAlign = TextAlign.End,
+                        maxLines = 1
+                    )
+                    Text(
+                        "▲ ${weather.maxTemp}  ▼ ${weather.minTemp}",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = accentColor,
+                        maxLines = 1
+                    )
                 }
             }
 
@@ -1763,7 +1758,6 @@ fun ThoiTietAmLichApp() {
     var cardBounceEnabled by remember { mutableStateOf(AppPrefs.isCardBounceEnabled(context)) }
     var topWeatherBgEnabled by remember { mutableStateOf(false) }
 
-    // Trạng thái nhạc nền trong ứng dụng (mặc định tắt, âm lượng mặc định 0.15f)
     var bgMusicEnabled by remember { mutableStateOf(AppPrefs.isBgMusicEnabled(context)) }
     var bgMusicVolume by remember {
         mutableFloatStateOf(
@@ -1877,7 +1871,6 @@ fun ThoiTietAmLichApp() {
     var pendingBatteryWarningTarget by remember { mutableStateOf<BatteryWarningTarget?>(null) }
     var showWeatherEffect by remember { mutableStateOf(AppPrefs.isShowWeatherEffect(context)) }
     var showLunarDate by remember { mutableStateOf(AppPrefs.isShowLunarDate(context)) }
-    var showWeatherInfo by remember { mutableStateOf(AppPrefs.isShowWeatherInfo(context)) }
     var showSolarDate by remember { mutableStateOf(AppPrefs.isShowSolarDate(context)) }
     var showLocationName by remember { mutableStateOf(AppPrefs.isShowLocationName(context)) }
     val showSevenDayForecast = true
@@ -2297,7 +2290,6 @@ fun ThoiTietAmLichApp() {
                                                 isClockActive = canAnimateVisuals,
                                                 showWeatherEffect = showWeatherEffect,
                                                 showLunarDate = showLunarDate,
-                                                showWeatherInfo = showWeatherInfo,
                                                 showSolarDate = showSolarDate,
                                                 showLocationName = showLocationName,
                                                 showSevenDayForecast = showSevenDayForecast,
@@ -2646,20 +2638,6 @@ fun ThoiTietAmLichApp() {
                                     onCheckedChange = { checked ->
                                         showLunarDate = checked
                                         AppPrefs.setShowLunarDate(context, checked)
-                                        WeatherLunarWidget.updateAllWidgets(context)
-                                    }
-                                )
-                                SectionHairline(palette)
-
-                                FlatSwitchRow(
-                                    title = "Hiển thị nhiệt độ (kèm thời tiết)",
-                                    subtitle = "Bật/tắt nhiệt độ, trạng thái, độ ẩm, gió & biên độ nhiệt",
-                                    checked = showWeatherInfo,
-                                    accentColor = accentCompose,
-                                    palette = palette,
-                                    onCheckedChange = { checked ->
-                                        showWeatherInfo = checked
-                                        AppPrefs.setShowWeatherInfo(context, checked)
                                         WeatherLunarWidget.updateAllWidgets(context)
                                     }
                                 )
