@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Lớp 1: Nền kính lỏng bán trong suốt có chiều sâu -->
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="135"
+                android:centerColor="#8C1A2438"
+                android:endColor="#800D1320"
+                android:startColor="#B8263552" />
+            <corners android:radius="26dp" />
+        </shape>
+    </item>
+
+    <!-- Lớp 2: Vệt ánh sáng phản chiếu dịu ở nửa trên tạo cảm giác kính cong -->
+    <item android:bottom="90dp">
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="270"
+                android:endColor="#00FFFFFF"
+                android:startColor="#26FFFFFF" />
+            <corners
+                android:topLeftRadius="26dp"
+                android:topRightRadius="26dp" />
+        </shape>
+    </item>
+
+    <!-- Lớp 3: Viền kính mỏng bắt sáng quanh khung -->
+    <item>
+        <shape android:shape="rectangle">
+            <stroke
+                android:width="1dp"
+                android:color="#66CFE8FF" />
+            <corners android:radius="26dp" />
+        </shape>
+    </item>
+
+</layer-list>
