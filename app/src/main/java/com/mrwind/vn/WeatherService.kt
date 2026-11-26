@@ -188,9 +188,6 @@ object WeatherService {
         }
     }
 
-    suspend fun fetchFiveDayForecast(context: Context): List<DailyForecastItem> =
-        fetchForecastDays(context, days = 5)
-
     suspend fun fetchForecastDays(context: Context, days: Int = 8): List<DailyForecastItem> =
         withContext(Dispatchers.IO) {
             val cached = AppPrefs.getWeather(context)
