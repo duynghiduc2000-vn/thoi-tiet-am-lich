@@ -50,6 +50,7 @@ data class WeatherCache(
 object AppPrefs {
     private const val PREF_NAME = "thoi_tiet_am_lich_prefs"
     private const val KEY_NEXT_SEVEN_DAYS = "widget_next_seven_days_json"
+    private const val KEY_SHOW_SEVEN_DAYS = "show_seven_day_forecast"
 
     // Giao diện App: 0 = Theo hệ thống, 1 = Sáng, 2 = Tối
     fun getAppThemeMode(context: Context): Int =
@@ -89,6 +90,14 @@ object AppPrefs {
 
     fun setShowWeatherEffect(context: Context, show: Boolean) {
         prefs(context).edit().putBoolean("show_weather_effect", show).apply()
+    }
+
+    // Hiển thị dự báo 7 ngày trên Widget
+    fun isShowSevenDayForecast(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_SHOW_SEVEN_DAYS, true)
+
+    fun setShowSevenDayForecast(context: Context, show: Boolean) {
+        prefs(context).edit().putBoolean(KEY_SHOW_SEVEN_DAYS, show).apply()
     }
 
     // Hiển thị chữ ký trên Widget
