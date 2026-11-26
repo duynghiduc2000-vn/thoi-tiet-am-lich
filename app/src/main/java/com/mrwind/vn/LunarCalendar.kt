@@ -55,6 +55,8 @@ object LunarCalendar {
         "H\u1EE3i"
     )
 
+    private data class SolarYmd(val day: Int, val month: Int, val year: Int)
+
     private fun joinCanChi(can: String, chi: String): String {
         return "${can.trim()} ${chi.trim()}"
     }
@@ -68,6 +70,28 @@ object LunarCalendar {
             jd = dd + (153 * m + 2) / 5 + 365 * y + y / 4 - 32083
         }
         return jd
+    }
+
+    private fun jdToDate(jd: Int): SolarYmd {
+        val a: Int
+        val b: Int
+        val c: Int
+        if (jd > 2299160) {
+            a = jd + 32044
+            b = (4 * a + 3) / 146097
+            c = a - (b * 146097) / 4
+        } else {
+            a = jd + 32082
+            b = (4 * a + 3) / 1461
+            c = a - (b * 1461) / 4
+        }
+        val d = (4 * c + 3) / 1461
+        val e = c - (1461 * d) / 4
+        val m = (5 * e + 2) / 153
+        val day = e - (153 * m + 2) / 5 + 1
+        val month = m + 3 - 12 * (m / 10)
+        val year = b * 100 + d - 4800 + (m / 10)
+        return SolarYmd(day, month, year)
     }
 
     private fun getSunLongitude(dayNumber: Int, timeZone: Double = 7.0): Int {
@@ -132,6 +156,65 @@ object LunarCalendar {
             arc = getSunLongitude(getNewMoonDay(k + i, timeZone), timeZone)
         } while (arc != last && i < 14)
         return i - 1
+    }
+
+    private fun lunarToSolarForYear(
+        lunarDay: Int,
+        lunarMonth: Int,
+        lunarYear: Int,
+        lunarLeap: Boolean = false,
+        timeZone: Double = 7.0
+    ): SolarYmd {
+        val a11: Int
+        val b11: Int
+        if (lunarMonth < 11) {
+            a11 = getLunarMonth11(lunarYear - 1, timeZone)
+            b11 = getLunarMonth11(lunarYear, timeZone)
+        } else {
+            a11 = getLunarMonth11(lunarYear, timeZone)
+            b11 = getLunarMonth11(lunarYear + 1, timeZone)
+        }
+        val k = floor(0.5 + (a11 - 2415021.076998695) / 29.530588853).toInt()
+        val off = lunarMonth - 11
+        val monthOffset = if (off < 0) off + 12 else off
+        val leapOff = getLeapMonthOffset(a11, timeZone)
+        var leapMonth = if (leapOff > 0) leapOff - 2 else 0
+        if (leapMonth < 0) leapMonth += 12
+
+        var targetOffset = monthOffset
+        if (b11 - a11 > 365 && leapOff > 0) {
+            val isLeapMonthExisting = (leapMonth == lunarMonth)
+            if (isLeapMonthExisting && lunarLeap) {
+                targetOffset = monthOffset + 1
+            } else if (monthOffset >= leapOff || (leapOff - monthOffset == 1 && isLeapMonthExisting)) {
+                targetOffset = monthOffset + 1
+            }
+        }
+        val monthStart = getNewMoonDay(k + targetOffset, timeZone)
+        val jd = monthStart + lunarDay - 1
+        return jdToDate(jd)
+    }
+
+    fun resolveSolarDateForLunar(
+        lunarDay: Int,
+        lunarMonth: Int,
+        targetSolarYear: Int,
+        lunarLeap: Boolean = false,
+        timeZone: Double = 7.0
+    ): Triple<Int, Int, Int>? {
+        for (ly in listOf(targetSolarYear - 1, targetSolarYear, targetSolarYear + 1)) {
+            val converted = lunarToSolarForYear(
+                lunarDay = lunarDay,
+                lunarMonth = lunarMonth,
+                lunarYear = ly,
+                lunarLeap = lunarLeap,
+                timeZone = timeZone
+            )
+            if (converted.year == targetSolarYear) {
+                return Triple(converted.day, converted.month, converted.year)
+            }
+        }
+        return null
     }
 
     fun convertSolarToLunar(dd: Int, mm: Int, yy: Int, timeZone: Double = 7.0): LunarDateInfo {
