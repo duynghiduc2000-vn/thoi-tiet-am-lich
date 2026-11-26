@@ -17,14 +17,21 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
@@ -109,8 +116,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontStyle
@@ -130,8 +141,11 @@ import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 import java.util.UUID
+import kotlin.math.PI
+import kotlin.math.cos
 import kotlin.math.floor
 import kotlin.math.roundToInt
+import kotlin.math.sin
 import kotlin.random.Random
 
 private const val APP_VERSION_NAME = "31.12-HPBD"
@@ -353,6 +367,209 @@ private fun buildAdaptivePalette(isDark: Boolean, accentColor: Color): AdaptiveP
             border = Color.Black.copy(alpha = 0.08f),
             onAccentText = Color(0xFF09090B)
         )
+    }
+}
+
+@Composable
+private fun TopWeatherCanvasEffect(
+    weatherCode: Int,
+    accentColor: Color,
+    isDark: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val transition = rememberInfiniteTransition(label = "top_weather_canvas")
+    val slowDrift by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 12_000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "slow_drift"
+    )
+    val rainFlow by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1_800, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "rain_flow"
+    )
+    val pulsePhase by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 4_200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulse_phase"
+    )
+
+    val isThunder = weatherCode in listOf(95, 96, 99)
+    val isRain = weatherCode in listOf(51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82) || isThunder
+    val isFog = weatherCode in listOf(45, 48)
+    val isCloudy = weatherCode in listOf(1, 2, 3)
+
+    val tintTone = remember(weatherCode, accentColor) {
+        when {
+            weatherCode == 0 -> Color(0xFFFFCA28)
+            isThunder -> Color(0xFF9575CD)
+            isRain -> Color(0xFF4FC3F7)
+            isFog -> Color(0xFFB0BEC5)
+            isCloudy -> accentColor
+            else -> accentColor
+        }
+    }
+
+    Box(modifier = modifier.clip(RoundedCornerShape(28.dp))) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val w = size.width
+            val h = size.height
+            val baseAlpha = if (isDark) 0.16f else 0.20f
+
+            // Ánh sáng nền nhẹ ở góc trên
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        tintTone.copy(alpha = baseAlpha * (0.85f + 0.25f * pulsePhase)),
+                        Color.Transparent
+                    ),
+                    center = Offset(w * 0.85f, h * 0.16f),
+                    radius = size.maxDimension * 0.62f
+                ),
+                radius = size.maxDimension * 0.62f,
+                center = Offset(w * 0.85f, h * 0.16f)
+            )
+
+            if (weatherCode == 0 || weatherCode in 1..2) {
+                // Tia nắng tỏa nhẹ xoay chậm
+                val sunCenter = Offset(w * 0.86f, h * 0.16f)
+                val rayCount = 8
+                val rotBase = slowDrift * (2.0 * PI).toFloat()
+                val rayColor = Color(0xFFFFCA28).copy(alpha = if (isDark) 0.10f else 0.14f)
+                for (i in 0 until rayCount) {
+                    val angle = rotBase + i * (2.0 * PI / rayCount).toFloat()
+                    val innerR = 26.dp.toPx()
+                    val outerR = 68.dp.toPx() + 8.dp.toPx() * pulsePhase
+                    drawLine(
+                        color = rayColor,
+                        start = Offset(
+                            sunCenter.x + cos(angle) * innerR,
+                            sunCenter.y + sin(angle) * innerR
+                        ),
+                        end = Offset(
+                            sunCenter.x + cos(angle) * outerR,
+                            sunCenter.y + sin(angle) * outerR
+                        ),
+                        strokeWidth = 3.dp.toPx(),
+                        cap = StrokeCap.Round
+                    )
+                }
+            }
+
+            if (isCloudy || isRain || isFog) {
+                // Các cụm mây trôi ngang nhẹ nhàng
+                val cloudColor = if (isDark) {
+                    Color.White.copy(alpha = if (isRain) 0.08f else 0.07f)
+                } else {
+                    Color(0xFF90A4AE).copy(alpha = if (isRain) 0.16f else 0.13f)
+                }
+
+                val cloudConfigs = listOf(
+                    Triple(0.15f, 0.22f, 1.0f),
+                    Triple(0.62f, 0.42f, 0.82f),
+                    Triple(0.32f, 0.68f, 1.15f)
+                )
+                cloudConfigs.forEachIndexed { idx, (startXRatio, yRatio, scale) ->
+                    val travel = ((startXRatio + slowDrift * (0.35f + idx * 0.08f)) % 1.35f) - 0.18f
+                    val cx = travel * w
+                    val cy = yRatio * h
+                    val cw = 110.dp.toPx() * scale
+                    val ch = 26.dp.toPx() * scale
+                    drawRoundRect(
+                        color = cloudColor,
+                        topLeft = Offset(cx, cy),
+                        size = Size(cw, ch),
+                        cornerRadius = CornerRadius(ch / 2f, ch / 2f)
+                    )
+                    drawCircle(
+                        color = cloudColor,
+                        radius = ch * 0.72f,
+                        center = Offset(cx + cw * 0.32f, cy)
+                    )
+                    drawCircle(
+                        color = cloudColor,
+                        radius = ch * 0.56f,
+                        center = Offset(cx + cw * 0.62f, cy + ch * 0.1f)
+                    )
+                }
+            }
+
+            if (isFog) {
+                // Lớp sương mù gợn nhẹ
+                val fogColor = if (isDark) {
+                    Color.White.copy(alpha = 0.07f + 0.03f * pulsePhase)
+                } else {
+                    Color.White.copy(alpha = 0.34f)
+                }
+                for (i in 0 until 4) {
+                    val shift = ((slowDrift * 0.25f + i * 0.15f) % 0.4f - 0.2f) * w
+                    val yPos = h * (0.24f + i * 0.18f)
+                    drawRoundRect(
+                        color = fogColor,
+                        topLeft = Offset(shift, yPos),
+                        size = Size(w * 0.9f, 14.dp.toPx()),
+                        cornerRadius = CornerRadius(7.dp.toPx(), 7.dp.toPx())
+                    )
+                }
+            }
+
+            if (isRain) {
+                // Hạt mưa mảnh rơi chéo
+                val dropColor = if (isDark) {
+                    Color(0xFF81D4FA).copy(alpha = 0.20f)
+                } else {
+                    Color(0xFF0288D1).copy(alpha = 0.22f)
+                }
+                val dropCount = 22
+                val dropLen = 16.dp.toPx()
+                for (i in 0 until dropCount) {
+                    val lane = ((i + 0.35f) / dropCount) * w
+                    val yOffset = ((i * 53) % 260).toFloat()
+                    val y = (yOffset + rainFlow * (h + 90f)) % (h + 50f) - 25f
+                    val x = lane - rainFlow * 26.dp.toPx()
+                    drawLine(
+                        color = dropColor,
+                        start = Offset(x, y),
+                        end = Offset(x - 5.dp.toPx(), y + dropLen),
+                        strokeWidth = 1.8.dp.toPx(),
+                        cap = StrokeCap.Round
+                    )
+                }
+            }
+
+            if (isThunder) {
+                // Nháy sáng nhẹ khi có dông
+                val flashAlpha = if (pulsePhase > 0.88f) {
+                    ((pulsePhase - 0.88f) / 0.12f) * if (isDark) 0.16f else 0.14f
+                } else {
+                    0f
+                }
+                if (flashAlpha > 0f) {
+                    drawRect(color = Color(0xFFE1BEE7).copy(alpha = flashAlpha))
+                }
+            }
+
+            // Làm mờ dần ở phần dưới để hòa mượt với nền chính
+            drawRect(
+                brush = Brush.verticalGradient(
+                    0.0f to Color.Transparent,
+                    0.72f to Color.Transparent,
+                    1.0f to (if (isDark) Color(0xFF09090B) else Color(0xFFF4F5F7))
+                )
+            )
+        }
     }
 }
 
@@ -1123,6 +1340,7 @@ fun ThoiTietAmLichApp() {
     }
 
     var appThemeMode by remember { mutableIntStateOf(AppPrefs.getAppThemeMode(context)) }
+    var topWeatherBgEnabled by remember { mutableStateOf(true) }
     var widgetBgMode by remember { mutableIntStateOf(AppPrefs.getWidgetBgMode(context)) }
     var accentColorInt by remember { mutableIntStateOf(AppPrefs.getAccentColor(context)) }
     var showSeconds by remember { mutableStateOf(AppPrefs.isShowSeconds(context)) }
@@ -1461,161 +1679,174 @@ fun ThoiTietAmLichApp() {
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         item(key = "top_bento_editorial") {
-                            Column(
-                                verticalArrangement = Arrangement.spacedBy(12.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Column(modifier = Modifier.padding(horizontal = 2.dp)) {
-                                    Text(
-                                        solarToday.uppercase(Locale.getDefault()),
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        letterSpacing = 1.sp,
-                                        color = accentCompose
-                                    )
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    Text(
-                                        dailyWarmMessage,
-                                        fontSize = 19.sp,
-                                        lineHeight = 25.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = palette.textPrimary
+                            Box(modifier = Modifier.fillMaxWidth()) {
+                                if (topWeatherBgEnabled) {
+                                    TopWeatherCanvasEffect(
+                                        weatherCode = weather.weatherCode,
+                                        accentColor = accentCompose,
+                                        isDark = palette.isDark,
+                                        modifier = Modifier.matchParentSize()
                                     )
                                 }
 
-                                Surface(
-                                    shape = RoundedCornerShape(24.dp),
-                                    color = palette.cardBg,
-                                    contentColor = palette.textPrimary,
+                                Column(
+                                    verticalArrangement = Arrangement.spacedBy(12.dp),
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .border(1.dp, palette.border, RoundedCornerShape(24.dp))
+                                        .padding(horizontal = 2.dp, vertical = 4.dp)
                                 ) {
-                                    Column(modifier = Modifier.padding(14.dp)) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(bottom = 10.dp)
-                                        ) {
-                                            Text(
-                                                "XEM TRƯỚC WIDGET",
-                                                fontSize = 11.sp,
-                                                letterSpacing = 0.8.sp,
-                                                color = palette.textSecondary,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                            Text(
-                                                weather.locationName,
-                                                fontSize = 11.sp,
-                                                color = accentCompose,
-                                                fontWeight = FontWeight.SemiBold,
-                                                maxLines = 1
-                                            )
-                                        }
-
-                                        WidgetPreviewBox(
-                                            weather = weather,
-                                            solarToday = solarToday,
-                                            lunarSummary = lunarTodaySummary,
-                                            widgetBgMode = widgetBgMode,
-                                            accentColor = accentCompose,
-                                            showSeconds = showSeconds,
-                                            showWeatherEffect = showWeatherEffect,
-                                            showLunarDate = showLunarDate,
-                                            showWeatherInfo = showWeatherInfo,
-                                            showSolarDate = showSolarDate,
-                                            showLocationName = showLocationName,
-                                            showSevenDayForecast = showSevenDayForecast,
-                                            sevenDayChips = previewSevenDays,
-                                            showSignature = showSignature,
-                                            signature = signature,
-                                            clockScale = clockScale,
-                                            lunarScale = lunarScale,
-                                            solarScale = solarScale,
-                                            sigScale = sigScale,
-                                            isDarkApp = palette.isDark
+                                    Column(modifier = Modifier.padding(horizontal = 2.dp)) {
+                                        Text(
+                                            solarToday.uppercase(Locale.getDefault()),
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            letterSpacing = 1.sp,
+                                            color = accentCompose
+                                        )
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            dailyWarmMessage,
+                                            fontSize = 19.sp,
+                                            lineHeight = 25.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = palette.textPrimary
                                         )
                                     }
-                                }
 
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
                                     Surface(
-                                        shape = RoundedCornerShape(20.dp),
+                                        shape = RoundedCornerShape(24.dp),
                                         color = palette.cardBg,
+                                        contentColor = palette.textPrimary,
                                         modifier = Modifier
-                                            .weight(1f)
-                                            .clip(RoundedCornerShape(20.dp))
-                                            .border(1.dp, palette.border, RoundedCornerShape(20.dp))
-                                            .clickable(enabled = !isSyncing) {
-                                                scope.launch {
-                                                    syncWeatherData()
-                                                }
-                                            }
+                                            .fillMaxWidth()
+                                            .border(1.dp, palette.border, RoundedCornerShape(24.dp))
                                     ) {
                                         Column(modifier = Modifier.padding(14.dp)) {
-                                            Icon(
-                                                Icons.Default.Refresh,
-                                                contentDescription = null,
-                                                tint = accentCompose,
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                            Spacer(modifier = Modifier.height(8.dp))
-                                            Text(
-                                                if (isSyncing) "Đang tải..." else "Cập nhật",
-                                                color = palette.textPrimary,
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 15.sp
-                                            )
-                                            Text(
-                                                "Đồng bộ thời tiết",
-                                                color = palette.textSecondary,
-                                                fontSize = 11.sp
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(bottom = 10.dp)
+                                            ) {
+                                                Text(
+                                                    "XEM TRƯỚC WIDGET",
+                                                    fontSize = 11.sp,
+                                                    letterSpacing = 0.8.sp,
+                                                    color = palette.textSecondary,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                                Text(
+                                                    weather.locationName,
+                                                    fontSize = 11.sp,
+                                                    color = accentCompose,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    maxLines = 1
+                                                )
+                                            }
+
+                                            WidgetPreviewBox(
+                                                weather = weather,
+                                                solarToday = solarToday,
+                                                lunarSummary = lunarTodaySummary,
+                                                widgetBgMode = widgetBgMode,
+                                                accentColor = accentCompose,
+                                                showSeconds = showSeconds,
+                                                showWeatherEffect = showWeatherEffect,
+                                                showLunarDate = showLunarDate,
+                                                showWeatherInfo = showWeatherInfo,
+                                                showSolarDate = showSolarDate,
+                                                showLocationName = showLocationName,
+                                                showSevenDayForecast = showSevenDayForecast,
+                                                sevenDayChips = previewSevenDays,
+                                                showSignature = showSignature,
+                                                signature = signature,
+                                                clockScale = clockScale,
+                                                lunarScale = lunarScale,
+                                                solarScale = solarScale,
+                                                sigScale = sigScale,
+                                                isDarkApp = palette.isDark
                                             )
                                         }
                                     }
 
-                                    Surface(
-                                        shape = RoundedCornerShape(20.dp),
-                                        color = palette.cardBg,
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .clip(RoundedCornerShape(20.dp))
-                                            .border(1.dp, palette.border, RoundedCornerShape(20.dp))
-                                            .clickable {
-                                                val pinned = WeatherLunarWidget.requestPinWidget(context)
-                                                if (!pinned) {
-                                                    Toast.makeText(
-                                                        context,
-                                                        "Launcher hiện tại không hỗ trợ ghim tự động. Bạn nhấn giữ màn hình chính -> Tiện ích để thêm nhé.",
-                                                        Toast.LENGTH_LONG
-                                                    ).show()
-                                                }
-                                            }
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                        modifier = Modifier.fillMaxWidth()
                                     ) {
-                                        Column(modifier = Modifier.padding(14.dp)) {
-                                            Icon(
-                                                Icons.Default.AddToHomeScreen,
-                                                contentDescription = null,
-                                                tint = accentCompose,
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                            Spacer(modifier = Modifier.height(8.dp))
-                                            Text(
-                                                "Ghim Widget",
-                                                color = palette.textPrimary,
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 15.sp
-                                            )
-                                            Text(
-                                                "Ra màn hình chính",
-                                                color = palette.textSecondary,
-                                                fontSize = 11.sp
-                                            )
+                                        Surface(
+                                            shape = RoundedCornerShape(20.dp),
+                                            color = palette.cardBg,
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clip(RoundedCornerShape(20.dp))
+                                                .border(1.dp, palette.border, RoundedCornerShape(20.dp))
+                                                .clickable(enabled = !isSyncing) {
+                                                    scope.launch {
+                                                        syncWeatherData()
+                                                    }
+                                                }
+                                        ) {
+                                            Column(modifier = Modifier.padding(14.dp)) {
+                                                Icon(
+                                                    Icons.Default.Refresh,
+                                                    contentDescription = null,
+                                                    tint = accentCompose,
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                                Spacer(modifier = Modifier.height(8.dp))
+                                                Text(
+                                                    if (isSyncing) "Đang tải..." else "Cập nhật",
+                                                    color = palette.textPrimary,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 15.sp
+                                                )
+                                                Text(
+                                                    "Đồng bộ thời tiết",
+                                                    color = palette.textSecondary,
+                                                    fontSize = 11.sp
+                                                )
+                                            }
+                                        }
+
+                                        Surface(
+                                            shape = RoundedCornerShape(20.dp),
+                                            color = palette.cardBg,
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clip(RoundedCornerShape(20.dp))
+                                                .border(1.dp, palette.border, RoundedCornerShape(20.dp))
+                                                .clickable {
+                                                    val pinned = WeatherLunarWidget.requestPinWidget(context)
+                                                    if (!pinned) {
+                                                        Toast.makeText(
+                                                            context,
+                                                            "Launcher hiện tại không hỗ trợ ghim tự động. Bạn nhấn giữ màn hình chính -> Tiện ích để thêm nhé.",
+                                                            Toast.LENGTH_LONG
+                                                        ).show()
+                                                    }
+                                                }
+                                        ) {
+                                            Column(modifier = Modifier.padding(14.dp)) {
+                                                Icon(
+                                                    Icons.Default.AddToHomeScreen,
+                                                    contentDescription = null,
+                                                    tint = accentCompose,
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                                Spacer(modifier = Modifier.height(8.dp))
+                                                Text(
+                                                    "Ghim Widget",
+                                                    color = palette.textPrimary,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 15.sp
+                                                )
+                                                Text(
+                                                    "Ra màn hình chính",
+                                                    color = palette.textSecondary,
+                                                    fontSize = 11.sp
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -1666,6 +1897,34 @@ fun ThoiTietAmLichApp() {
                                         )
                                     }
                                 }
+                            }
+                        }
+
+                        // Công tắc bật/tắt nền động thời tiết phía trên (bên ngoài thẻ, ngay dưới nền ứng dụng)
+                        item(key = "top_weather_bg_toggle_bar") {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 4.dp, vertical = 0.dp)
+                            ) {
+                                Text(
+                                    "Hiệu ứng nền thời tiết trên",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = palette.textPrimary,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Switch(
+                                    checked = topWeatherBgEnabled,
+                                    colors = SwitchDefaults.colors(checkedTrackColor = accentCompose),
+                                    onCheckedChange = { checked ->
+                                        topWeatherBgEnabled = checked
+                                    }
+                                )
                             }
                         }
 
