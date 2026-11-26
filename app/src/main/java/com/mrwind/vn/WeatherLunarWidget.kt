@@ -62,6 +62,13 @@ class WeatherLunarWidget : AppWidgetProvider() {
         const val ACTION_OPEN_CLOCK = "com.mrwind.vn.ACTION_OPEN_CLOCK"
         private const val TARGET_CLOCK_PACKAGE = "com.android.deskclock"
 
+        private fun formatShortLocationName(rawLocation: String): String {
+            val trimmed = rawLocation.trim()
+            if (trimmed.isEmpty()) return ""
+            val beforeComma = trimmed.substringBefore(",").trim()
+            return beforeComma.ifEmpty { trimmed }
+        }
+
         private fun lockedSpToPx(context: Context, spValue: Float): Float {
             return spValue * context.resources.displayMetrics.density
         }
@@ -341,7 +348,7 @@ class WeatherLunarWidget : AppWidgetProvider() {
             views.setTextColor(R.id.tv_current_temp, accentColor)
 
             views.setViewVisibility(R.id.tv_location_name, if (showLocationName) View.VISIBLE else View.GONE)
-            views.setTextViewText(R.id.tv_location_name, weather.locationName)
+            views.setTextViewText(R.id.tv_location_name, formatShortLocationName(weather.locationName))
             views.setTextColor(R.id.tv_location_name, primaryTextColor)
 
             views.setTextViewText(R.id.tv_weather_desc, weather.description)
