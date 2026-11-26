@@ -17,6 +17,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
@@ -113,6 +114,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.CornerRadius
@@ -120,7 +122,10 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontStyle
@@ -365,6 +370,214 @@ private fun buildAdaptivePalette(isDark: Boolean, accentColor: Color): AdaptiveP
             border = Color.Black.copy(alpha = 0.08f),
             onAccentText = Color(0xFF09090B)
         )
+    }
+}
+
+private fun isDaytimeWindow(hourOfDay: Int): Boolean {
+    // 06:00 -> 17:59 là ban ngày; 18:00 -> 05:59 là ban đêm
+    return hourOfDay in 6..17
+}
+
+private fun buildCrescentMoonPath(
+    outerCenter: Offset,
+    outerRadius: Float,
+    innerCenter: Offset,
+    innerRadius: Float
+): Path {
+    // Tạo hình trăng khuyết mềm mại bằng hiệu giữa 2 đường tròn
+    val outerPath = Path().apply {
+        addOval(
+            androidx.compose.ui.geometry.Rect(
+                left = outerCenter.x - outerRadius,
+                top = outerCenter.y - outerRadius,
+                right = outerCenter.x + outerRadius,
+                bottom = outerCenter.y + outerRadius
+            )
+        )
+    }
+    val innerPath = Path().apply {
+        addOval(
+            androidx.compose.ui.geometry.Rect(
+                left = innerCenter.x - innerRadius,
+                top = innerCenter.y - innerRadius,
+                right = innerCenter.x + innerRadius,
+                bottom = innerCenter.y + innerRadius
+            )
+        )
+    }
+    return Path().apply {
+        op(outerPath, innerPath, androidx.compose.ui.graphics.PathOperation.Difference)
+    }
+}
+
+private fun buildSoftCloudPath(baseX: Float, baseY: Float, scale: Float): Path {
+    // Đám mây xanh nhạt bo tròn nhiều múi mượt mà giống ảnh tham chiếu
+    return Path().apply {
+        moveTo(baseX + 6f * scale, baseY + 11f * scale)
+        cubicTo(
+            baseX + 1f * scale, baseY + 11f * scale,
+            baseX - 1f * scale, baseY + 5.5f * scale,
+            baseX + 3.5f * scale, baseY + 3.5f * scale
+        )
+        cubicTo(
+            baseX + 3.5f * scale, baseY - 0.5f * scale,
+            baseX + 8.5f * scale, baseY - 1.5f * scale,
+            baseX + 11.2f * scale, baseY + 1.5f * scale
+        )
+        cubicTo(
+            baseX + 13.5f * scale, baseY - 2.2f * scale,
+            baseX + 19.5f * scale, baseY - 1.8f * scale,
+            baseX + 21.2f * scale, baseY + 2.4f * scale
+        )
+        cubicTo(
+            baseX + 25.2f * scale, baseY + 2.8f * scale,
+            baseX + 25.8f * scale, baseY + 7.8f * scale,
+            baseX + 22.5f * scale, baseY + 9.8f * scale
+        )
+        cubicTo(
+            baseX + 21.8f * scale, baseY + 11.4f * scale,
+            baseX + 18.8f * scale, baseY + 11.6f * scale,
+            baseX + 16.5f * scale, baseY + 10.6f * scale
+        )
+        cubicTo(
+            baseX + 14.5f * scale, baseY + 12.2f * scale,
+            baseX + 10.2f * scale, baseY + 12.2f * scale,
+            baseX + 8.2f * scale, baseY + 10.7f * scale
+        )
+        cubicTo(
+            baseX + 7.2f * scale, baseY + 11.1f * scale,
+            baseX + 6.5f * scale, baseY + 11f * scale,
+            baseX + 6f * scale, baseY + 11f * scale
+        )
+        close()
+    }
+}
+
+@Composable
+private fun TopBarDayNightIndicator(
+    palette: AdaptivePalette,
+    accentColor: Color,
+    modifier: Modifier = Modifier
+) {
+    var isDay by remember {
+        val h = Calendar.getInstance(TimeZone.getTimeZone("Asia/Ho_Chi_Minh")).get(Calendar.HOUR_OF_DAY)
+        mutableStateOf(isDaytimeWindow(h))
+    }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            val h = Calendar.getInstance(TimeZone.getTimeZone("Asia/Ho_Chi_Minh")).get(Calendar.HOUR_OF_DAY)
+            isDay = isDaytimeWindow(h)
+            delay(30_000L)
+        }
+    }
+
+    val infiniteTransition = rememberInfiniteTransition(label = "day_night_top_badge")
+    val sunSpin by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 16_000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "sun_spin"
+    )
+    val moonTilt by infiniteTransition.animateFloat(
+        initialValue = -5f,
+        targetValue = 5f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 3_200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "moon_tilt"
+    )
+    val cloudGlidePx by infiniteTransition.animateFloat(
+        initialValue = -2.6f,
+        targetValue = 2.6f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 2_800, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "cloud_glide"
+    )
+    val cloudBobPx by infiniteTransition.animateFloat(
+        initialValue = -0.9f,
+        targetValue = 0.9f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 2_100, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "cloud_bob"
+    )
+
+    val moonGoldColor = Color(0xFFFFCA63)
+    val cloudIceBlueColor = Color(0xFFB5E3F2)
+
+    Surface(
+        shape = CircleShape,
+        color = palette.cardBg,
+        modifier = modifier
+            .padding(end = 10.dp)
+            .size(40.dp)
+            .border(
+                width = 1.dp,
+                color = if (isDay) Color(0xFFFFB74D).copy(alpha = 0.45f) else moonGoldColor.copy(alpha = 0.45f),
+                shape = CircleShape
+            )
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.fillMaxSize()
+        ) {
+            if (isDay) {
+                Text(
+                    text = "☀️",
+                    fontSize = 19.sp,
+                    maxLines = 1,
+                    softWrap = false,
+                    modifier = Modifier.rotate(sunSpin * 0.15f)
+                )
+            } else {
+                // Trăng khuyết vàng + đám mây xanh nhạt chuyển động nhẹ nhàng
+                Canvas(modifier = Modifier.size(30.dp)) {
+                    val w = size.width
+                    val h = size.height
+
+                    // 1. Mặt trăng khuyết nghiêng nhẹ nhàng
+                    rotate(
+                        degrees = moonTilt - 18f,
+                        pivot = Offset(w * 0.56f, h * 0.44f)
+                    ) {
+                        val moonPath = buildCrescentMoonPath(
+                            outerCenter = Offset(w * 0.56f, h * 0.44f),
+                            outerRadius = w * 0.34f,
+                            innerCenter = Offset(w * 0.68f, h * 0.35f),
+                            innerRadius = w * 0.28f
+                        )
+                        drawPath(
+                            path = moonPath,
+                            color = moonGoldColor
+                        )
+                    }
+
+                    // 2. Đám mây xanh nhạt chuyển động nhẹ nhàng ở góc dưới trái
+                    val dx = cloudGlidePx.dp.toPx()
+                    val dy = cloudBobPx.dp.toPx()
+                    translate(left = dx, top = dy) {
+                        val cloudScale = w / 28f
+                        val cloudPath = buildSoftCloudPath(
+                            baseX = w * 0.04f,
+                            baseY = h * 0.48f,
+                            scale = cloudScale
+                        )
+                        drawPath(
+                            path = cloudPath,
+                            color = cloudIceBlueColor
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -1624,27 +1837,10 @@ fun ThoiTietAmLichApp() {
                                 }
                             },
                             actions = {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = palette.cardBg,
-                                    modifier = Modifier
-                                        .padding(end = 8.dp)
-                                        .border(1.dp, palette.border, CircleShape)
-                                ) {
-                                    IconButton(
-                                        onClick = {
-                                            scope.launch {
-                                                syncWeatherData()
-                                            }
-                                        }
-                                    ) {
-                                        Icon(
-                                            Icons.Default.Refresh,
-                                            contentDescription = "Đồng bộ thời tiết",
-                                            tint = palette.textPrimary
-                                        )
-                                    }
-                                }
+                                TopBarDayNightIndicator(
+                                    palette = palette,
+                                    accentColor = accentCompose
+                                )
                             }
                         )
                     }
@@ -1848,7 +2044,7 @@ fun ThoiTietAmLichApp() {
                                 Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                                        .padding(horizontal = 14.dp, vertical = 8.dp)
                                 ) {
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
@@ -1859,14 +2055,17 @@ fun ThoiTietAmLichApp() {
                                     ) {
                                         Text(
                                             "Nền ứng dụng",
-                                            fontSize = 14.sp,
+                                            fontSize = 13.5.sp,
                                             color = palette.textPrimary,
                                             fontWeight = FontWeight.Bold,
                                             maxLines = 1,
                                             softWrap = false
                                         )
-                                        Spacer(modifier = Modifier.width(12.dp))
-                                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Row(
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
                                             val themeLabels = listOf("Hệ thống", "Sáng", "Tối")
                                             themeLabels.forEachIndexed { idx, label ->
                                                 val selected = appThemeMode == idx
@@ -1886,11 +2085,13 @@ fun ThoiTietAmLichApp() {
                                                     label = {
                                                         Text(
                                                             label,
+                                                            fontSize = 12.sp,
                                                             maxLines = 1,
                                                             softWrap = false,
                                                             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
                                                         )
-                                                    }
+                                                    },
+                                                    modifier = Modifier.height(34.dp)
                                                 )
                                             }
                                         }
@@ -1907,7 +2108,7 @@ fun ThoiTietAmLichApp() {
                                     ) {
                                         Text(
                                             "Hiệu ứng thời tiết trong nền ứng dụng",
-                                            fontSize = 14.sp,
+                                            fontSize = 13.5.sp,
                                             color = palette.textPrimary,
                                             fontWeight = FontWeight.Bold,
                                             maxLines = 1,
@@ -1915,10 +2116,11 @@ fun ThoiTietAmLichApp() {
                                             overflow = TextOverflow.Clip,
                                             modifier = Modifier
                                                 .weight(1f)
+                                                .clipToBounds()
                                                 .basicMarquee(
                                                     iterations = Int.MAX_VALUE,
-                                                    repeatDelayMillis = 900,
-                                                    velocity = 28.dp
+                                                    repeatDelayMillis = 1200,
+                                                    velocity = 24.dp
                                                 )
                                         )
                                         Spacer(modifier = Modifier.width(10.dp))
