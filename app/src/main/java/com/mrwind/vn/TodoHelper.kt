@@ -45,7 +45,7 @@ object TodoHelper {
     const val ACTION_DAILY_RESET = "com.mrwind.vn.ACTION_DAILY_RESET"
     const val EXTRA_TASK_ID = "extra_task_id"
 
-    private val receiverExecutor = Executors.newSingleThreadExecutor()
+    internal val receiverExecutor = Executors.newSingleThreadExecutor()
 
     private fun tz(): TimeZone = TimeZone.getTimeZone("Asia/Ho_Chi_Minh")
 
@@ -119,7 +119,7 @@ object TodoHelper {
         return out
     }
 
-    fun saveTasks(context: Context, tasks: List<TodoTaskItem>) {
+    fun saveTasks(context: Context, tasks: List<TodoTaskItem>, commitNow: Boolean = false) {
         val arr = JSONArray()
         tasks.take(MAX_TASKS_PER_DAY).forEach { item ->
             val obj = JSONObject()
@@ -131,10 +131,10 @@ object TodoHelper {
             obj.put("triggeredToday", item.triggeredToday)
             arr.put(obj)
         }
-        prefs(context).edit()
+        val editor = prefs(context).edit()
             .putString(KEY_DATE, todayKey())
             .putString(KEY_TASKS, arr.toString())
-            .apply()
+        if (commitNow) editor.commit() else editor.apply()
     }
 
     fun scheduleAllTodayAlarms(context: Context, tasks: List<TodoTaskItem>) {
@@ -235,8 +235,9 @@ object TodoHelper {
         }
     }
 
-    fun setPendingPopupTaskId(context: Context, taskId: String?) {
-        prefs(context).edit().putString(KEY_PENDING_POPUP_ID, taskId).apply()
+    fun setPendingPopupTaskId(context: Context, taskId: String?, commitNow: Boolean = false) {
+        val editor = prefs(context).edit().putString(KEY_PENDING_POPUP_ID, taskId)
+        if (commitNow) editor.commit() else editor.apply()
     }
 
     fun getPendingPopupTaskId(context: Context): String? =
@@ -358,8 +359,8 @@ object TodoHelper {
                 val updated = tasks.map {
                     if (it.id == taskId) triggeredTask else it
                 }
-                saveTasks(appCtx, updated)
-                setPendingPopupTaskId(appCtx, taskId)
+                saveTasks(appCtx, updated, commitNow = true)
+                setPendingPopupTaskId(appCtx, taskId, commitNow = true)
                 showSystemPopupNotification(appCtx, triggeredTask)
                 scheduleMidnightReset(appCtx)
             }
