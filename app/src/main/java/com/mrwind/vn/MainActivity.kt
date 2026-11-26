@@ -990,7 +990,7 @@ class MainActivity : ComponentActivity() {
         val initialTasks = TodoHelper.ensureCurrentDayOrReset(this)
         TodoHelper.scheduleAllTodayAlarms(this, initialTasks)
         intent?.getStringExtra(TodoHelper.EXTRA_TASK_ID)?.let { taskId ->
-            TodoHelper.setPendingPopupTaskId(this, taskId)
+            TodoHelper.setPendingPopupTaskId(this, taskId, commitNow = true)
         }
 
         setContent {
@@ -1002,7 +1002,7 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         intent.getStringExtra(TodoHelper.EXTRA_TASK_ID)?.let { taskId ->
-            TodoHelper.setPendingPopupTaskId(this, taskId)
+            TodoHelper.setPendingPopupTaskId(this, taskId, commitNow = true)
         }
         BirthdayHelper.runDailyBackgroundReminders(this)
     }
@@ -1945,8 +1945,8 @@ fun ThoiTietAmLichApp() {
             val marked = currentList.map {
                 if (it.id == popupTarget.id) it.copy(triggeredToday = true) else it
             }
-            TodoHelper.saveTasks(context, marked)
-            TodoHelper.setPendingPopupTaskId(context, null)
+            TodoHelper.saveTasks(context, marked, commitNow = true)
+            TodoHelper.setPendingPopupTaskId(context, null, commitNow = true)
             todoTasks = marked
             activeTodoPopup = popupTarget.copy(triggeredToday = true)
         } else if (currentList != todoTasks) {
@@ -3204,7 +3204,7 @@ fun ThoiTietAmLichApp() {
                                             val updated = (currentList + newTask).sortedWith(
                                                 compareBy({ it.hour }, { it.minute })
                                             )
-                                            TodoHelper.saveTasks(context, updated)
+                                            TodoHelper.saveTasks(context, updated, commitNow = true)
                                             TodoHelper.scheduleAllTodayAlarms(context, updated)
                                             todoTasks = updated
                                             todoTitleInput = ""
@@ -3265,7 +3265,7 @@ fun ThoiTietAmLichApp() {
                                                     IconButton(
                                                         onClick = {
                                                             val updated = todoTasks.filterNot { it.id == task.id }
-                                                            TodoHelper.saveTasks(context, updated)
+                                                            TodoHelper.saveTasks(context, updated, commitNow = true)
                                                             TodoHelper.scheduleAllTodayAlarms(context, updated)
                                                             todoTasks = updated
                                                         }
