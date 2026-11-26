@@ -51,6 +51,17 @@ object AppPrefs {
     private const val PREF_NAME = "thoi_tiet_am_lich_prefs"
     private const val KEY_NEXT_SEVEN_DAYS = "widget_next_seven_days_json"
     private const val KEY_SHOW_SEVEN_DAYS = "show_seven_day_forecast"
+    private const val KEY_TOP_WEATHER_BG = "top_weather_bg_enabled"
+
+    private fun writeBoolean(context: Context, key: String, value: Boolean, commitNow: Boolean = false) {
+        val editor = prefs(context).edit().putBoolean(key, value)
+        if (commitNow) editor.commit() else editor.apply()
+    }
+
+    private fun writeString(context: Context, key: String, value: String, commitNow: Boolean = false) {
+        val editor = prefs(context).edit().putString(key, value)
+        if (commitNow) editor.commit() else editor.apply()
+    }
 
     // Giao diện App: 0 = Theo hệ thống, 1 = Sáng, 2 = Tối
     fun getAppThemeMode(context: Context): Int =
@@ -65,21 +76,27 @@ object AppPrefs {
         prefs(context).getBoolean("card_bounce_enabled", false)
 
     fun setCardBounceEnabled(context: Context, enabled: Boolean) {
-        prefs(context).edit().putBoolean("card_bounce_enabled", enabled).apply()
+        writeBoolean(context, "card_bounce_enabled", enabled)
+    }
+
+    // Hiệu ứng thời tiết trong nền ứng dụng (mặc định tắt)
+    fun isTopWeatherBgEnabled(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_TOP_WEATHER_BG, false)
+
+    fun setTopWeatherBgEnabled(context: Context, enabled: Boolean) {
+        writeBoolean(context, KEY_TOP_WEATHER_BG, enabled)
     }
 
     // Nhạc nền trong ứng dụng (mặc định tắt, âm lượng nhỏ vừa phải 0.15f)
-    fun isBgMusicEnabled(context: Context): Boolean {
-        return prefs(context).getBoolean("bg_music_enabled", false)
-    }
+    fun isBgMusicEnabled(context: Context): Boolean =
+        prefs(context).getBoolean("bg_music_enabled", false)
 
     fun setBgMusicEnabled(context: Context, enabled: Boolean) {
-        prefs(context).edit().putBoolean("bg_music_enabled", enabled).apply()
+        writeBoolean(context, "bg_music_enabled", enabled)
     }
 
-    fun getBgMusicVolume(context: Context): Float {
-        return prefs(context).getFloat("bg_music_volume_v2", 0.15f).coerceIn(0f, 1f)
-    }
+    fun getBgMusicVolume(context: Context): Float =
+        prefs(context).getFloat("bg_music_volume_v2", 0.15f).coerceIn(0f, 1f)
 
     fun setBgMusicVolume(context: Context, volume: Float) {
         prefs(context).edit().putFloat("bg_music_volume_v2", volume.coerceIn(0f, 1f)).apply()
@@ -106,7 +123,7 @@ object AppPrefs {
         prefs(context).getBoolean("show_seconds", false)
 
     fun setShowSeconds(context: Context, show: Boolean) {
-        prefs(context).edit().putBoolean("show_seconds", show).apply()
+        writeBoolean(context, "show_seconds", show)
     }
 
     // Hiển thị lớp hiệu ứng thời tiết trên Widget
@@ -114,7 +131,7 @@ object AppPrefs {
         prefs(context).getBoolean("show_weather_effect", false)
 
     fun setShowWeatherEffect(context: Context, show: Boolean) {
-        prefs(context).edit().putBoolean("show_weather_effect", show).apply()
+        writeBoolean(context, "show_weather_effect", show)
     }
 
     // Hiển thị lịch âm trên Widget (mặc định bật)
@@ -122,7 +139,7 @@ object AppPrefs {
         prefs(context).getBoolean("show_lunar_date", true)
 
     fun setShowLunarDate(context: Context, show: Boolean) {
-        prefs(context).edit().putBoolean("show_lunar_date", show).apply()
+        writeBoolean(context, "show_lunar_date", show)
     }
 
     // Hiển thị dương lịch trên Widget (mặc định bật)
@@ -130,7 +147,7 @@ object AppPrefs {
         prefs(context).getBoolean("show_solar_date", true)
 
     fun setShowSolarDate(context: Context, show: Boolean) {
-        prefs(context).edit().putBoolean("show_solar_date", show).apply()
+        writeBoolean(context, "show_solar_date", show)
     }
 
     // Hiển thị địa điểm trên Widget (mặc định bật)
@@ -138,7 +155,7 @@ object AppPrefs {
         prefs(context).getBoolean("show_location_name", true)
 
     fun setShowLocationName(context: Context, show: Boolean) {
-        prefs(context).edit().putBoolean("show_location_name", show).apply()
+        writeBoolean(context, "show_location_name", show)
     }
 
     // Hiển thị dự báo 7 ngày trên Widget
@@ -146,7 +163,7 @@ object AppPrefs {
         prefs(context).getBoolean(KEY_SHOW_SEVEN_DAYS, true)
 
     fun setShowSevenDayForecast(context: Context, show: Boolean) {
-        prefs(context).edit().putBoolean(KEY_SHOW_SEVEN_DAYS, show).apply()
+        writeBoolean(context, KEY_SHOW_SEVEN_DAYS, show)
     }
 
     // Hiển thị chữ ký trên Widget
@@ -154,7 +171,7 @@ object AppPrefs {
         prefs(context).getBoolean("show_signature", false)
 
     fun setShowSignature(context: Context, show: Boolean) {
-        prefs(context).edit().putBoolean("show_signature", show).apply()
+        writeBoolean(context, "show_signature", show)
     }
 
     // Chữ ký cá nhân
@@ -162,7 +179,7 @@ object AppPrefs {
         prefs(context).getString("signature", "Gió Độc") ?: "Gió Độc"
 
     fun setSignature(context: Context, sig: String) {
-        prefs(context).edit().putString("signature", sig).apply()
+        writeString(context, "signature", sig)
     }
 
     // Thanh trượt cỡ chữ từ 1 đến 20
@@ -194,13 +211,13 @@ object AppPrefs {
         prefs(context).getBoolean("auto_location", true)
 
     fun setAutoLocation(context: Context, auto: Boolean) {
-        prefs(context).edit().putBoolean("auto_location", auto).apply()
+        writeBoolean(context, "auto_location", auto)
     }
 
     fun saveNextSevenDaysForecast(context: Context, items: List<String>) {
         val arr = JSONArray()
         items.take(7).forEach { arr.put(it) }
-        prefs(context).edit().putString(KEY_NEXT_SEVEN_DAYS, arr.toString()).apply()
+        writeString(context, KEY_NEXT_SEVEN_DAYS, arr.toString())
     }
 
     fun getNextSevenDaysForecast(context: Context): List<String> {
@@ -293,7 +310,7 @@ object AppPrefs {
             obj.put("searchedAt", item.searchedAt)
             arr.put(obj)
         }
-        prefs(context).edit().putString("lunar_lookup_history_json", arr.toString()).apply()
+        writeString(context, "lunar_lookup_history_json", arr.toString())
     }
 
     fun clearLunarHistory(context: Context) {
@@ -335,7 +352,7 @@ object AppPrefs {
             obj.put("calculatedAt", item.calculatedAt)
             arr.put(obj)
         }
-        prefs(context).edit().putString("age_history_json", arr.toString()).apply()
+        writeString(context, "age_history_json", arr.toString())
     }
 
     fun clearAgeHistory(context: Context) {
@@ -373,28 +390,28 @@ object AppPrefs {
             obj.put("month", item.month)
             arr.put(obj)
         }
-        prefs(context).edit().putString("birthdays_json", arr.toString()).apply()
+        writeString(context, "birthdays_json", arr.toString(), commitNow = true)
     }
 
     fun getLastPopupDate(context: Context): String =
         prefs(context).getString("last_popup_date", "") ?: ""
 
-    fun setLastPopupDate(context: Context, dateStr: String) {
-        prefs(context).edit().putString("last_popup_date", dateStr).apply()
+    fun setLastPopupDate(context: Context, dateStr: String, commitNow: Boolean = true) {
+        writeString(context, "last_popup_date", dateStr, commitNow = commitNow)
     }
 
     fun getLastAdminPopupDate(context: Context): String =
         prefs(context).getString("last_admin_popup_date", "") ?: ""
 
-    fun setLastAdminPopupDate(context: Context, dateStr: String) {
-        prefs(context).edit().putString("last_admin_popup_date", dateStr).apply()
+    fun setLastAdminPopupDate(context: Context, dateStr: String, commitNow: Boolean = true) {
+        writeString(context, "last_admin_popup_date", dateStr, commitNow = commitNow)
     }
 
     fun getLastNotifyDate(context: Context): String =
         prefs(context).getString("last_notify_date", "") ?: ""
 
-    fun setLastNotifyDate(context: Context, dateStr: String) {
-        prefs(context).edit().putString("last_notify_date", dateStr).apply()
+    fun setLastNotifyDate(context: Context, dateStr: String, commitNow: Boolean = true) {
+        writeString(context, "last_notify_date", dateStr, commitNow = commitNow)
     }
 
     // Nhắc ngày lễ / kỷ niệm Việt Nam & quốc tế tại Việt Nam
@@ -402,7 +419,7 @@ object AppPrefs {
         prefs(context).getBoolean("holiday_reminder_enabled", true)
 
     fun setHolidayReminderEnabled(context: Context, enabled: Boolean) {
-        prefs(context).edit().putBoolean("holiday_reminder_enabled", enabled).apply()
+        writeBoolean(context, "holiday_reminder_enabled", enabled)
     }
 
     fun getEnabledHolidayIds(context: Context): Set<String>? {
@@ -424,14 +441,14 @@ object AppPrefs {
     fun setEnabledHolidayIds(context: Context, ids: Set<String>) {
         val arr = JSONArray()
         ids.forEach { arr.put(it) }
-        prefs(context).edit().putString("enabled_holiday_ids_json", arr.toString()).apply()
+        writeString(context, "enabled_holiday_ids_json", arr.toString())
     }
 
     fun getLastHolidayAlertKey(context: Context): String =
         prefs(context).getString("last_holiday_alert_key", "") ?: ""
 
-    fun setLastHolidayAlertKey(context: Context, key: String) {
-        prefs(context).edit().putString("last_holiday_alert_key", key).apply()
+    fun setLastHolidayAlertKey(context: Context, key: String, commitNow: Boolean = true) {
+        writeString(context, "last_holiday_alert_key", key, commitNow = commitNow)
     }
 
     // Thông tin hữu ích theo ngày Âm lịch: thông báo 1 lần/ngày & ghi chú nhanh theo ngày Âm lịch
@@ -439,21 +456,21 @@ object AppPrefs {
         prefs(context).getBoolean("lunar_useful_notify_enabled", true)
 
     fun setLunarUsefulNotifyEnabled(context: Context, enabled: Boolean) {
-        prefs(context).edit().putBoolean("lunar_useful_notify_enabled", enabled).apply()
+        writeBoolean(context, "lunar_useful_notify_enabled", enabled)
     }
 
     fun getLastLunarUsefulNotifyDate(context: Context): String =
         prefs(context).getString("last_lunar_useful_notify_date", "") ?: ""
 
-    fun setLastLunarUsefulNotifyDate(context: Context, dateStr: String) {
-        prefs(context).edit().putString("last_lunar_useful_notify_date", dateStr).apply()
+    fun setLastLunarUsefulNotifyDate(context: Context, dateStr: String, commitNow: Boolean = true) {
+        writeString(context, "last_lunar_useful_notify_date", dateStr, commitNow = commitNow)
     }
 
     fun getLunarDayNote(context: Context, lunarDateKey: String): String =
         prefs(context).getString("lunar_day_note_$lunarDateKey", "") ?: ""
 
     fun setLunarDayNote(context: Context, lunarDateKey: String, note: String) {
-        prefs(context).edit().putString("lunar_day_note_$lunarDateKey", note).apply()
+        writeString(context, "lunar_day_note_$lunarDateKey", note)
     }
 
     private fun prefs(context: Context) =
