@@ -123,8 +123,80 @@ import java.util.TimeZone
 import java.util.UUID
 import kotlin.math.floor
 import kotlin.math.roundToInt
+import kotlin.random.Random
 
 private const val APP_VERSION_NAME = "31.12-HPBD"
+
+private val DAILY_WARM_MESSAGES = listOf(
+    "Chúc bạn hôm nay thật nhẹ nhàng, bình yên và gặp nhiều điều dễ thương",
+    "Mỗi ngày mới là một cơ hội nhỏ để mỉm cười nhiều hơn một chút",
+    "Mong rằng hôm nay mọi việc của bạn đều trôi chảy êm ái như ý",
+    "Nhớ hít thở sâu, làm chậm lại một nhịp và thương bản thân thêm chút nhé",
+    "Chúc bạn một ngày tràn đầy năng lượng lành và những tin vui nho nhỏ",
+    "Dù bận rộn đến đâu cũng đừng quên dành cho mình một khoảng nghỉ dịu dàng",
+    "Hy vọng hôm nay có ai đó hoặc điều gì đó khiến lòng bạn ấm lên",
+    "Chúc bạn bước ra đường gặp gió mát, về nhà thấy lòng nhẹ tênh",
+    "Những cố gắng thầm lặng của bạn rồi sẽ nở hoa vào đúng lúc đẹp nhất",
+    "Hôm nay hãy cho phép bản thân vui vẻ mà không cần lý do gì cả",
+    "Chúc bạn một ngày nhiều tiếng cười, ít âu lo và đủ đầy sự an yên",
+    "Từng bước nhỏ vững vàng hôm nay chính là nền móng cho ngày mai rực rỡ",
+    "Mong hôm nay của bạn ngọt ngào như một ly trà ấm giữa chiều se lạnh",
+    "Chúc bạn giữ được sự lạc quan trong trẻo dù ngày hôm nay có ra sao",
+    "Mỗi nụ cười của bạn đều có sức mạnh làm ngày hôm nay đẹp hơn",
+    "Chúc bạn làm việc hiệu quả mà vẫn giữ được tinh thần thư thái",
+    "Nếu hôm nay hơi mệt, hãy nghỉ ngơi một chút rồi đi tiếp thật nhẹ nhàng",
+    "Chúc bạn luôn được bao quanh bởi những người tử tế và chân thành",
+    "Ngày mới bắt đầu rồi, chúc bạn đón nhận mọi điều bằng tâm thế thật vui",
+    "Mong rằng hôm nay bạn sẽ tìm thấy niềm vui từ những điều giản dị nhất",
+    "Chúc bạn sức khỏe dồi dào, tâm hồn sáng trong và nhiều niềm tin",
+    "Đừng khắt khe với chính mình quá nhé, hôm nay bạn đã cố gắng rất tốt rồi",
+    "Chúc bạn có một ngày thật suôn sẻ, gặp đúng người và làm đúng việc",
+    "Ánh nắng dịu dàng đang chờ bạn, chúc một ngày mới thật nhiều hứng khởi",
+    "Chúc bạn mọi dự định hôm nay đều thuận buồm xuôi gió",
+    "Một ngày bình thường cũng có thể trở nên đặc biệt nếu lòng mình đủ vui",
+    "Chúc bạn luôn giữ được nụ cười rạng rỡ trên môi suốt cả ngày dài",
+    "Mong hôm nay mang đến cho bạn thật nhiều bình an và sự nhẹ nhõm",
+    "Chúc bạn đi đến đâu cũng gặp may mắn và những cái gật đầu thiện cảm",
+    "Hãy tận hưởng từng khoảnh khắc nhỏ xinh của ngày hôm nay bạn nhé",
+    "Chúc bạn có những phút giây thư giãn thật trọn vẹn sau giờ làm việc",
+    "Mọi chuyện rồi sẽ ổn thôi, chúc bạn giữ vững niềm tin và sự bình tĩnh",
+    "Chúc bạn hôm nay ăn ngon, ngủ sâu và có thật nhiều năng lượng tích cực",
+    "Một lời chúc ấm áp gửi tới bạn cho một ngày mới tràn ngập yêu thương",
+    "Chúc bạn biến những điều nhỏ bé hôm nay thành kỷ niệm đáng nhớ",
+    "Chúc bạn luôn tự tin, vững vàng và tỏa sáng theo cách riêng của mình",
+    "Ngày hôm nay là món quà đẹp, chúc bạn mở ra thật nhiều điều bất ngờ vui",
+    "Chúc bạn gác lại muộn phiền và đón nhận ngày mới với trái tim rộng mở",
+    "Mong rằng mọi nỗ lực của bạn hôm nay đều được đền đáp xứng đáng",
+    "Chúc bạn một ngày thật êm đềm, nhẹ bước và nhiều niềm vui bất chợt",
+    "Hãy tin rằng điều tốt đẹp luôn đang trên đường tìm đến với bạn",
+    "Chúc bạn hôm nay có thật nhiều khoảnh khắc đáng yêu và ấm áp",
+    "Dù hôm nay trôi qua thế nào, bạn vẫn xứng đáng được yêu thương và trân trọng",
+    "Chúc bạn khởi đầu ngày mới thật tươi tắn và khép lại thật bình yên",
+    "Mong hôm nay của bạn nhẹ như mây trôi và sáng như nắng sớm",
+    "Chúc bạn luôn giữ được sự ấm áp trong tim để sưởi ấm cả ngày dài",
+    "Một ngày mới với thật nhiều hy vọng tốt lành đang chờ bạn phía trước",
+    "Chúc bạn hôm nay chạm tay vào đâu cũng thấy thuận lợi và vui vẻ",
+    "Cảm ơn bạn vì đã bước qua ngày hôm nay thật kiên cường và dịu dàng",
+    "Chúc bạn một ngày tràn ngập niềm vui, may mắn và những cái ôm ấm áp"
+)
+
+private val CHEERFUL_END_ICONS = listOf(
+    "🌸", "☀️", "🌻", "✨", "🍀",
+    "🌈", "🌼", "🌷", "☀️", "💛",
+    "🦋", "🌿", "🎉", "🌟", "🍃"
+)
+
+private fun dailyWarmMessageForToday(calendar: Calendar): String {
+    val year = calendar.get(Calendar.YEAR)
+    val dayOfYear = calendar.get(Calendar.DAY_OF_YEAR)
+    val daySeed = year * 1000 + dayOfYear
+    val msgRng = Random(daySeed * 31 + 7)
+    val iconRng = Random(daySeed * 97 + 19)
+
+    val message = DAILY_WARM_MESSAGES[msgRng.nextInt(DAILY_WARM_MESSAGES.size)]
+    val icon = CHEERFUL_END_ICONS[iconRng.nextInt(CHEERFUL_END_ICONS.size)]
+    return "$message $icon"
+}
 
 private enum class ExpandableSection {
     CLOCK_THEME_BG,
@@ -1213,6 +1285,7 @@ fun ThoiTietAmLichApp() {
     val lunarToday = remember { LunarCalendar.todayLunar() }
     val lunarTodaySummary = remember(lunarToday) { lunarToday.shortSummary() }
     val solarToday = remember { LunarCalendar.formatVietnameseSolarDate() }
+    val dailyWarmMessage = remember(nowCal) { dailyWarmMessageForToday(nowCal) }
 
     fun performLunarLookup(day: Int, month: Int, year: Int) {
         val summary = convertSolarToLunarSummary(day, month, year)
@@ -1340,8 +1413,8 @@ fun ThoiTietAmLichApp() {
                                     )
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Text(
-                                        lunarTodaySummary,
-                                        fontSize = 20.sp,
+                                        dailyWarmMessage,
+                                        fontSize = 19.sp,
                                         lineHeight = 25.sp,
                                         fontWeight = FontWeight.ExtraBold,
                                         color = palette.textPrimary
