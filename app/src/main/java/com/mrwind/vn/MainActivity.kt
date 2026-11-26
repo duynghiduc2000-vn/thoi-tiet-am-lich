@@ -123,6 +123,17 @@ import kotlin.math.roundToInt
 
 private const val APP_VERSION_NAME = "31.12-HPBD"
 
+private enum class ExpandableSection {
+    CLOCK_THEME_BG,
+    ACCENT_COLOR,
+    LOCATION_SIGNATURE,
+    TODO,
+    LUNAR_LOOKUP,
+    AGE_CALC,
+    BIRTHDAY,
+    HOLIDAY
+}
+
 private data class AdaptivePalette(
     val isDark: Boolean,
     val screenBg: Color,
@@ -789,14 +800,10 @@ fun ThoiTietAmLichApp() {
     }
     var showHolidayPopup by remember { mutableStateOf(false) }
 
-    var clockThemeExpanded by remember { mutableStateOf(false) }
-    var accentExpanded by remember { mutableStateOf(false) }
-    var locationSigExpanded by remember { mutableStateOf(false) }
-    var todoExpanded by remember { mutableStateOf(false) }
-    var lunarLookupExpanded by remember { mutableStateOf(false) }
-    var ageCalcExpanded by remember { mutableStateOf(false) }
-    var birthdayExpanded by remember { mutableStateOf(false) }
-    var holidayExpanded by remember { mutableStateOf(false) }
+    var expandedSection by remember { mutableStateOf<ExpandableSection?>(null) }
+    fun toggleSection(section: ExpandableSection) {
+        expandedSection = if (expandedSection == section) null else section
+    }
 
     val lookupSectionBringIntoView = remember { BringIntoViewRequester() }
     val ageSectionBringIntoView = remember { BringIntoViewRequester() }
@@ -1289,15 +1296,15 @@ fun ThoiTietAmLichApp() {
                         }
                     }
 
-                    // 2. Đồng hồ, giao diện, nền widget (thẻ thu gọn)
+                    // 2. Đồng hồ, giao diện, nền widget
                     item(key = "clock_theme_bg_section") {
                         CollapsibleSectionCard(
                             title = "Đồng hồ, Giao diện & Nền Widget",
                             badgeText = if (showSeconds) "HH:mm:ss" else "HH:mm",
                             accentColor = accentCompose,
                             palette = palette,
-                            expanded = clockThemeExpanded,
-                            onToggle = { clockThemeExpanded = !clockThemeExpanded }
+                            expanded = expandedSection == ExpandableSection.CLOCK_THEME_BG,
+                            onToggle = { toggleSection(ExpandableSection.CLOCK_THEME_BG) }
                         ) {
                             Surface(
                                 shape = RoundedCornerShape(16.dp),
@@ -1421,8 +1428,8 @@ fun ThoiTietAmLichApp() {
                             badgeText = selectedAccentName,
                             accentColor = accentCompose,
                             palette = palette,
-                            expanded = accentExpanded,
-                            onToggle = { accentExpanded = !accentExpanded }
+                            expanded = expandedSection == ExpandableSection.ACCENT_COLOR,
+                            onToggle = { toggleSection(ExpandableSection.ACCENT_COLOR) }
                         ) {
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 items(ACCENT_OPTIONS, key = { it.colorInt }) { opt ->
@@ -1483,8 +1490,8 @@ fun ThoiTietAmLichApp() {
                             badgeText = if (autoLocation) "GPS" else "Tùy chọn",
                             accentColor = accentCompose,
                             palette = palette,
-                            expanded = locationSigExpanded,
-                            onToggle = { locationSigExpanded = !locationSigExpanded }
+                            expanded = expandedSection == ExpandableSection.LOCATION_SIGNATURE,
+                            onToggle = { toggleSection(ExpandableSection.LOCATION_SIGNATURE) }
                         ) {
                             Surface(
                                 shape = RoundedCornerShape(16.dp),
@@ -1747,8 +1754,8 @@ fun ThoiTietAmLichApp() {
                                 badgeText = "${todoTasks.size}/${TodoHelper.MAX_TASKS_PER_DAY}",
                                 accentColor = accentCompose,
                                 palette = palette,
-                                expanded = todoExpanded,
-                                onToggle = { todoExpanded = !todoExpanded }
+                                expanded = expandedSection == ExpandableSection.TODO,
+                                onToggle = { toggleSection(ExpandableSection.TODO) }
                             ) {
                                 Text(
                                     "Tối đa 10 việc/ngày. Đúng giờ đặt sẽ hiện pop-up; tự động xóa hết lúc 00:00 ngày hôm sau.",
@@ -1965,8 +1972,8 @@ fun ThoiTietAmLichApp() {
                                 badgeText = "${lunarHistory.size} lưu",
                                 accentColor = accentCompose,
                                 palette = palette,
-                                expanded = lunarLookupExpanded,
-                                onToggle = { lunarLookupExpanded = !lunarLookupExpanded }
+                                expanded = expandedSection == ExpandableSection.LUNAR_LOOKUP,
+                                onToggle = { toggleSection(ExpandableSection.LUNAR_LOOKUP) }
                             ) {
                                 Text(
                                     "Nhập ngày, tháng, năm dương lịch và bấm Tìm kiếm để xem thông báo lịch âm.",
@@ -2202,8 +2209,8 @@ fun ThoiTietAmLichApp() {
                                 badgeText = "${ageHistory.size} lưu",
                                 accentColor = accentCompose,
                                 palette = palette,
-                                expanded = ageCalcExpanded,
-                                onToggle = { ageCalcExpanded = !ageCalcExpanded }
+                                expanded = expandedSection == ExpandableSection.AGE_CALC,
+                                onToggle = { toggleSection(ExpandableSection.AGE_CALC) }
                             ) {
                                 Text(
                                     "Nhập ngày, tháng, năm sinh để tính số tuổi kèm số tháng tính đến hiện tại.",
@@ -2445,8 +2452,8 @@ fun ThoiTietAmLichApp() {
                                 badgeText = "${birthdays.size}/10",
                                 accentColor = accentCompose,
                                 palette = palette,
-                                expanded = birthdayExpanded,
-                                onToggle = { birthdayExpanded = !birthdayExpanded }
+                                expanded = expandedSection == ExpandableSection.BIRTHDAY,
+                                onToggle = { toggleSection(ExpandableSection.BIRTHDAY) }
                             ) {
                                 Text(
                                     "Tự động hiện Pop-up khi mở app và gửi thông báo 1 lần/ngày vào đúng ngày sinh nhật.",
@@ -2618,8 +2625,8 @@ fun ThoiTietAmLichApp() {
                             badgeText = if (holidayReminderEnabled) "${enabledHolidayIds.size} bật" else "Tắt",
                             accentColor = accentCompose,
                             palette = palette,
-                            expanded = holidayExpanded,
-                            onToggle = { holidayExpanded = !holidayExpanded }
+                            expanded = expandedSection == ExpandableSection.HOLIDAY,
+                            onToggle = { toggleSection(ExpandableSection.HOLIDAY) }
                         ) {
                             Surface(
                                 shape = RoundedCornerShape(16.dp),
