@@ -60,7 +60,7 @@ object AppPrefs {
         prefs(context).edit().putInt("app_theme_mode", mode).apply()
     }
 
-    // Nền Widget: 0 = Kính lỏng tối, 1 = Kính lỏng sáng, 2 = Trong suốt, 3 = Theo chủ đề app
+    // Nền Widget: 0 = Kính lỏng tối, 1 = Kính lỏng sáng, 2 = Trong suốt, 3 = Theo chủ đề app, 4 = Liquid Glass
     fun getWidgetBgMode(context: Context): Int =
         prefs(context).getInt("widget_bg_mode", 0)
 
