@@ -985,9 +985,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         WeatherService.scheduleTwoHourlySync(this)
-        BirthdayHelper.notifyTodayBirthdaysOncePerDay(this)
-        BirthdayHelper.notifyTodayHolidaysOncePerDay(this)
-        BirthdayHelper.notifyLunarUsefulInfoOncePerDay(this)
+        BirthdayHelper.runDailyBackgroundReminders(this)
         WeatherLunarWidget.updateAllWidgets(this)
         val initialTasks = TodoHelper.ensureCurrentDayOrReset(this)
         TodoHelper.scheduleAllTodayAlarms(this, initialTasks)
@@ -1002,9 +1000,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        setIntent(intent)
         intent.getStringExtra(TodoHelper.EXTRA_TASK_ID)?.let { taskId ->
             TodoHelper.setPendingPopupTaskId(this, taskId)
         }
+        BirthdayHelper.runDailyBackgroundReminders(this)
     }
 }
 
@@ -1833,37 +1833,6 @@ fun ThoiTietAmLichApp() {
         }
     }
 
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            when (event) {
-                Lifecycle.Event.ON_RESUME -> {
-                    isAppResumed = true
-                    applyBgMusicState()
-                }
-                Lifecycle.Event.ON_PAUSE,
-                Lifecycle.Event.ON_STOP -> {
-                    isAppResumed = false
-                    applyBgMusicState()
-                }
-                else -> Unit
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-        }
-    }
-
-    LaunchedEffect(bgMusicEnabled, bgMusicVolume, isAppResumed) {
-        applyBgMusicState()
-    }
-
-    DisposableEffect(Unit) {
-        onDispose {
-            releaseBgMusicPlayer()
-        }
-    }
-
     var widgetBgMode by remember { mutableIntStateOf(AppPrefs.getWidgetBgMode(context)) }
     var accentColorInt by remember { mutableIntStateOf(AppPrefs.getAccentColor(context)) }
     var showSeconds by remember { mutableStateOf(AppPrefs.isShowSeconds(context)) }
@@ -1958,6 +1927,67 @@ fun ThoiTietAmLichApp() {
     val showAdminBirthdayToday = remember { BirthdayHelper.isAdminBirthdayToday() }
     var showBirthdayPopup by remember { mutableStateOf(false) }
 
+    fun refreshTodosAndCheckDueTasks() {
+        val currentList = TodoHelper.ensureCurrentDayOrReset(context)
+        val c = Calendar.getInstance(TimeZone.getTimeZone("Asia/Ho_Chi_Minh"))
+        val curH = c.get(Calendar.HOUR_OF_DAY)
+        val curM = c.get(Calendar.MINUTE)
+
+        val pendingId = TodoHelper.getPendingPopupTaskId(context)
+        val fromReceiver = pendingId?.let { id -> currentList.find { it.id == id } }
+        val dueNow = currentList.firstOrNull { task ->
+            !task.triggeredToday && !task.isDone &&
+                (task.hour < curH || (task.hour == curH && task.minute <= curM))
+        }
+
+        val popupTarget = fromReceiver ?: dueNow
+        if (popupTarget != null && activeTodoPopup?.id != popupTarget.id) {
+            val marked = currentList.map {
+                if (it.id == popupTarget.id) it.copy(triggeredToday = true) else it
+            }
+            TodoHelper.saveTasks(context, marked)
+            TodoHelper.setPendingPopupTaskId(context, null)
+            todoTasks = marked
+            activeTodoPopup = popupTarget.copy(triggeredToday = true)
+        } else if (currentList != todoTasks) {
+            todoTasks = currentList
+        }
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> {
+                    isAppResumed = true
+                    applyBgMusicState()
+                    TodoHelper.ensureChannel(context)
+                    refreshTodosAndCheckDueTasks()
+                    BirthdayHelper.runDailyBackgroundReminders(context)
+                }
+                Lifecycle.Event.ON_PAUSE,
+                Lifecycle.Event.ON_STOP -> {
+                    isAppResumed = false
+                    applyBgMusicState()
+                }
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    LaunchedEffect(bgMusicEnabled, bgMusicVolume, isAppResumed) {
+        applyBgMusicState()
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            releaseBgMusicPlayer()
+        }
+    }
+
     val hasBlockingPopup = remember(
         showHolidayPopup,
         activeHolidayAlerts,
@@ -2007,38 +2037,11 @@ fun ThoiTietAmLichApp() {
         }
     }
 
-    fun refreshTodosAndCheckDueTasks() {
-        val currentList = TodoHelper.ensureCurrentDayOrReset(context)
-        val c = Calendar.getInstance(TimeZone.getTimeZone("Asia/Ho_Chi_Minh"))
-        val curH = c.get(Calendar.HOUR_OF_DAY)
-        val curM = c.get(Calendar.MINUTE)
-
-        val pendingId = TodoHelper.getPendingPopupTaskId(context)
-        val fromReceiver = pendingId?.let { id -> currentList.find { it.id == id } }
-        val dueNow = currentList.firstOrNull { task ->
-            !task.triggeredToday && !task.isDone &&
-                (task.hour < curH || (task.hour == curH && task.minute <= curM))
-        }
-
-        val popupTarget = fromReceiver ?: dueNow
-        if (popupTarget != null && activeTodoPopup?.id != popupTarget.id) {
-            val marked = currentList.map {
-                if (it.id == popupTarget.id) it.copy(triggeredToday = true) else it
-            }
-            TodoHelper.saveTasks(context, marked)
-            TodoHelper.setPendingPopupTaskId(context, null)
-            todoTasks = marked
-            activeTodoPopup = popupTarget.copy(triggeredToday = true)
-        } else if (currentList != todoTasks) {
-            todoTasks = currentList
-        }
-    }
-
     LaunchedEffect(Unit) {
         TodoHelper.ensureChannel(context)
         refreshTodosAndCheckDueTasks()
 
-        BirthdayHelper.notifyLunarUsefulInfoOncePerDay(context)
+        BirthdayHelper.runDailyBackgroundReminders(context)
 
         val currentAlerts = BirthdayHelper.getActiveHolidaysForToday(context)
         activeHolidayAlerts = currentAlerts
