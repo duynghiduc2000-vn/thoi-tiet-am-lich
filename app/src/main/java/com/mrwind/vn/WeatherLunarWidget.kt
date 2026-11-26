@@ -283,6 +283,18 @@ class WeatherLunarWidget : AppWidgetProvider() {
             views.setTextViewText(R.id.tv_min_max_temp, "▲ ${weather.maxTemp}  ▼ ${weather.minTemp}")
             views.setTextColor(R.id.tv_min_max_temp, accentColor)
 
+            val sevenDayVisibility = if (showSevenDayForecast) View.VISIBLE else View.GONE
+            views.setViewVisibility(R.id.forecast_7days_row, sevenDayVisibility)
+
+            val cardIds = listOf(
+                R.id.card_forecast_day_1,
+                R.id.card_forecast_day_2,
+                R.id.card_forecast_day_3,
+                R.id.card_forecast_day_4,
+                R.id.card_forecast_day_5,
+                R.id.card_forecast_day_6,
+                R.id.card_forecast_day_7
+            )
             val labelIds = listOf(
                 R.id.tv_forecast_day_1_label,
                 R.id.tv_forecast_day_2_label,
@@ -301,21 +313,23 @@ class WeatherLunarWidget : AppWidgetProvider() {
                 R.id.tv_forecast_day_6_icon,
                 R.id.tv_forecast_day_7_icon
             )
-            val sevenDayVisibility = if (showSevenDayForecast) View.VISIBLE else View.GONE
+
             if (showSevenDayForecast) {
                 val sevenDayChips = resolveSevenDayForecastChips(context, weather, cal)
                 for (i in 0..6) {
                     val chip = sevenDayChips[i]
-                    views.setViewVisibility(labelIds[i], sevenDayVisibility)
-                    views.setViewVisibility(iconIds[i], sevenDayVisibility)
+                    views.setViewVisibility(cardIds[i], View.VISIBLE)
+                    views.setViewVisibility(labelIds[i], View.VISIBLE)
+                    views.setViewVisibility(iconIds[i], View.VISIBLE)
                     views.setTextViewText(labelIds[i], chip.dayLabel)
                     views.setTextColor(labelIds[i], secondaryTextColor)
                     views.setTextViewText(iconIds[i], chip.icon)
                 }
             } else {
                 for (i in 0..6) {
-                    views.setViewVisibility(labelIds[i], sevenDayVisibility)
-                    views.setViewVisibility(iconIds[i], sevenDayVisibility)
+                    views.setViewVisibility(cardIds[i], View.GONE)
+                    views.setViewVisibility(labelIds[i], View.GONE)
+                    views.setViewVisibility(iconIds[i], View.GONE)
                 }
             }
 
