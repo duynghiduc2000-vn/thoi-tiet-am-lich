@@ -2471,7 +2471,7 @@ fun ThoiTietAmLichApp() {
                                         .height(52.dp)
                                 ) {
                                     Text(
-                                        "Hiệu ứng nảy ghi bấm vào các thẻ",
+                                        "Hiệu ứng nảy khi bấm vào các thẻ",
                                         fontSize = 13.5.sp,
                                         color = palette.textPrimary,
                                         fontWeight = FontWeight.Bold,
