@@ -62,6 +62,10 @@ class WeatherLunarWidget : AppWidgetProvider() {
         const val ACTION_OPEN_CLOCK = "com.mrwind.vn.ACTION_OPEN_CLOCK"
         private const val TARGET_CLOCK_PACKAGE = "com.android.deskclock"
 
+        private fun lockedSpToPx(context: Context, spValue: Float): Float {
+            return spValue * context.resources.displayMetrics.density
+        }
+
         private fun launchPackageIfAvailable(context: Context, packageName: String): Boolean {
             val launchIntent = context.packageManager.getLaunchIntentForPackage(packageName) ?: return false
             launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -231,10 +235,10 @@ class WeatherLunarWidget : AppWidgetProvider() {
             val showSevenDayForecast = AppPrefs.isShowSevenDayForecast(context)
             val showSignature = AppPrefs.isShowSignature(context)
 
-            val clockSp = AppPrefs.clockSp(AppPrefs.getClockScale(context), showSeconds)
-            val lunarSp = AppPrefs.lunarSp(AppPrefs.getLunarScale(context))
-            val solarSp = AppPrefs.solarSp(AppPrefs.getSolarScale(context))
-            val sigSp = AppPrefs.sigSp(AppPrefs.getSigScale(context))
+            val clockPx = lockedSpToPx(context, AppPrefs.clockSp(AppPrefs.getClockScale(context), showSeconds))
+            val lunarPx = lockedSpToPx(context, AppPrefs.lunarSp(AppPrefs.getLunarScale(context)))
+            val solarPx = lockedSpToPx(context, AppPrefs.solarSp(AppPrefs.getSolarScale(context)))
+            val sigPx = lockedSpToPx(context, AppPrefs.sigSp(AppPrefs.getSigScale(context)))
 
             val bgMode = AppPrefs.getWidgetBgMode(context)
             when (bgMode) {
@@ -256,17 +260,17 @@ class WeatherLunarWidget : AppWidgetProvider() {
 
             views.setTextViewText(R.id.tv_lunar_date, lunar.shortSummary())
             views.setTextColor(R.id.tv_lunar_date, accentColor)
-            views.setTextViewTextSize(R.id.tv_lunar_date, TypedValue.COMPLEX_UNIT_SP, lunarSp)
+            views.setTextViewTextSize(R.id.tv_lunar_date, TypedValue.COMPLEX_UNIT_PX, lunarPx)
 
             views.setTextViewText(R.id.tv_solar_date, LunarCalendar.formatVietnameseSolarDate(cal))
             views.setTextColor(R.id.tv_solar_date, primaryTextColor)
-            views.setTextViewTextSize(R.id.tv_solar_date, TypedValue.COMPLEX_UNIT_SP, solarSp)
+            views.setTextViewTextSize(R.id.tv_solar_date, TypedValue.COMPLEX_UNIT_PX, solarPx)
 
             val clockFormat = if (showSeconds) "HH:mm:ss" else "HH:mm"
             views.setCharSequence(R.id.tv_clock, "setFormat12Hour", clockFormat)
             views.setCharSequence(R.id.tv_clock, "setFormat24Hour", clockFormat)
             views.setTextColor(R.id.tv_clock, primaryTextColor)
-            views.setTextViewTextSize(R.id.tv_clock, TypedValue.COMPLEX_UNIT_SP, clockSp)
+            views.setTextViewTextSize(R.id.tv_clock, TypedValue.COMPLEX_UNIT_PX, clockPx)
 
             views.setTextViewText(R.id.tv_min_max_temp, "▲ ${weather.maxTemp}  ▼ ${weather.minTemp}")
             views.setTextColor(R.id.tv_min_max_temp, accentColor)
@@ -327,7 +331,7 @@ class WeatherLunarWidget : AppWidgetProvider() {
             views.setViewVisibility(R.id.tv_signature, if (showSignature) View.VISIBLE else View.GONE)
             views.setTextViewText(R.id.tv_signature, signature)
             views.setTextColor(R.id.tv_signature, accentColor)
-            views.setTextViewTextSize(R.id.tv_signature, TypedValue.COMPLEX_UNIT_SP, sigSp)
+            views.setTextViewTextSize(R.id.tv_signature, TypedValue.COMPLEX_UNIT_PX, sigPx)
 
             val clockIntent = Intent(context, WeatherLunarWidget::class.java).apply {
                 action = ACTION_OPEN_CLOCK
