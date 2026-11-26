@@ -7,7 +7,6 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
-import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.provider.AlarmClock
 import android.util.TypedValue
@@ -178,21 +177,7 @@ class WeatherLunarWidget : AppWidgetProvider() {
                 0 -> views.setInt(R.id.widget_root, "setBackgroundResource", R.drawable.bg_widget_glass_dark)
                 1 -> views.setInt(R.id.widget_root, "setBackgroundResource", R.drawable.bg_widget_glass_light)
                 2 -> views.setInt(R.id.widget_root, "setBackgroundResource", R.drawable.bg_widget_transparent)
-                3 -> {
-                    val dynamicBg = GradientDrawable().apply {
-                        shape = GradientDrawable.RECTANGLE
-                        cornerRadius = 24f * context.resources.displayMetrics.density
-                        setColor(Color.argb(150, Color.red(accentColor), Color.green(accentColor), Color.blue(accentColor)))
-                        setStroke(
-                            (1f * context.resources.displayMetrics.density).toInt(),
-                            Color.argb(90, 255, 255, 255)
-                        )
-                    }
-                    views.setInt(R.id.widget_root, "setBackgroundResource", R.drawable.bg_widget_theme)
-                    if (dynamicBg.alpha >= 0) {
-                        views.setTextColor(R.id.tv_solar_date, Color.WHITE)
-                    }
-                }
+                3 -> views.setInt(R.id.widget_root, "setBackgroundResource", R.drawable.bg_widget_theme)
             }
 
             views.setViewVisibility(
@@ -220,7 +205,7 @@ class WeatherLunarWidget : AppWidgetProvider() {
             views.setTextViewTextSize(R.id.tv_clock, TypedValue.COMPLEX_UNIT_SP, clockSp)
 
             views.setTextViewText(R.id.tv_min_max_temp, "▲ ${weather.maxTemp}  ▼ ${weather.minTemp}")
-            views.setTextColor(R.id.tv_min_max_temp, secondaryTextColor)
+            views.setTextColor(R.id.tv_min_max_temp, accentColor)
 
             views.setTextViewText(R.id.tv_hour_1, weather.hour1)
             views.setTextViewText(R.id.tv_hour_2, weather.hour2)
@@ -249,7 +234,7 @@ class WeatherLunarWidget : AppWidgetProvider() {
             val signature = AppPrefs.getSignature(context).ifBlank { "Gió Độc" }
             views.setViewVisibility(R.id.tv_signature, if (showSignature) View.VISIBLE else View.GONE)
             views.setTextViewText(R.id.tv_signature, signature)
-            views.setTextColor(R.id.tv_signature, primaryTextColor)
+            views.setTextColor(R.id.tv_signature, accentColor)
             views.setTextViewTextSize(R.id.tv_signature, TypedValue.COMPLEX_UNIT_SP, sigSp)
 
             val clockIntent = Intent(context, WeatherLunarWidget::class.java).apply {
