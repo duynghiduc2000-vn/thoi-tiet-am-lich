@@ -220,7 +220,7 @@
             android:textStyle="bold" />
     </LinearLayout>
 
-    <!-- Hàng dưới cùng: 7 ô vuông dự báo ở góc dưới bên trái + chữ ký thẳng hàng bên phải -->
+    <!-- Hàng dưới cùng: 7 ô dự báo (dd/MM) ở góc dưới bên trái + chữ ký thẳng hàng bên phải -->
     <RelativeLayout
         android:id="@+id/bottom_row"
         android:layout_width="match_parent"
@@ -239,26 +239,28 @@
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
-            <!-- Ô vuông ngày 1 -->
+            <!-- Ô ngày 1 -->
             <LinearLayout
                 android:id="@+id/card_forecast_day_1"
-                android:layout_width="27dp"
-                android:layout_height="27dp"
+                android:layout_width="31dp"
+                android:layout_height="28dp"
                 android:layout_marginEnd="1.5dp"
                 android:background="@drawable/bg_widget_forecast_chip"
                 android:gravity="center"
                 android:orientation="vertical"
-                android:padding="1dp">
+                android:paddingHorizontal="0dp"
+                android:paddingVertical="1dp">
 
                 <TextView
                     android:id="@+id/tv_forecast_day_1_label"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:includeFontPadding="false"
+                    android:letterSpacing="-0.03"
                     android:maxLines="1"
-                    android:text="T6"
+                    android:text="27/11"
                     android:textColor="#E4E4E7"
-                    android:textSize="7.5dp"
+                    android:textSize="6.5dp"
                     android:textStyle="bold" />
 
                 <TextView
@@ -271,26 +273,28 @@
                     android:textSize="10dp" />
             </LinearLayout>
 
-            <!-- Ô vuông ngày 2 -->
+            <!-- Ô ngày 2 -->
             <LinearLayout
                 android:id="@+id/card_forecast_day_2"
-                android:layout_width="27dp"
-                android:layout_height="27dp"
+                android:layout_width="31dp"
+                android:layout_height="28dp"
                 android:layout_marginEnd="1.5dp"
                 android:background="@drawable/bg_widget_forecast_chip"
                 android:gravity="center"
                 android:orientation="vertical"
-                android:padding="1dp">
+                android:paddingHorizontal="0dp"
+                android:paddingVertical="1dp">
 
                 <TextView
                     android:id="@+id/tv_forecast_day_2_label"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:includeFontPadding="false"
+                    android:letterSpacing="-0.03"
                     android:maxLines="1"
-                    android:text="T7"
+                    android:text="28/11"
                     android:textColor="#E4E4E7"
-                    android:textSize="7.5dp"
+                    android:textSize="6.5dp"
                     android:textStyle="bold" />
 
                 <TextView
@@ -303,26 +307,28 @@
                     android:textSize="10dp" />
             </LinearLayout>
 
-            <!-- Ô vuông ngày 3 -->
+            <!-- Ô ngày 3 -->
             <LinearLayout
                 android:id="@+id/card_forecast_day_3"
-                android:layout_width="27dp"
-                android:layout_height="27dp"
+                android:layout_width="31dp"
+                android:layout_height="28dp"
                 android:layout_marginEnd="1.5dp"
                 android:background="@drawable/bg_widget_forecast_chip"
                 android:gravity="center"
                 android:orientation="vertical"
-                android:padding="1dp">
+                android:paddingHorizontal="0dp"
+                android:paddingVertical="1dp">
 
                 <TextView
                     android:id="@+id/tv_forecast_day_3_label"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:includeFontPadding="false"
+                    android:letterSpacing="-0.03"
                     android:maxLines="1"
-                    android:text="CN"
+                    android:text="29/11"
                     android:textColor="#E4E4E7"
-                    android:textSize="7.5dp"
+                    android:textSize="6.5dp"
                     android:textStyle="bold" />
 
                 <TextView
@@ -335,26 +341,28 @@
                     android:textSize="10dp" />
             </LinearLayout>
 
-            <!-- Ô vuông ngày 4 -->
+            <!-- Ô ngày 4 -->
             <LinearLayout
                 android:id="@+id/card_forecast_day_4"
-                android:layout_width="27dp"
-                android:layout_height="27dp"
+                android:layout_width="31dp"
+                android:layout_height="28dp"
                 android:layout_marginEnd="1.5dp"
                 android:background="@drawable/bg_widget_forecast_chip"
                 android:gravity="center"
                 android:orientation="vertical"
-                android:padding="1dp">
+                android:paddingHorizontal="0dp"
+                android:paddingVertical="1dp">
 
                 <TextView
                     android:id="@+id/tv_forecast_day_4_label"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:includeFontPadding="false"
+                    android:letterSpacing="-0.03"
                     android:maxLines="1"
-                    android:text="T2"
+                    android:text="30/11"
                     android:textColor="#E4E4E7"
-                    android:textSize="7.5dp"
+                    android:textSize="6.5dp"
                     android:textStyle="bold" />
 
                 <TextView
@@ -367,26 +375,28 @@
                     android:textSize="10dp" />
             </LinearLayout>
 
-            <!-- Ô vuông ngày 5 -->
+            <!-- Ô ngày 5 -->
             <LinearLayout
                 android:id="@+id/card_forecast_day_5"
-                android:layout_width="27dp"
-                android:layout_height="27dp"
+                android:layout_width="31dp"
+                android:layout_height="28dp"
                 android:layout_marginEnd="1.5dp"
                 android:background="@drawable/bg_widget_forecast_chip"
                 android:gravity="center"
                 android:orientation="vertical"
-                android:padding="1dp">
+                android:paddingHorizontal="0dp"
+                android:paddingVertical="1dp">
 
                 <TextView
                     android:id="@+id/tv_forecast_day_5_label"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:includeFontPadding="false"
+                    android:letterSpacing="-0.03"
                     android:maxLines="1"
-                    android:text="T3"
+                    android:text="01/12"
                     android:textColor="#E4E4E7"
-                    android:textSize="7.5dp"
+                    android:textSize="6.5dp"
                     android:textStyle="bold" />
 
                 <TextView
@@ -399,26 +409,28 @@
                     android:textSize="10dp" />
             </LinearLayout>
 
-            <!-- Ô vuông ngày 6 -->
+            <!-- Ô ngày 6 -->
             <LinearLayout
                 android:id="@+id/card_forecast_day_6"
-                android:layout_width="27dp"
-                android:layout_height="27dp"
+                android:layout_width="31dp"
+                android:layout_height="28dp"
                 android:layout_marginEnd="1.5dp"
                 android:background="@drawable/bg_widget_forecast_chip"
                 android:gravity="center"
                 android:orientation="vertical"
-                android:padding="1dp">
+                android:paddingHorizontal="0dp"
+                android:paddingVertical="1dp">
 
                 <TextView
                     android:id="@+id/tv_forecast_day_6_label"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:includeFontPadding="false"
+                    android:letterSpacing="-0.03"
                     android:maxLines="1"
-                    android:text="T4"
+                    android:text="02/12"
                     android:textColor="#E4E4E7"
-                    android:textSize="7.5dp"
+                    android:textSize="6.5dp"
                     android:textStyle="bold" />
 
                 <TextView
@@ -431,25 +443,27 @@
                     android:textSize="10dp" />
             </LinearLayout>
 
-            <!-- Ô vuông ngày 7 -->
+            <!-- Ô ngày 7 -->
             <LinearLayout
                 android:id="@+id/card_forecast_day_7"
-                android:layout_width="27dp"
-                android:layout_height="27dp"
+                android:layout_width="31dp"
+                android:layout_height="28dp"
                 android:background="@drawable/bg_widget_forecast_chip"
                 android:gravity="center"
                 android:orientation="vertical"
-                android:padding="1dp">
+                android:paddingHorizontal="0dp"
+                android:paddingVertical="1dp">
 
                 <TextView
                     android:id="@+id/tv_forecast_day_7_label"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:includeFontPadding="false"
+                    android:letterSpacing="-0.03"
                     android:maxLines="1"
-                    android:text="T5"
+                    android:text="03/12"
                     android:textColor="#E4E4E7"
-                    android:textSize="7.5dp"
+                    android:textSize="6.5dp"
                     android:textStyle="bold" />
 
                 <TextView
