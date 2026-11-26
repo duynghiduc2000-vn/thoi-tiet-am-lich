@@ -66,11 +66,10 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -1224,131 +1223,176 @@ fun ThoiTietAmLichApp() {
                             .fillMaxSize()
                             .padding(innerPadding)
                             .imePadding(),
-                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 120.dp),
+                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 120.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        // 1. Xem trước widget đồng bộ với Widget ngoài màn hình chính
-                        item(key = "top_widget_preview") {
-                            Card(
-                                shape = RoundedCornerShape(24.dp),
-                                colors = CardDefaults.cardColors(
-                                    containerColor = palette.cardBg,
-                                    contentColor = palette.textPrimary
-                                ),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .border(
-                                        width = 1.dp,
-                                        color = palette.border,
-                                        shape = RoundedCornerShape(24.dp)
-                                    )
+                        // TẦNG 1: Editorial Header + Bento Hero (Xem trước Widget + 2 ô thao tác nhanh)
+                        item(key = "top_bento_editorial") {
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                                modifier = Modifier.fillMaxWidth()
                             ) {
-                                Column(modifier = Modifier.padding(16.dp)) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(bottom = 12.dp)
-                                    ) {
+                                // Tiêu đề kiểu tạp chí (Editorial)
+                                Column(modifier = Modifier.padding(horizontal = 2.dp)) {
+                                    Text(
+                                        solarToday.uppercase(Locale.getDefault()),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        letterSpacing = 1.sp,
+                                        color = accentCompose
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        lunarTodaySummary,
+                                        fontSize = 20.sp,
+                                        lineHeight = 25.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = palette.textPrimary
+                                    )
+                                }
+
+                                // Ô Bento lớn: Xem trước Widget
+                                Surface(
+                                    shape = RoundedCornerShape(24.dp),
+                                    color = palette.cardBg,
+                                    contentColor = palette.textPrimary,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .border(1.dp, palette.border, RoundedCornerShape(24.dp))
+                                ) {
+                                    Column(modifier = Modifier.padding(14.dp)) {
                                         Row(
                                             verticalAlignment = Alignment.CenterVertically,
-                                            modifier = Modifier.weight(1f)
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(bottom = 10.dp)
                                         ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .width(4.dp)
-                                                    .height(18.dp)
-                                                    .clip(CircleShape)
-                                                    .background(accentCompose)
-                                            )
-                                            Spacer(modifier = Modifier.width(10.dp))
                                             Text(
-                                                "Xem trước Widget",
-                                                style = MaterialTheme.typography.titleMedium,
-                                                color = palette.textPrimary,
+                                                "XEM TRƯỚC WIDGET",
+                                                fontSize = 11.sp,
+                                                letterSpacing = 0.8.sp,
+                                                color = palette.textSecondary,
                                                 fontWeight = FontWeight.Bold
                                             )
+                                            Text(
+                                                weather.locationName,
+                                                fontSize = 11.sp,
+                                                color = accentCompose,
+                                                fontWeight = FontWeight.SemiBold,
+                                                maxLines = 1
+                                            )
                                         }
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Button(
-                                            onClick = {
+
+                                        WidgetPreviewBox(
+                                            weather = weather,
+                                            solarToday = solarToday,
+                                            lunarSummary = lunarTodaySummary,
+                                            widgetBgMode = widgetBgMode,
+                                            accentColor = accentCompose,
+                                            showSeconds = showSeconds,
+                                            showWeatherEffect = showWeatherEffect,
+                                            showLunarDate = showLunarDate,
+                                            showWeatherInfo = showWeatherInfo,
+                                            showSolarDate = showSolarDate,
+                                            showLocationName = showLocationName,
+                                            showSevenDayForecast = showSevenDayForecast,
+                                            sevenDayChips = previewSevenDays,
+                                            showSignature = showSignature,
+                                            signature = signature,
+                                            clockScale = clockScale,
+                                            lunarScale = lunarScale,
+                                            solarScale = solarScale,
+                                            sigScale = sigScale,
+                                            isDarkApp = palette.isDark
+                                        )
+                                    }
+                                }
+
+                                // 2 ô Bento nhỏ ghép ngang: Cập nhật & Ghim Widget
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Surface(
+                                        shape = RoundedCornerShape(20.dp),
+                                        color = palette.cardBg,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(20.dp))
+                                            .border(1.dp, palette.border, RoundedCornerShape(20.dp))
+                                            .clickable(enabled = !isSyncing) {
                                                 scope.launch {
                                                     syncWeatherData()
                                                 }
-                                            },
-                                            enabled = !isSyncing,
-                                            shape = RoundedCornerShape(14.dp),
-                                            colors = ButtonDefaults.buttonColors(
-                                                containerColor = accentCompose,
-                                                contentColor = palette.onAccentText
+                                            }
+                                    ) {
+                                        Column(modifier = Modifier.padding(14.dp)) {
+                                            Icon(
+                                                Icons.Default.Refresh,
+                                                contentDescription = null,
+                                                tint = accentCompose,
+                                                modifier = Modifier.size(20.dp)
                                             )
-                                        ) {
+                                            Spacer(modifier = Modifier.height(8.dp))
                                             Text(
                                                 if (isSyncing) "Đang tải..." else "Cập nhật",
-                                                color = palette.onAccentText,
-                                                fontWeight = FontWeight.Bold
+                                                color = palette.textPrimary,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 15.sp
+                                            )
+                                            Text(
+                                                "Đồng bộ thời tiết",
+                                                color = palette.textSecondary,
+                                                fontSize = 11.sp
                                             )
                                         }
                                     }
 
-                                    WidgetPreviewBox(
-                                        weather = weather,
-                                        solarToday = solarToday,
-                                        lunarSummary = lunarTodaySummary,
-                                        widgetBgMode = widgetBgMode,
-                                        accentColor = accentCompose,
-                                        showSeconds = showSeconds,
-                                        showWeatherEffect = showWeatherEffect,
-                                        showLunarDate = showLunarDate,
-                                        showWeatherInfo = showWeatherInfo,
-                                        showSolarDate = showSolarDate,
-                                        showLocationName = showLocationName,
-                                        showSevenDayForecast = showSevenDayForecast,
-                                        sevenDayChips = previewSevenDays,
-                                        showSignature = showSignature,
-                                        signature = signature,
-                                        clockScale = clockScale,
-                                        lunarScale = lunarScale,
-                                        solarScale = solarScale,
-                                        sigScale = sigScale,
-                                        isDarkApp = palette.isDark
-                                    )
-
-                                    Spacer(modifier = Modifier.height(14.dp))
-                                    OutlinedButton(
-                                        onClick = {
-                                            val pinned = WeatherLunarWidget.requestPinWidget(context)
-                                            if (!pinned) {
-                                                Toast.makeText(
-                                                    context,
-                                                    "Launcher hiện tại không hỗ trợ ghim tự động. Bạn nhấn giữ màn hình chính -> Tiện ích để thêm nhé.",
-                                                    Toast.LENGTH_LONG
-                                                ).show()
-                                            }
-                                        },
-                                        shape = RoundedCornerShape(16.dp),
+                                    Surface(
+                                        shape = RoundedCornerShape(20.dp),
+                                        color = palette.cardBg,
                                         modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(46.dp)
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(20.dp))
+                                            .border(1.dp, palette.border, RoundedCornerShape(20.dp))
+                                            .clickable {
+                                                val pinned = WeatherLunarWidget.requestPinWidget(context)
+                                                if (!pinned) {
+                                                    Toast.makeText(
+                                                        context,
+                                                        "Launcher hiện tại không hỗ trợ ghim tự động. Bạn nhấn giữ màn hình chính -> Tiện ích để thêm nhé.",
+                                                        Toast.LENGTH_LONG
+                                                    ).show()
+                                                }
+                                            }
                                     ) {
-                                        Icon(
-                                            Icons.Default.AddToHomeScreen,
-                                            contentDescription = null,
-                                            tint = palette.textPrimary
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(
-                                            "Ghim Widget ra màn hình chính",
-                                            color = palette.textPrimary,
-                                            fontWeight = FontWeight.SemiBold
-                                        )
+                                        Column(modifier = Modifier.padding(14.dp)) {
+                                            Icon(
+                                                Icons.Default.AddToHomeScreen,
+                                                contentDescription = null,
+                                                tint = accentCompose,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Text(
+                                                "Ghim Widget",
+                                                color = palette.textPrimary,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 15.sp
+                                            )
+                                            Text(
+                                                "Ra màn hình chính",
+                                                color = palette.textSecondary,
+                                                fontSize = 11.sp
+                                            )
+                                        }
                                     }
                                 }
                             }
                         }
 
-                        // Mục Nền ứng dụng nằm ngoài các thẻ, ngay dưới Xem trước Widget
+                        // Mục Nền ứng dụng nằm ngoài các thẻ, ngay dưới cụm Bento đầu trang
                         item(key = "app_theme_outside_bar") {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -1392,7 +1436,7 @@ fun ThoiTietAmLichApp() {
                             }
                         }
 
-                        // 2. Đồng hồ, giao diện, nền widget (kèm các nút bật/tắt thành phần trên Widget)
+                        // 2. Đồng hồ, giao diện, nền widget (Flat / Hairline bên trong)
                         item(key = "clock_theme_bg_section") {
                             CollapsibleSectionCard(
                                 title = "Đồng hồ, Giao diện & Nền Widget",
@@ -1402,248 +1446,100 @@ fun ThoiTietAmLichApp() {
                                 expanded = expandedSection == ExpandableSection.CLOCK_THEME_BG,
                                 onToggle = { toggleSection(ExpandableSection.CLOCK_THEME_BG) }
                             ) {
-                                Surface(
-                                    shape = RoundedCornerShape(16.dp),
-                                    color = palette.subtleBg,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(bottom = 10.dp)
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 14.dp, vertical = 10.dp)
-                                    ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                "Hiển thị giây (chạy liên tục)",
-                                                color = palette.textPrimary,
-                                                fontWeight = FontWeight.SemiBold
-                                            )
-                                            Text(
-                                                "Định dạng HH:mm:ss trên đồng hồ Widget",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = palette.textSecondary
-                                            )
+                                FlatSwitchRow(
+                                    title = "Hiển thị giây (chạy liên tục)",
+                                    subtitle = "Định dạng HH:mm:ss trên đồng hồ Widget",
+                                    checked = showSeconds,
+                                    accentColor = accentCompose,
+                                    palette = palette,
+                                    onCheckedChange = { checked ->
+                                        if (checked) {
+                                            showSecondsWarningPopup = true
+                                        } else {
+                                            showSeconds = false
+                                            AppPrefs.setShowSeconds(context, false)
+                                            WeatherLunarWidget.updateAllWidgets(context)
                                         }
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Switch(
-                                            checked = showSeconds,
-                                            colors = SwitchDefaults.colors(checkedTrackColor = accentCompose),
-                                            onCheckedChange = { checked ->
-                                                if (checked) {
-                                                    showSecondsWarningPopup = true
-                                                } else {
-                                                    showSeconds = false
-                                                    AppPrefs.setShowSeconds(context, false)
-                                                    WeatherLunarWidget.updateAllWidgets(context)
-                                                }
-                                            }
-                                        )
                                     }
-                                }
+                                )
+                                SectionHairline(palette)
 
-                                Surface(
-                                    shape = RoundedCornerShape(16.dp),
-                                    color = palette.subtleBg,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(bottom = 10.dp)
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 14.dp, vertical = 10.dp)
-                                    ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                "Hiệu ứng thời tiết trên Widget",
-                                                color = palette.textPrimary,
-                                                fontWeight = FontWeight.SemiBold
-                                            )
-                                            Text(
-                                                "Bật/tắt lớp hiệu ứng nắng, mây, sương mù, mưa theo thời tiết",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = palette.textSecondary
-                                            )
-                                        }
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Switch(
-                                            checked = showWeatherEffect,
-                                            colors = SwitchDefaults.colors(checkedTrackColor = accentCompose),
-                                            onCheckedChange = { checked ->
-                                                showWeatherEffect = checked
-                                                AppPrefs.setShowWeatherEffect(context, checked)
-                                                WeatherLunarWidget.updateAllWidgets(context)
-                                            }
-                                        )
+                                FlatSwitchRow(
+                                    title = "Hiệu ứng thời tiết trên Widget",
+                                    subtitle = "Bật/tắt lớp hiệu ứng nắng, mây, sương mù, mưa theo thời tiết",
+                                    checked = showWeatherEffect,
+                                    accentColor = accentCompose,
+                                    palette = palette,
+                                    onCheckedChange = { checked ->
+                                        showWeatherEffect = checked
+                                        AppPrefs.setShowWeatherEffect(context, checked)
+                                        WeatherLunarWidget.updateAllWidgets(context)
                                     }
-                                }
+                                )
+                                SectionHairline(palette)
 
-                                Surface(
-                                    shape = RoundedCornerShape(16.dp),
-                                    color = palette.subtleBg,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(bottom = 10.dp)
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 14.dp, vertical = 10.dp)
-                                    ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                "Hiển thị lịch âm",
-                                                color = palette.textPrimary,
-                                                fontWeight = FontWeight.SemiBold
-                                            )
-                                            Text(
-                                                "Bật/tắt dòng thông tin Âm lịch trên Widget",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = palette.textSecondary
-                                            )
-                                        }
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Switch(
-                                            checked = showLunarDate,
-                                            colors = SwitchDefaults.colors(checkedTrackColor = accentCompose),
-                                            onCheckedChange = { checked ->
-                                                showLunarDate = checked
-                                                AppPrefs.setShowLunarDate(context, checked)
-                                                WeatherLunarWidget.updateAllWidgets(context)
-                                            }
-                                        )
+                                FlatSwitchRow(
+                                    title = "Hiển thị lịch âm",
+                                    subtitle = "Bật/tắt dòng thông tin Âm lịch trên Widget",
+                                    checked = showLunarDate,
+                                    accentColor = accentCompose,
+                                    palette = palette,
+                                    onCheckedChange = { checked ->
+                                        showLunarDate = checked
+                                        AppPrefs.setShowLunarDate(context, checked)
+                                        WeatherLunarWidget.updateAllWidgets(context)
                                     }
-                                }
+                                )
+                                SectionHairline(palette)
 
-                                Surface(
-                                    shape = RoundedCornerShape(16.dp),
-                                    color = palette.subtleBg,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(bottom = 10.dp)
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 14.dp, vertical = 10.dp)
-                                    ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                "Hiển thị nhiệt độ (kèm thời tiết)",
-                                                color = palette.textPrimary,
-                                                fontWeight = FontWeight.SemiBold
-                                            )
-                                            Text(
-                                                "Bật/tắt nhiệt độ, trạng thái, độ ẩm, gió & biên độ nhiệt",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = palette.textSecondary
-                                            )
-                                        }
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Switch(
-                                            checked = showWeatherInfo,
-                                            colors = SwitchDefaults.colors(checkedTrackColor = accentCompose),
-                                            onCheckedChange = { checked ->
-                                                showWeatherInfo = checked
-                                                AppPrefs.setShowWeatherInfo(context, checked)
-                                                WeatherLunarWidget.updateAllWidgets(context)
-                                            }
-                                        )
+                                FlatSwitchRow(
+                                    title = "Hiển thị nhiệt độ (kèm thời tiết)",
+                                    subtitle = "Bật/tắt nhiệt độ, trạng thái, độ ẩm, gió & biên độ nhiệt",
+                                    checked = showWeatherInfo,
+                                    accentColor = accentCompose,
+                                    palette = palette,
+                                    onCheckedChange = { checked ->
+                                        showWeatherInfo = checked
+                                        AppPrefs.setShowWeatherInfo(context, checked)
+                                        WeatherLunarWidget.updateAllWidgets(context)
                                     }
-                                }
+                                )
+                                SectionHairline(palette)
 
-                                Surface(
-                                    shape = RoundedCornerShape(16.dp),
-                                    color = palette.subtleBg,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(bottom = 10.dp)
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 14.dp, vertical = 10.dp)
-                                    ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                "Hiển thị dương lịch",
-                                                color = palette.textPrimary,
-                                                fontWeight = FontWeight.SemiBold
-                                            )
-                                            Text(
-                                                "Bật/tắt dòng thứ và ngày tháng Dương lịch trên Widget",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = palette.textSecondary
-                                            )
-                                        }
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Switch(
-                                            checked = showSolarDate,
-                                            colors = SwitchDefaults.colors(checkedTrackColor = accentCompose),
-                                            onCheckedChange = { checked ->
-                                                showSolarDate = checked
-                                                AppPrefs.setShowSolarDate(context, checked)
-                                                WeatherLunarWidget.updateAllWidgets(context)
-                                            }
-                                        )
+                                FlatSwitchRow(
+                                    title = "Hiển thị dương lịch",
+                                    subtitle = "Bật/tắt dòng thứ và ngày tháng Dương lịch trên Widget",
+                                    checked = showSolarDate,
+                                    accentColor = accentCompose,
+                                    palette = palette,
+                                    onCheckedChange = { checked ->
+                                        showSolarDate = checked
+                                        AppPrefs.setShowSolarDate(context, checked)
+                                        WeatherLunarWidget.updateAllWidgets(context)
                                     }
-                                }
+                                )
+                                SectionHairline(palette)
 
-                                Surface(
-                                    shape = RoundedCornerShape(16.dp),
-                                    color = palette.subtleBg,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(bottom = 14.dp)
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 14.dp, vertical = 10.dp)
-                                    ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                "Hiển thị địa điểm",
-                                                color = palette.textPrimary,
-                                                fontWeight = FontWeight.SemiBold
-                                            )
-                                            Text(
-                                                "Bật/tắt tên địa danh cập nhật thời tiết trên Widget",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = palette.textSecondary
-                                            )
-                                        }
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Switch(
-                                            checked = showLocationName,
-                                            colors = SwitchDefaults.colors(checkedTrackColor = accentCompose),
-                                            onCheckedChange = { checked ->
-                                                showLocationName = checked
-                                                AppPrefs.setShowLocationName(context, checked)
-                                                WeatherLunarWidget.updateAllWidgets(context)
-                                            }
-                                        )
+                                FlatSwitchRow(
+                                    title = "Hiển thị địa điểm",
+                                    subtitle = "Bật/tắt tên địa danh cập nhật thời tiết trên Widget",
+                                    checked = showLocationName,
+                                    accentColor = accentCompose,
+                                    palette = palette,
+                                    onCheckedChange = { checked ->
+                                        showLocationName = checked
+                                        AppPrefs.setShowLocationName(context, checked)
+                                        WeatherLunarWidget.updateAllWidgets(context)
                                     }
-                                }
+                                )
+
+                                Spacer(modifier = Modifier.height(14.dp))
 
                                 Text(
                                     "Kiểu nền Widget trên màn hình chính",
-                                    color = palette.textPrimary,
-                                    fontWeight = FontWeight.SemiBold
+                                    color = accentCompose,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp
                                 )
                                 val bgLabels = listOf(
                                     "Kính lỏng tối",
@@ -1654,7 +1550,7 @@ fun ThoiTietAmLichApp() {
                                 )
                                 LazyRow(
                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    modifier = Modifier.padding(top = 6.dp)
+                                    modifier = Modifier.padding(top = 8.dp)
                                 ) {
                                     items(bgLabels.size) { idx ->
                                         val selected = widgetBgMode == idx
@@ -1692,49 +1588,35 @@ fun ThoiTietAmLichApp() {
                                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                     items(ACCENT_OPTIONS, key = { it.colorInt }) { opt ->
                                         val selected = opt.colorInt == accentColorInt
-                                        Surface(
-                                            shape = RoundedCornerShape(16.dp),
-                                            color = if (selected) {
-                                                Color(opt.colorInt).copy(alpha = 0.20f)
-                                            } else {
-                                                palette.subtleBg
-                                            },
+                                        Column(
+                                            horizontalAlignment = Alignment.CenterHorizontally,
                                             modifier = Modifier
-                                                .clip(RoundedCornerShape(16.dp))
-                                                .border(
-                                                    width = if (selected) 1.5.dp else 1.dp,
-                                                    color = if (selected) Color(opt.colorInt) else palette.border,
-                                                    shape = RoundedCornerShape(16.dp)
-                                                )
+                                                .clip(RoundedCornerShape(14.dp))
                                                 .clickable {
                                                     accentColorInt = opt.colorInt
                                                     AppPrefs.setAccentColor(context, opt.colorInt)
                                                     WeatherLunarWidget.updateAllWidgets(context)
                                                 }
+                                                .padding(horizontal = 6.dp, vertical = 6.dp)
                                         ) {
-                                            Column(
-                                                horizontalAlignment = Alignment.CenterHorizontally,
-                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp)
-                                            ) {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .size(36.dp)
-                                                        .clip(CircleShape)
-                                                        .background(Color(opt.colorInt))
-                                                        .border(
-                                                            width = if (selected) 3.dp else 1.5.dp,
-                                                            color = if (selected) palette.textPrimary else Color.White.copy(alpha = 0.5f),
-                                                            shape = CircleShape
-                                                        )
-                                                )
-                                                Text(
-                                                    opt.name,
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    color = palette.textPrimary,
-                                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                                                    modifier = Modifier.padding(top = 6.dp)
-                                                )
-                                            }
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(38.dp)
+                                                    .clip(CircleShape)
+                                                    .background(Color(opt.colorInt))
+                                                    .border(
+                                                        width = if (selected) 3.dp else 1.5.dp,
+                                                        color = if (selected) palette.textPrimary else Color.White.copy(alpha = 0.45f),
+                                                        shape = CircleShape
+                                                    )
+                                            )
+                                            Text(
+                                                opt.name,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = if (selected) Color(opt.colorInt) else palette.textPrimary,
+                                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                                modifier = Modifier.padding(top = 6.dp)
+                                            )
                                         }
                                     }
                                 }
@@ -1751,44 +1633,20 @@ fun ThoiTietAmLichApp() {
                                 expanded = expandedSection == ExpandableSection.LOCATION_SIGNATURE,
                                 onToggle = { toggleSection(ExpandableSection.LOCATION_SIGNATURE) }
                             ) {
-                                Surface(
-                                    shape = RoundedCornerShape(16.dp),
-                                    color = palette.subtleBg,
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 14.dp, vertical = 10.dp)
-                                    ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                "Tự động theo vị trí hiện tại (GPS)",
-                                                color = palette.textPrimary,
-                                                fontWeight = FontWeight.SemiBold
-                                            )
-                                            Text(
-                                                "Tắt để nhập tên tìm địa điểm bất kỳ",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = palette.textSecondary
-                                            )
+                                FlatSwitchRow(
+                                    title = "Tự động theo vị trí hiện tại (GPS)",
+                                    subtitle = "Tắt để nhập tên tìm địa điểm bất kỳ",
+                                    checked = autoLocation,
+                                    accentColor = accentCompose,
+                                    palette = palette,
+                                    onCheckedChange = { checked ->
+                                        autoLocation = checked
+                                        AppPrefs.setAutoLocation(context, checked)
+                                        scope.launch {
+                                            syncWeatherData()
                                         }
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Switch(
-                                            checked = autoLocation,
-                                            colors = SwitchDefaults.colors(checkedTrackColor = accentCompose),
-                                            onCheckedChange = { checked ->
-                                                autoLocation = checked
-                                                AppPrefs.setAutoLocation(context, checked)
-                                                scope.launch {
-                                                    syncWeatherData()
-                                                }
-                                            }
-                                        )
                                     }
-                                }
+                                )
 
                                 if (!autoLocation) {
                                     Spacer(modifier = Modifier.height(10.dp))
@@ -1845,17 +1703,11 @@ fun ThoiTietAmLichApp() {
 
                                     searchResults.forEach { item ->
                                         val isCurrent = weather.locationName == item.displayName
-                                        Surface(
-                                            shape = RoundedCornerShape(14.dp),
-                                            color = if (isCurrent) {
-                                                accentCompose.copy(alpha = 0.16f)
-                                            } else {
-                                                palette.subtleBg
-                                            },
+                                        Column(
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .padding(top = 6.dp)
-                                                .clip(RoundedCornerShape(14.dp))
+                                                .padding(top = 4.dp)
+                                                .clip(RoundedCornerShape(12.dp))
                                                 .clickable {
                                                     val updatedCache = weather.copy(
                                                         locationName = item.displayName,
@@ -1869,68 +1721,46 @@ fun ThoiTietAmLichApp() {
                                                         syncWeatherData()
                                                     }
                                                 }
+                                                .padding(vertical = 8.dp, horizontal = 4.dp)
                                         ) {
-                                            Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
-                                            ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
                                                 Icon(
                                                     Icons.Default.LocationOn,
                                                     contentDescription = null,
-                                                    tint = if (isCurrent) accentCompose else palette.textSecondary
+                                                    tint = if (isCurrent) accentCompose else palette.textSecondary,
+                                                    modifier = Modifier.size(18.dp)
                                                 )
                                                 Spacer(modifier = Modifier.width(8.dp))
                                                 Text(
                                                     item.displayName,
                                                     fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
-                                                    color = palette.textPrimary
+                                                    color = if (isCurrent) accentCompose else palette.textPrimary
                                                 )
                                             }
+                                            SectionHairline(palette, topPadding = 8.dp)
                                         }
                                     }
                                 }
 
-                                Spacer(modifier = Modifier.height(14.dp))
+                                Spacer(modifier = Modifier.height(6.dp))
+                                SectionHairline(palette)
+                                Spacer(modifier = Modifier.height(6.dp))
 
-                                Surface(
-                                    shape = RoundedCornerShape(16.dp),
-                                    color = palette.subtleBg,
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 14.dp, vertical = 10.dp)
-                                    ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                "Hiển thị chữ ký",
-                                                color = palette.textPrimary,
-                                                fontWeight = FontWeight.SemiBold
-                                            )
-                                            Text(
-                                                "Tắt nếu không muốn hiện chữ ký dưới Widget",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = palette.textSecondary
-                                            )
-                                        }
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Switch(
-                                            checked = showSignature,
-                                            colors = SwitchDefaults.colors(checkedTrackColor = accentCompose),
-                                            onCheckedChange = { checked ->
-                                                showSignature = checked
-                                                AppPrefs.setShowSignature(context, checked)
-                                                WeatherLunarWidget.updateAllWidgets(context)
-                                            }
-                                        )
+                                FlatSwitchRow(
+                                    title = "Hiển thị chữ ký",
+                                    subtitle = "Tắt nếu không muốn hiện chữ ký dưới Widget",
+                                    checked = showSignature,
+                                    accentColor = accentCompose,
+                                    palette = palette,
+                                    onCheckedChange = { checked ->
+                                        showSignature = checked
+                                        AppPrefs.setShowSignature(context, checked)
+                                        WeatherLunarWidget.updateAllWidgets(context)
                                     }
-                                }
+                                )
 
                                 if (showSignature) {
-                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Spacer(modifier = Modifier.height(10.dp))
                                     ModernTextField(
                                         value = signature,
                                         onValueChange = { newText ->
@@ -1947,7 +1777,7 @@ fun ThoiTietAmLichApp() {
                             }
                         }
 
-                        // 4b. Thẻ riêng: Điều chỉnh kích cỡ chữ trên Widget
+                        // 4b. Điều chỉnh kích cỡ chữ trên Widget
                         item(key = "font_scale_section") {
                             CollapsibleSectionCard(
                                 title = "Kích cỡ chữ trên Widget",
@@ -1962,7 +1792,7 @@ fun ThoiTietAmLichApp() {
                                     style = MaterialTheme.typography.bodySmall,
                                     color = palette.textSecondary
                                 )
-                                Spacer(modifier = Modifier.height(8.dp))
+                                Spacer(modifier = Modifier.height(10.dp))
                                 ScaleSliderRow(
                                     label = "Đồng hồ",
                                     value = clockScale,
@@ -1974,6 +1804,8 @@ fun ThoiTietAmLichApp() {
                                         WeatherLunarWidget.updateAllWidgets(context)
                                     }
                                 )
+                                SectionHairline(palette, topPadding = 4.dp)
+                                Spacer(modifier = Modifier.height(8.dp))
                                 ScaleSliderRow(
                                     label = "Lịch âm",
                                     value = lunarScale,
@@ -1985,6 +1817,8 @@ fun ThoiTietAmLichApp() {
                                         WeatherLunarWidget.updateAllWidgets(context)
                                     }
                                 )
+                                SectionHairline(palette, topPadding = 4.dp)
+                                Spacer(modifier = Modifier.height(8.dp))
                                 ScaleSliderRow(
                                     label = "Dương lịch",
                                     value = solarScale,
@@ -1996,6 +1830,8 @@ fun ThoiTietAmLichApp() {
                                         WeatherLunarWidget.updateAllWidgets(context)
                                     }
                                 )
+                                SectionHairline(palette, topPadding = 4.dp)
+                                Spacer(modifier = Modifier.height(8.dp))
                                 ScaleSliderRow(
                                     label = "Chữ ký",
                                     value = sigScale,
@@ -2168,57 +2004,48 @@ fun ThoiTietAmLichApp() {
                                             color = palette.textSecondary
                                         )
                                     } else {
-                                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                            todoTasks.forEach { task ->
-                                                Surface(
-                                                    shape = RoundedCornerShape(16.dp),
-                                                    color = palette.subtleBg,
-                                                    modifier = Modifier.fillMaxWidth()
+                                        Column {
+                                            todoTasks.forEachIndexed { idx, task ->
+                                                if (idx > 0) SectionHairline(palette)
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(vertical = 8.dp)
                                                 ) {
                                                     Row(
                                                         verticalAlignment = Alignment.CenterVertically,
-                                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                                                        modifier = Modifier.weight(1f)
                                                     ) {
-                                                        Row(
-                                                            verticalAlignment = Alignment.CenterVertically,
-                                                            modifier = Modifier.weight(1f)
-                                                        ) {
-                                                            Surface(
-                                                                shape = RoundedCornerShape(10.dp),
-                                                                color = accentCompose.copy(alpha = 0.20f)
-                                                            ) {
-                                                                Text(
-                                                                    task.timeFormatted,
-                                                                    color = accentCompose,
-                                                                    fontWeight = FontWeight.Bold,
-                                                                    style = MaterialTheme.typography.labelLarge,
-                                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                                                )
-                                                            }
-                                                            Spacer(modifier = Modifier.width(10.dp))
-                                                            Text(
-                                                                task.title,
-                                                                textDecoration = if (task.isDone) TextDecoration.LineThrough else TextDecoration.None,
-                                                                color = if (task.isDone) palette.textSecondary else palette.textPrimary,
-                                                                style = MaterialTheme.typography.bodyMedium,
-                                                                fontWeight = FontWeight.Medium
-                                                            )
+                                                        Text(
+                                                            task.timeFormatted,
+                                                            color = accentCompose,
+                                                            fontWeight = FontWeight.ExtraBold,
+                                                            style = MaterialTheme.typography.labelLarge
+                                                        )
+                                                        Spacer(modifier = Modifier.width(10.dp))
+                                                        Text(
+                                                            task.title,
+                                                            textDecoration = if (task.isDone) TextDecoration.LineThrough else TextDecoration.None,
+                                                            color = if (task.isDone) palette.textSecondary else palette.textPrimary,
+                                                            style = MaterialTheme.typography.bodyMedium,
+                                                            fontWeight = FontWeight.Medium
+                                                        )
+                                                    }
+                                                    IconButton(
+                                                        onClick = {
+                                                            val updated = todoTasks.filterNot { it.id == task.id }
+                                                            TodoHelper.saveTasks(context, updated)
+                                                            TodoHelper.scheduleAllTodayAlarms(context, updated)
+                                                            todoTasks = updated
                                                         }
-                                                        IconButton(
-                                                            onClick = {
-                                                                val updated = todoTasks.filterNot { it.id == task.id }
-                                                                TodoHelper.saveTasks(context, updated)
-                                                                TodoHelper.scheduleAllTodayAlarms(context, updated)
-                                                                todoTasks = updated
-                                                            }
-                                                        ) {
-                                                            Icon(
-                                                                Icons.Default.Delete,
-                                                                contentDescription = "Xóa việc cần làm",
-                                                                tint = MaterialTheme.colorScheme.error
-                                                            )
-                                                        }
+                                                    ) {
+                                                        Icon(
+                                                            Icons.Default.Delete,
+                                                            contentDescription = "Xóa việc cần làm",
+                                                            tint = MaterialTheme.colorScheme.error
+                                                        )
                                                     }
                                                 }
                                             }
@@ -2410,8 +2237,9 @@ fun ThoiTietAmLichApp() {
                                         )
                                     } else {
                                         Spacer(modifier = Modifier.height(8.dp))
-                                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                            lunarHistory.forEach { item ->
+                                        Column {
+                                            lunarHistory.forEachIndexed { idx, item ->
+                                                if (idx > 0) SectionHairline(palette)
                                                 val solarStr = remember(item.id) {
                                                     "${item.solarDay.toString().padStart(2, '0')}/${item.solarMonth.toString().padStart(2, '0')}/${item.solarYear}"
                                                 }
@@ -2426,12 +2254,9 @@ fun ThoiTietAmLichApp() {
                                                         item.lunarSummary
                                                     }
                                                 }
-                                                Surface(
-                                                    shape = RoundedCornerShape(16.dp),
-                                                    color = palette.subtleBg,
+                                                Column(
                                                     modifier = Modifier
                                                         .fillMaxWidth()
-                                                        .clip(RoundedCornerShape(16.dp))
                                                         .clickable {
                                                             lookupDayInput = item.solarDay.toString()
                                                             lookupMonthInput = item.solarMonth.toString()
@@ -2441,22 +2266,21 @@ fun ThoiTietAmLichApp() {
                                                                 lunarSummary = freshSummary
                                                             )
                                                         }
+                                                        .padding(vertical = 10.dp)
                                                 ) {
-                                                    Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
-                                                        Text(
-                                                            "📅 Dương: $solarStr",
-                                                            color = palette.textPrimary,
-                                                            fontWeight = FontWeight.SemiBold,
-                                                            style = MaterialTheme.typography.bodyMedium
-                                                        )
-                                                        Text(
-                                                            freshSummary,
-                                                            color = palette.textSecondary,
-                                                            fontWeight = FontWeight.Medium,
-                                                            style = MaterialTheme.typography.bodySmall,
-                                                            modifier = Modifier.padding(top = 2.dp)
-                                                        )
-                                                    }
+                                                    Text(
+                                                        "📅 Dương: $solarStr",
+                                                        color = accentCompose,
+                                                        fontWeight = FontWeight.Bold,
+                                                        style = MaterialTheme.typography.bodyMedium
+                                                    )
+                                                    Text(
+                                                        freshSummary,
+                                                        color = palette.textPrimary,
+                                                        fontWeight = FontWeight.Medium,
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        modifier = Modifier.padding(top = 2.dp)
+                                                    )
                                                 }
                                             }
                                         }
@@ -2465,7 +2289,7 @@ fun ThoiTietAmLichApp() {
                             }
                         }
 
-                        // 6b. Thông tin hữu ích theo ngày Âm lịch
+                        // 6b. Thông tin hữu ích theo ngày Âm lịch (Editorial + Hairline)
                         item(key = "lunar_useful_info_section") {
                             Column(
                                 modifier = Modifier
@@ -2480,131 +2304,79 @@ fun ThoiTietAmLichApp() {
                                     expanded = expandedSection == ExpandableSection.LUNAR_USEFUL_INFO,
                                     onToggle = { toggleSection(ExpandableSection.LUNAR_USEFUL_INFO) }
                                 ) {
-                                    Surface(
-                                        shape = RoundedCornerShape(16.dp),
-                                        color = palette.subtleBg,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(bottom = 10.dp)
-                                    ) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(horizontal = 14.dp, vertical = 10.dp)
-                                        ) {
-                                            Column(modifier = Modifier.weight(1f)) {
-                                                Text(
-                                                    "Thông báo 1 lần/ngày",
-                                                    color = palette.textPrimary,
-                                                    fontWeight = FontWeight.SemiBold
-                                                )
-                                                Text(
-                                                    "Nhắc ngày Hoàng Đạo, tiết khí & giờ tốt theo ngày Âm lịch",
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = palette.textSecondary
-                                                )
+                                    FlatSwitchRow(
+                                        title = "Thông báo 1 lần/ngày",
+                                        subtitle = "Nhắc ngày Hoàng Đạo, tiết khí & giờ tốt theo ngày Âm lịch",
+                                        checked = lunarUsefulNotifyEnabled,
+                                        accentColor = accentCompose,
+                                        palette = palette,
+                                        onCheckedChange = { checked ->
+                                            lunarUsefulNotifyEnabled = checked
+                                            AppPrefs.setLunarUsefulNotifyEnabled(context, checked)
+                                            if (checked) {
+                                                BirthdayHelper.notifyLunarUsefulInfoOncePerDay(context)
                                             }
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Switch(
-                                                checked = lunarUsefulNotifyEnabled,
-                                                colors = SwitchDefaults.colors(checkedTrackColor = accentCompose),
-                                                onCheckedChange = { checked ->
-                                                    lunarUsefulNotifyEnabled = checked
-                                                    AppPrefs.setLunarUsefulNotifyEnabled(context, checked)
-                                                    if (checked) {
-                                                        BirthdayHelper.notifyLunarUsefulInfoOncePerDay(context)
-                                                    }
-                                                }
-                                            )
                                         }
-                                    }
+                                    )
+                                    SectionHairline(palette)
 
-                                    Surface(
-                                        shape = RoundedCornerShape(16.dp),
-                                        color = palette.subtleBg,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(bottom = 8.dp)
-                                    ) {
-                                        Column(modifier = Modifier.padding(12.dp)) {
-                                            Text(
-                                                "${lunarInsight.lunarDateLabel} • Ngày ${lunarInsight.dayCanChi}",
-                                                color = accentCompose,
-                                                fontWeight = FontWeight.Bold,
-                                                style = MaterialTheme.typography.titleSmall
-                                            )
-                                            Spacer(modifier = Modifier.height(4.dp))
-                                            Text(
-                                                "${lunarInsight.auspiciousStatus}: ${lunarInsight.auspiciousDetail}",
-                                                color = palette.textPrimary,
-                                                style = MaterialTheme.typography.bodySmall
-                                            )
-                                        }
-                                    }
-
-                                    Surface(
-                                        shape = RoundedCornerShape(16.dp),
-                                        color = palette.subtleBg,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(bottom = 8.dp)
-                                    ) {
-                                        Column(modifier = Modifier.padding(12.dp)) {
-                                            Text(
-                                                "Tiết khí: ${lunarInsight.solarTermName}",
-                                                color = palette.textPrimary,
-                                                fontWeight = FontWeight.SemiBold,
-                                                style = MaterialTheme.typography.bodyMedium
-                                            )
-                                            Text(
-                                                "Còn ${lunarInsight.daysUntilNextSolarTerm} ngày tới tiết khí ${lunarInsight.nextSolarTermName}.",
-                                                color = palette.textSecondary,
-                                                style = MaterialTheme.typography.bodySmall,
-                                                modifier = Modifier.padding(top = 2.dp)
-                                            )
-                                        }
-                                    }
-
-                                    Surface(
-                                        shape = RoundedCornerShape(16.dp),
-                                        color = palette.subtleBg,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(bottom = 8.dp)
-                                    ) {
-                                        Column(modifier = Modifier.padding(12.dp)) {
-                                            Text(
-                                                "Giờ Hoàng Đạo trong ngày",
-                                                color = palette.textPrimary,
-                                                fontWeight = FontWeight.SemiBold,
-                                                style = MaterialTheme.typography.bodyMedium
-                                            )
-                                            Text(
-                                                lunarInsight.auspiciousHours,
-                                                color = accentCompose,
-                                                fontWeight = FontWeight.Medium,
-                                                style = MaterialTheme.typography.bodySmall,
-                                                modifier = Modifier.padding(top = 2.dp)
-                                            )
-                                        }
-                                    }
-
-                                    Surface(
-                                        shape = RoundedCornerShape(16.dp),
-                                        color = palette.subtleBg,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(bottom = 10.dp)
-                                    ) {
+                                    Column(modifier = Modifier.padding(vertical = 10.dp)) {
                                         Text(
-                                            lunarInsight.moonMilestoneNote,
+                                            "${lunarInsight.lunarDateLabel} • Ngày ${lunarInsight.dayCanChi}",
+                                            color = accentCompose,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            style = MaterialTheme.typography.titleMedium
+                                        )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            "${lunarInsight.auspiciousStatus}: ${lunarInsight.auspiciousDetail}",
                                             color = palette.textPrimary,
-                                            style = MaterialTheme.typography.bodySmall,
-                                            modifier = Modifier.padding(12.dp)
+                                            style = MaterialTheme.typography.bodySmall
                                         )
                                     }
+                                    SectionHairline(palette)
+
+                                    Column(modifier = Modifier.padding(vertical = 10.dp)) {
+                                        Text(
+                                            "Tiết khí: ${lunarInsight.solarTermName}",
+                                            color = palette.textPrimary,
+                                            fontWeight = FontWeight.Bold,
+                                            style = MaterialTheme.typography.bodyMedium
+                                        )
+                                        Text(
+                                            "Còn ${lunarInsight.daysUntilNextSolarTerm} ngày tới tiết khí ${lunarInsight.nextSolarTermName}.",
+                                            color = palette.textSecondary,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            modifier = Modifier.padding(top = 2.dp)
+                                        )
+                                    }
+                                    SectionHairline(palette)
+
+                                    Column(modifier = Modifier.padding(vertical = 10.dp)) {
+                                        Text(
+                                            "Giờ Hoàng Đạo trong ngày",
+                                            color = palette.textPrimary,
+                                            fontWeight = FontWeight.Bold,
+                                            style = MaterialTheme.typography.bodyMedium
+                                        )
+                                        Text(
+                                            lunarInsight.auspiciousHours,
+                                            color = accentCompose,
+                                            fontWeight = FontWeight.SemiBold,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            modifier = Modifier.padding(top = 2.dp)
+                                        )
+                                    }
+                                    SectionHairline(palette)
+
+                                    Text(
+                                        lunarInsight.moonMilestoneNote,
+                                        color = palette.textPrimary,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        modifier = Modifier.padding(vertical = 10.dp)
+                                    )
+                                    SectionHairline(palette)
+                                    Spacer(modifier = Modifier.height(10.dp))
 
                                     ModernTextField(
                                         value = lunarDayNoteInput,
@@ -2837,8 +2609,9 @@ fun ThoiTietAmLichApp() {
                                         )
                                     } else {
                                         Spacer(modifier = Modifier.height(8.dp))
-                                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                            ageHistory.forEach { item ->
+                                        Column {
+                                            ageHistory.forEachIndexed { idx, item ->
+                                                if (idx > 0) SectionHairline(palette)
                                                 val birthStr = remember(item.id) {
                                                     "${item.birthDay.toString().padStart(2, '0')}/${item.birthMonth.toString().padStart(2, '0')}/${item.birthYear}"
                                                 }
@@ -2850,12 +2623,9 @@ fun ThoiTietAmLichApp() {
                                                     }
                                                 }
                                                 val displayAge = liveCalc?.summary ?: item.ageSummary
-                                                Surface(
-                                                    shape = RoundedCornerShape(16.dp),
-                                                    color = palette.subtleBg,
+                                                Column(
                                                     modifier = Modifier
                                                         .fillMaxWidth()
-                                                        .clip(RoundedCornerShape(16.dp))
                                                         .clickable {
                                                             ageDayInput = item.birthDay.toString()
                                                             ageMonthInput = item.birthMonth.toString()
@@ -2870,22 +2640,21 @@ fun ThoiTietAmLichApp() {
                                                                 ageSummary = displayAge
                                                             )
                                                         }
+                                                        .padding(vertical = 10.dp)
                                                 ) {
-                                                    Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
-                                                        Text(
-                                                            "🎂 Sinh: $birthStr",
-                                                            color = palette.textPrimary,
-                                                            fontWeight = FontWeight.SemiBold,
-                                                            style = MaterialTheme.typography.bodyMedium
-                                                        )
-                                                        Text(
-                                                            displayAge,
-                                                            color = palette.textSecondary,
-                                                            fontWeight = FontWeight.Medium,
-                                                            style = MaterialTheme.typography.bodySmall,
-                                                            modifier = Modifier.padding(top = 2.dp)
-                                                        )
-                                                    }
+                                                    Text(
+                                                        "🎂 Sinh: $birthStr",
+                                                        color = palette.textPrimary,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        style = MaterialTheme.typography.bodyMedium
+                                                    )
+                                                    Text(
+                                                        displayAge,
+                                                        color = accentCompose,
+                                                        fontWeight = FontWeight.Bold,
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        modifier = Modifier.padding(top = 2.dp)
+                                                    )
                                                 }
                                             }
                                         }
@@ -3031,38 +2800,33 @@ fun ThoiTietAmLichApp() {
 
                                     if (birthdays.isNotEmpty()) {
                                         Spacer(modifier = Modifier.height(10.dp))
-                                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                            birthdays.forEach { item ->
-                                                Surface(
-                                                    shape = RoundedCornerShape(16.dp),
-                                                    color = palette.subtleBg,
-                                                    modifier = Modifier.fillMaxWidth()
+                                        Column {
+                                            birthdays.forEachIndexed { idx, item ->
+                                                if (idx > 0) SectionHairline(palette)
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(vertical = 4.dp)
                                                 ) {
-                                                    Row(
-                                                        verticalAlignment = Alignment.CenterVertically,
-                                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                                        modifier = Modifier
-                                                            .fillMaxWidth()
-                                                            .padding(horizontal = 14.dp, vertical = 6.dp)
-                                                    ) {
-                                                        Text(
-                                                            "🎂 ${item.name} — ${item.day.toString().padStart(2, '0')}/${item.month.toString().padStart(2, '0')}",
-                                                            color = palette.textPrimary,
-                                                            fontWeight = FontWeight.Medium
-                                                        )
-                                                        IconButton(
-                                                            onClick = {
-                                                                val updated = birthdays.filterNot { it.id == item.id }
-                                                                birthdays = updated
-                                                                AppPrefs.saveBirthdays(context, updated)
-                                                            }
-                                                        ) {
-                                                            Icon(
-                                                                Icons.Default.Delete,
-                                                                contentDescription = "Xóa sinh nhật",
-                                                                tint = MaterialTheme.colorScheme.error
-                                                            )
+                                                    Text(
+                                                        "🎂 ${item.name} — ${item.day.toString().padStart(2, '0')}/${item.month.toString().padStart(2, '0')}",
+                                                        color = palette.textPrimary,
+                                                        fontWeight = FontWeight.Medium
+                                                    )
+                                                    IconButton(
+                                                        onClick = {
+                                                            val updated = birthdays.filterNot { it.id == item.id }
+                                                            birthdays = updated
+                                                            AppPrefs.saveBirthdays(context, updated)
                                                         }
+                                                    ) {
+                                                        Icon(
+                                                            Icons.Default.Delete,
+                                                            contentDescription = "Xóa sinh nhật",
+                                                            tint = MaterialTheme.colorScheme.error
+                                                        )
                                                     }
                                                 }
                                             }
@@ -3072,7 +2836,7 @@ fun ThoiTietAmLichApp() {
                             }
                         }
 
-                        // 9. Thẻ riêng: Nhắc ngày lễ & kỷ niệm (Dương lịch + Âm lịch gộp 1 danh sách)
+                        // 9. Nhắc ngày lễ & kỷ niệm (Dương lịch + Âm lịch gộp 1 danh sách)
                         item(key = "holiday_reminder_section") {
                             CollapsibleSectionCard(
                                 title = "Nhắc ngày lễ & kỷ niệm",
@@ -3082,47 +2846,24 @@ fun ThoiTietAmLichApp() {
                                 expanded = expandedSection == ExpandableSection.HOLIDAY,
                                 onToggle = { toggleSection(ExpandableSection.HOLIDAY) }
                             ) {
-                                Surface(
-                                    shape = RoundedCornerShape(16.dp),
-                                    color = palette.subtleBg,
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 14.dp, vertical = 10.dp)
-                                    ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                "Bật nhắc ngày lễ / kỷ niệm",
-                                                color = palette.textPrimary,
-                                                fontWeight = FontWeight.SemiBold
-                                            )
-                                            Text(
-                                                "Nhắc trước 1 ngày (Ngày mai là...) và đúng ngày (Hôm nay là...)",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = palette.textSecondary
-                                            )
+                                FlatSwitchRow(
+                                    title = "Bật nhắc ngày lễ / kỷ niệm",
+                                    subtitle = "Nhắc trước 1 ngày (Ngày mai là...) và đúng ngày (Hôm nay là...)",
+                                    checked = holidayReminderEnabled,
+                                    accentColor = accentCompose,
+                                    palette = palette,
+                                    onCheckedChange = { checked ->
+                                        holidayReminderEnabled = checked
+                                        AppPrefs.setHolidayReminderEnabled(context, checked)
+                                        val alerts = BirthdayHelper.getActiveHolidaysForToday(context)
+                                        activeHolidayAlerts = alerts
+                                        if (checked) {
+                                            BirthdayHelper.notifyTodayHolidaysOncePerDay(context)
                                         }
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Switch(
-                                            checked = holidayReminderEnabled,
-                                            colors = SwitchDefaults.colors(checkedTrackColor = accentCompose),
-                                            onCheckedChange = { checked ->
-                                                holidayReminderEnabled = checked
-                                                AppPrefs.setHolidayReminderEnabled(context, checked)
-                                                val alerts = BirthdayHelper.getActiveHolidaysForToday(context)
-                                                activeHolidayAlerts = alerts
-                                                if (checked) {
-                                                    BirthdayHelper.notifyTodayHolidaysOncePerDay(context)
-                                                }
-                                            }
-                                        )
                                     }
-                                }
+                                )
 
+                                SectionHairline(palette)
                                 Spacer(modifier = Modifier.height(10.dp))
 
                                 Text(
@@ -3131,10 +2872,11 @@ fun ThoiTietAmLichApp() {
                                     color = palette.textSecondary
                                 )
 
-                                Spacer(modifier = Modifier.height(8.dp))
+                                Spacer(modifier = Modifier.height(6.dp))
 
-                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    BirthdayHelper.DEFAULT_VIETNAM_AND_INTERNATIONAL_HOLIDAYS.forEach { holiday ->
+                                Column {
+                                    BirthdayHelper.DEFAULT_VIETNAM_AND_INTERNATIONAL_HOLIDAYS.forEachIndexed { idx, holiday ->
+                                        if (idx > 0) SectionHairline(palette)
                                         val isItemEnabled = holiday.id in enabledHolidayIds
                                         val resolvedSolar = remember(holiday.id, currentSolarYear) {
                                             BirthdayHelper.resolveSolarDateForHoliday(holiday, currentSolarYear)
@@ -3148,49 +2890,43 @@ fun ThoiTietAmLichApp() {
                                             "Dương: ${sd.toString().padStart(2, '0')}/${sm.toString().padStart(2, '0')}/$sy"
                                         } ?: ""
 
-                                        Surface(
-                                            shape = RoundedCornerShape(16.dp),
-                                            color = palette.subtleBg,
-                                            modifier = Modifier.fillMaxWidth()
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(vertical = 8.dp)
                                         ) {
-                                            Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .padding(horizontal = 14.dp, vertical = 8.dp)
-                                            ) {
-                                                Column(modifier = Modifier.weight(1f)) {
-                                                    Text(
-                                                        holiday.title,
-                                                        color = palette.textPrimary,
-                                                        fontWeight = FontWeight.SemiBold,
-                                                        style = MaterialTheme.typography.bodyMedium
-                                                    )
-                                                    Text(
-                                                        if (solarNote.isNotEmpty()) "$typeTag • $solarNote" else typeTag,
-                                                        color = palette.textSecondary,
-                                                        style = MaterialTheme.typography.bodySmall,
-                                                        modifier = Modifier.padding(top = 2.dp)
-                                                    )
-                                                }
-                                                Spacer(modifier = Modifier.width(8.dp))
-                                                Switch(
-                                                    checked = isItemEnabled,
-                                                    enabled = holidayReminderEnabled,
-                                                    colors = SwitchDefaults.colors(checkedTrackColor = accentCompose),
-                                                    onCheckedChange = { checked ->
-                                                        val nextSet = if (checked) {
-                                                            enabledHolidayIds + holiday.id
-                                                        } else {
-                                                            enabledHolidayIds - holiday.id
-                                                        }
-                                                        enabledHolidayIds = nextSet
-                                                        AppPrefs.setEnabledHolidayIds(context, nextSet)
-                                                        activeHolidayAlerts = BirthdayHelper.getActiveHolidaysForToday(context)
-                                                    }
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    holiday.title,
+                                                    color = palette.textPrimary,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    style = MaterialTheme.typography.bodyMedium
+                                                )
+                                                Text(
+                                                    if (solarNote.isNotEmpty()) "$typeTag • $solarNote" else typeTag,
+                                                    color = if (isItemEnabled) accentCompose else palette.textSecondary,
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    modifier = Modifier.padding(top = 2.dp)
                                                 )
                                             }
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Switch(
+                                                checked = isItemEnabled,
+                                                enabled = holidayReminderEnabled,
+                                                colors = SwitchDefaults.colors(checkedTrackColor = accentCompose),
+                                                onCheckedChange = { checked ->
+                                                    val nextSet = if (checked) {
+                                                        enabledHolidayIds + holiday.id
+                                                    } else {
+                                                        enabledHolidayIds - holiday.id
+                                                    }
+                                                    enabledHolidayIds = nextSet
+                                                    AppPrefs.setEnabledHolidayIds(context, nextSet)
+                                                    activeHolidayAlerts = BirthdayHelper.getActiveHolidaysForToday(context)
+                                                }
+                                            )
                                         }
                                     }
                                 }
@@ -4301,6 +4037,57 @@ fun ThoiTietAmLichApp() {
 }
 
 @Composable
+private fun SectionHairline(
+    palette: AdaptivePalette,
+    topPadding: androidx.compose.ui.unit.Dp = 0.dp
+) {
+    HorizontalDivider(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = topPadding),
+        thickness = 0.8.dp,
+        color = palette.border
+    )
+}
+
+@Composable
+private fun FlatSwitchRow(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    accentColor: Color,
+    palette: AdaptivePalette,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp)
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                title,
+                color = palette.textPrimary,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = palette.textSecondary
+            )
+        }
+        Spacer(modifier = Modifier.width(8.dp))
+        Switch(
+            checked = checked,
+            colors = SwitchDefaults.colors(checkedTrackColor = accentColor),
+            onCheckedChange = onCheckedChange
+        )
+    }
+}
+
+@Composable
 private fun CollapsibleSectionCard(
     title: String,
     badgeText: String? = null,
@@ -4315,12 +4102,10 @@ private fun CollapsibleSectionCard(
         label = "section_arrow_rotation"
     )
 
-    Card(
+    Surface(
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = palette.cardBg,
-            contentColor = palette.textPrimary
-        ),
+        color = palette.cardBg,
+        contentColor = palette.textPrimary,
         modifier = Modifier
             .fillMaxWidth()
             .border(
@@ -4362,18 +4147,12 @@ private fun CollapsibleSectionCard(
                 Spacer(modifier = Modifier.width(8.dp))
 
                 if (badgeText != null) {
-                    Surface(
-                        shape = RoundedCornerShape(999.dp),
-                        color = accentColor.copy(alpha = 0.16f)
-                    ) {
-                        Text(
-                            badgeText,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = accentColor,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp)
-                        )
-                    }
+                    Text(
+                        badgeText,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = accentColor,
+                        fontWeight = FontWeight.Bold
+                    )
                     Spacer(modifier = Modifier.width(6.dp))
                 }
 
@@ -4397,13 +4176,8 @@ private fun CollapsibleSectionCard(
                         .fillMaxWidth()
                         .padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(1.dp)
-                            .background(palette.border)
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
+                    SectionHairline(palette)
+                    Spacer(modifier = Modifier.height(10.dp))
                     content()
                 }
             }
@@ -4455,18 +4229,12 @@ private fun ScaleSliderRow(
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(label, color = palette.textPrimary, fontWeight = FontWeight.Medium)
-            Surface(
-                shape = RoundedCornerShape(999.dp),
-                color = accentColor.copy(alpha = 0.16f)
-            ) {
-                Text(
-                    "$value / 20",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = accentColor,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                )
-            }
+            Text(
+                "$value / 20",
+                style = MaterialTheme.typography.labelMedium,
+                color = accentColor,
+                fontWeight = FontWeight.Bold
+            )
         }
         Slider(
             value = value.toFloat(),
