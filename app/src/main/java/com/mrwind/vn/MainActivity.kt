@@ -134,6 +134,7 @@ private enum class ExpandableSection {
     FONT_SCALE,
     TODO,
     LUNAR_LOOKUP,
+    LUNAR_USEFUL_INFO,
     AGE_CALC,
     BIRTHDAY,
     HOLIDAY
@@ -200,6 +201,7 @@ class MainActivity : ComponentActivity() {
         WeatherService.scheduleTwoHourlySync(this)
         BirthdayHelper.notifyTodayBirthdaysOncePerDay(this)
         BirthdayHelper.notifyTodayHolidaysOncePerDay(this)
+        BirthdayHelper.notifyLunarUsefulInfoOncePerDay(this)
         WeatherLunarWidget.updateAllWidgets(this)
         val initialTasks = TodoHelper.ensureCurrentDayOrReset(this)
         TodoHelper.scheduleAllTodayAlarms(this, initialTasks)
@@ -949,6 +951,13 @@ fun ThoiTietAmLichApp() {
     var lunarResultPopup by remember { mutableStateOf<LunarResultPopupData?>(null) }
     var showHistoryClearedPopup by remember { mutableStateOf(false) }
 
+    val lunarInsight = remember(context) { BirthdayHelper.getLunarUsefulInsightForToday(context) }
+    var lunarUsefulNotifyEnabled by remember { mutableStateOf(AppPrefs.isLunarUsefulNotifyEnabled(context)) }
+    var lunarDayNoteInput by remember(lunarInsight.lunarDateKey) {
+        mutableStateOf(AppPrefs.getLunarDayNote(context, lunarInsight.lunarDateKey))
+    }
+    var lunarNoteSavedNotice by remember { mutableStateOf(false) }
+
     var ageDayInput by remember { mutableStateOf("1") }
     var ageMonthInput by remember { mutableStateOf("1") }
     var ageYearInput by remember { mutableStateOf("2000") }
@@ -988,6 +997,7 @@ fun ThoiTietAmLichApp() {
     }
 
     val lookupSectionBringIntoView = remember { BringIntoViewRequester() }
+    val lunarUsefulBringIntoView = remember { BringIntoViewRequester() }
     val ageSectionBringIntoView = remember { BringIntoViewRequester() }
     val todoSectionBringIntoView = remember { BringIntoViewRequester() }
     val bdaySectionBringIntoView = remember { BringIntoViewRequester() }
@@ -1048,6 +1058,8 @@ fun ThoiTietAmLichApp() {
     LaunchedEffect(Unit) {
         TodoHelper.ensureChannel(context)
         refreshTodosAndCheckDueTasks()
+
+        BirthdayHelper.notifyLunarUsefulInfoOncePerDay(context)
 
         val currentAlerts = BirthdayHelper.getActiveHolidaysForToday(context)
         activeHolidayAlerts = currentAlerts
@@ -2508,6 +2520,192 @@ fun ThoiTietAmLichApp() {
                                                 }
                                             }
                                         }
+                                    }
+                                }
+                            }
+                        }
+
+                        // 6b. Thông tin hữu ích theo ngày Âm lịch
+                        item(key = "lunar_useful_info_section") {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .bringIntoViewRequester(lunarUsefulBringIntoView)
+                            ) {
+                                CollapsibleSectionCard(
+                                    title = "Thông tin hữu ích theo ngày Âm lịch",
+                                    badgeText = lunarInsight.auspiciousStatus,
+                                    accentColor = accentCompose,
+                                    palette = palette,
+                                    expanded = expandedSection == ExpandableSection.LUNAR_USEFUL_INFO,
+                                    onToggle = { toggleSection(ExpandableSection.LUNAR_USEFUL_INFO) }
+                                ) {
+                                    Surface(
+                                        shape = RoundedCornerShape(16.dp),
+                                        color = palette.subtleBg,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(bottom = 10.dp)
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 14.dp, vertical = 10.dp)
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    "Thông báo 1 lần/ngày",
+                                                    color = palette.textPrimary,
+                                                    fontWeight = FontWeight.SemiBold
+                                                )
+                                                Text(
+                                                    "Nhắc ngày Hoàng Đạo, tiết khí & giờ tốt theo ngày Âm lịch",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = palette.textSecondary
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Switch(
+                                                checked = lunarUsefulNotifyEnabled,
+                                                colors = SwitchDefaults.colors(checkedTrackColor = accentCompose),
+                                                onCheckedChange = { checked ->
+                                                    lunarUsefulNotifyEnabled = checked
+                                                    AppPrefs.setLunarUsefulNotifyEnabled(context, checked)
+                                                    if (checked) {
+                                                        BirthdayHelper.notifyLunarUsefulInfoOncePerDay(context)
+                                                    }
+                                                }
+                                            )
+                                        }
+                                    }
+
+                                    Surface(
+                                        shape = RoundedCornerShape(16.dp),
+                                        color = palette.subtleBg,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(bottom = 8.dp)
+                                    ) {
+                                        Column(modifier = Modifier.padding(12.dp)) {
+                                            Text(
+                                                "${lunarInsight.lunarDateLabel} • Ngày ${lunarInsight.dayCanChi}",
+                                                color = accentCompose,
+                                                fontWeight = FontWeight.Bold,
+                                                style = MaterialTheme.typography.titleSmall
+                                            )
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            Text(
+                                                "${lunarInsight.auspiciousStatus}: ${lunarInsight.auspiciousDetail}",
+                                                color = palette.textPrimary,
+                                                style = MaterialTheme.typography.bodySmall
+                                            )
+                                        }
+                                    }
+
+                                    Surface(
+                                        shape = RoundedCornerShape(16.dp),
+                                        color = palette.subtleBg,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(bottom = 8.dp)
+                                    ) {
+                                        Column(modifier = Modifier.padding(12.dp)) {
+                                            Text(
+                                                "Tiết khí: ${lunarInsight.solarTermName}",
+                                                color = palette.textPrimary,
+                                                fontWeight = FontWeight.SemiBold,
+                                                style = MaterialTheme.typography.bodyMedium
+                                            )
+                                            Text(
+                                                "Còn ${lunarInsight.daysUntilNextSolarTerm} ngày tới tiết khí ${lunarInsight.nextSolarTermName}.",
+                                                color = palette.textSecondary,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                modifier = Modifier.padding(top = 2.dp)
+                                            )
+                                        }
+                                    }
+
+                                    Surface(
+                                        shape = RoundedCornerShape(16.dp),
+                                        color = palette.subtleBg,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(bottom = 8.dp)
+                                    ) {
+                                        Column(modifier = Modifier.padding(12.dp)) {
+                                            Text(
+                                                "Giờ Hoàng Đạo trong ngày",
+                                                color = palette.textPrimary,
+                                                fontWeight = FontWeight.SemiBold,
+                                                style = MaterialTheme.typography.bodyMedium
+                                            )
+                                            Text(
+                                                lunarInsight.auspiciousHours,
+                                                color = accentCompose,
+                                                fontWeight = FontWeight.Medium,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                modifier = Modifier.padding(top = 2.dp)
+                                            )
+                                        }
+                                    }
+
+                                    Surface(
+                                        shape = RoundedCornerShape(16.dp),
+                                        color = palette.subtleBg,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(bottom = 10.dp)
+                                    ) {
+                                        Text(
+                                            lunarInsight.moonMilestoneNote,
+                                            color = palette.textPrimary,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            modifier = Modifier.padding(12.dp)
+                                        )
+                                    }
+
+                                    ModernTextField(
+                                        value = lunarDayNoteInput,
+                                        onValueChange = {
+                                            lunarDayNoteInput = it
+                                            lunarNoteSavedNotice = false
+                                        },
+                                        label = "Ghi chú nhanh cho ngày Âm lịch hôm nay",
+                                        accentColor = accentCompose,
+                                        palette = palette,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .onFocusChanged { focusState ->
+                                                if (focusState.isFocused) {
+                                                    scope.launch {
+                                                        delay(180)
+                                                        lunarUsefulBringIntoView.bringIntoView()
+                                                    }
+                                                }
+                                            }
+                                    )
+
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    OutlinedButton(
+                                        onClick = {
+                                            AppPrefs.setLunarDayNote(
+                                                context,
+                                                lunarInsight.lunarDateKey,
+                                                lunarDayNoteInput.trim()
+                                            )
+                                            lunarNoteSavedNotice = true
+                                        },
+                                        shape = RoundedCornerShape(14.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text(
+                                            if (lunarNoteSavedNotice) "Đã lưu ghi chú ngày Âm lịch" else "Lưu ghi chú ngày Âm lịch",
+                                            color = palette.textPrimary,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
                                     }
                                 }
                             }
