@@ -2390,328 +2390,6 @@ fun ThoiTietAmLichApp() {
                             }
                         }
 
-                        item(key = "app_theme_and_weather_bg_card") {
-                            val themeLabels = listOf("Hệ thống", "Sáng", "Tối")
-                            val currentThemeLabel = themeLabels.getOrElse(appThemeMode) { "Hệ thống" }
-
-                            CollapsibleSectionCard(
-                                title = "Giao diện, Hiệu ứng & Nhạc nền ứng dụng",
-                                badgeText = currentThemeLabel,
-                                accentColor = accentCompose,
-                                palette = palette,
-                                bounceEnabled = cardBounceEnabled,
-                                expanded = expandedSection == ExpandableSection.APP_APPEARANCE_AUDIO,
-                                onToggle = { toggleSection(ExpandableSection.APP_APPEARANCE_AUDIO) }
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(52.dp)
-                                ) {
-                                    Text(
-                                        "Nền ứng dụng",
-                                        fontSize = 13.5.sp,
-                                        color = palette.textPrimary,
-                                        fontWeight = FontWeight.Bold,
-                                        maxLines = 1,
-                                        softWrap = false
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Row(
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        themeLabels.forEachIndexed { idx, label ->
-                                            val selected = appThemeMode == idx
-                                            FilterChip(
-                                                selected = selected,
-                                                shape = RoundedCornerShape(12.dp),
-                                                colors = FilterChipDefaults.filterChipColors(
-                                                    containerColor = palette.subtleBg,
-                                                    labelColor = palette.textPrimary,
-                                                    selectedContainerColor = accentCompose,
-                                                    selectedLabelColor = palette.onAccentText
-                                                ),
-                                                onClick = {
-                                                    appThemeMode = idx
-                                                    AppPrefs.setAppThemeMode(context, idx)
-                                                },
-                                                label = {
-                                                    Text(
-                                                        label,
-                                                        fontSize = 12.sp,
-                                                        maxLines = 1,
-                                                        softWrap = false,
-                                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
-                                                    )
-                                                },
-                                                modifier = Modifier.height(34.dp)
-                                            )
-                                        }
-                                    }
-                                }
-
-                                SectionHairline(palette)
-
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(52.dp)
-                                ) {
-                                    Text(
-                                        "Hiệu ứng nảy khi bấm vào các thẻ",
-                                        fontSize = 13.5.sp,
-                                        color = palette.textPrimary,
-                                        fontWeight = FontWeight.Bold,
-                                        maxLines = 1,
-                                        softWrap = false,
-                                        overflow = TextOverflow.Clip,
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .clipToBounds()
-                                            .basicMarquee(
-                                                iterations = Int.MAX_VALUE,
-                                                repeatDelayMillis = 1200,
-                                                velocity = 24.dp
-                                            )
-                                    )
-                                    Spacer(modifier = Modifier.width(10.dp))
-                                    Switch(
-                                        checked = cardBounceEnabled,
-                                        colors = SwitchDefaults.colors(checkedTrackColor = accentCompose),
-                                        onCheckedChange = { checked ->
-                                            if (checked) {
-                                                pendingBatteryWarningTarget = BatteryWarningTarget.CARD_BOUNCE
-                                            } else {
-                                                cardBounceEnabled = false
-                                                AppPrefs.setCardBounceEnabled(context, false)
-                                            }
-                                        }
-                                    )
-                                }
-
-                                SectionHairline(palette)
-
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(52.dp)
-                                ) {
-                                    Text(
-                                        "Hiệu ứng thời tiết trong nền ứng dụng",
-                                        fontSize = 13.5.sp,
-                                        color = palette.textPrimary,
-                                        fontWeight = FontWeight.Bold,
-                                        maxLines = 1,
-                                        softWrap = false,
-                                        overflow = TextOverflow.Clip,
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .clipToBounds()
-                                            .basicMarquee(
-                                                iterations = Int.MAX_VALUE,
-                                                repeatDelayMillis = 1200,
-                                                velocity = 24.dp
-                                            )
-                                    )
-                                    Spacer(modifier = Modifier.width(10.dp))
-                                    Switch(
-                                        checked = topWeatherBgEnabled,
-                                        colors = SwitchDefaults.colors(checkedTrackColor = accentCompose),
-                                        onCheckedChange = { checked ->
-                                            if (checked) {
-                                                pendingBatteryWarningTarget = BatteryWarningTarget.TOP_WEATHER_BG
-                                            } else {
-                                                topWeatherBgEnabled = false
-                                            }
-                                        }
-                                    )
-                                }
-
-                                SectionHairline(palette)
-
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(52.dp)
-                                ) {
-                                    Text(
-                                        "Nhạc nền trong ứng dụng",
-                                        fontSize = 13.5.sp,
-                                        color = palette.textPrimary,
-                                        fontWeight = FontWeight.Bold,
-                                        maxLines = 1,
-                                        softWrap = false,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    Spacer(modifier = Modifier.width(10.dp))
-                                    Switch(
-                                        checked = bgMusicEnabled,
-                                        colors = SwitchDefaults.colors(checkedTrackColor = accentCompose),
-                                        onCheckedChange = { checked ->
-                                            if (checked) {
-                                                pendingBatteryWarningTarget = BatteryWarningTarget.BG_MUSIC
-                                            } else {
-                                                bgMusicEnabled = false
-                                                AppPrefs.setBgMusicEnabled(context, false)
-                                            }
-                                        }
-                                    )
-                                }
-
-                                if (bgMusicEnabled) {
-                                    Spacer(modifier = Modifier.height(6.dp))
-                                    LiquidGlassVolumeSlider(
-                                        volume = bgMusicVolume,
-                                        accentColor = accentCompose,
-                                        palette = palette,
-                                        onVolumeChange = { v ->
-                                            val clamped = v.coerceIn(0f, 1f)
-                                            bgMusicVolume = clamped
-                                            try {
-                                                AppPrefs.setBgMusicVolume(context, clamped)
-                                            } catch (_: Exception) {
-                                            }
-                                        }
-                                    )
-                                }
-                            }
-                        }
-
-                        item(key = "clock_theme_bg_section") {
-                            CollapsibleSectionCard(
-                                title = "Đồng hồ, Giao diện & Nền Widget",
-                                badgeText = if (showSeconds) "HH:mm:ss" else "HH:mm",
-                                accentColor = accentCompose,
-                                palette = palette,
-                                bounceEnabled = cardBounceEnabled,
-                                expanded = expandedSection == ExpandableSection.CLOCK_THEME_BG,
-                                onToggle = { toggleSection(ExpandableSection.CLOCK_THEME_BG) }
-                            ) {
-                                FlatSwitchRow(
-                                    title = "Hiển thị giây (chạy liên tục)",
-                                    subtitle = "Định dạng HH:mm:ss trên đồng hồ Widget",
-                                    checked = showSeconds,
-                                    accentColor = accentCompose,
-                                    palette = palette,
-                                    onCheckedChange = { checked ->
-                                        if (checked) {
-                                            showSecondsWarningPopup = true
-                                        } else {
-                                            showSeconds = false
-                                            AppPrefs.setShowSeconds(context, false)
-                                            WeatherLunarWidget.updateAllWidgets(context)
-                                        }
-                                    }
-                                )
-                                SectionHairline(palette)
-
-                                FlatSwitchRow(
-                                    title = "Hiệu ứng thời tiết trên Widget",
-                                    subtitle = "Bật/tắt lớp hiệu ứng nắng, mây, sương mù, mưa theo thời tiết",
-                                    checked = showWeatherEffect,
-                                    accentColor = accentCompose,
-                                    palette = palette,
-                                    onCheckedChange = { checked ->
-                                        showWeatherEffect = checked
-                                        AppPrefs.setShowWeatherEffect(context, checked)
-                                        WeatherLunarWidget.updateAllWidgets(context)
-                                    }
-                                )
-                                SectionHairline(palette)
-
-                                FlatSwitchRow(
-                                    title = "Hiển thị lịch âm",
-                                    subtitle = "Bật/tắt dòng thông tin Âm lịch trên Widget",
-                                    checked = showLunarDate,
-                                    accentColor = accentCompose,
-                                    palette = palette,
-                                    onCheckedChange = { checked ->
-                                        showLunarDate = checked
-                                        AppPrefs.setShowLunarDate(context, checked)
-                                        WeatherLunarWidget.updateAllWidgets(context)
-                                    }
-                                )
-                                SectionHairline(palette)
-
-                                FlatSwitchRow(
-                                    title = "Hiển thị dương lịch",
-                                    subtitle = "Bật/tắt dòng thứ và ngày tháng Dương lịch trên Widget",
-                                    checked = showSolarDate,
-                                    accentColor = accentCompose,
-                                    palette = palette,
-                                    onCheckedChange = { checked ->
-                                        showSolarDate = checked
-                                        AppPrefs.setShowSolarDate(context, checked)
-                                        WeatherLunarWidget.updateAllWidgets(context)
-                                    }
-                                )
-                                SectionHairline(palette)
-
-                                FlatSwitchRow(
-                                    title = "Hiển thị địa điểm",
-                                    subtitle = "Bật/tắt tên địa danh cập nhật thời tiết trên Widget",
-                                    checked = showLocationName,
-                                    accentColor = accentCompose,
-                                    palette = palette,
-                                    onCheckedChange = { checked ->
-                                        showLocationName = checked
-                                        AppPrefs.setShowLocationName(context, checked)
-                                        WeatherLunarWidget.updateAllWidgets(context)
-                                    }
-                                )
-
-                                Spacer(modifier = Modifier.height(14.dp))
-
-                                Text(
-                                    "Kiểu nền Widget trên màn hình chính",
-                                    color = accentCompose,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 13.sp
-                                )
-                                val bgLabels = listOf(
-                                    "Kính lỏng tối",
-                                    "Kính lỏng sáng",
-                                    "Trong suốt",
-                                    "Theo chủ đề app",
-                                    "Liquid Glass"
-                                )
-                                LazyRow(
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    modifier = Modifier.padding(top = 8.dp)
-                                ) {
-                                    items(bgLabels.size) { idx ->
-                                        val selected = widgetBgMode == idx
-                                        FilterChip(
-                                            selected = selected,
-                                            shape = RoundedCornerShape(12.dp),
-                                            colors = FilterChipDefaults.filterChipColors(
-                                                containerColor = palette.subtleBg,
-                                                labelColor = palette.textPrimary,
-                                                selectedContainerColor = accentCompose.copy(alpha = 0.22f),
-                                                selectedLabelColor = palette.textPrimary
-                                            ),
-                                            onClick = {
-                                                widgetBgMode = idx
-                                                AppPrefs.setWidgetBgMode(context, idx)
-                                                WeatherLunarWidget.updateAllWidgets(context)
-                                            },
-                                            label = { Text(bgLabels[idx], fontWeight = FontWeight.SemiBold) }
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
                         item(key = "accent_color_section") {
                             CollapsibleSectionCard(
                                 title = "Màu chủ đề (Áp dụng App & Widget)",
@@ -2755,6 +2433,417 @@ fun ThoiTietAmLichApp() {
                                                 modifier = Modifier.padding(top = 6.dp)
                                             )
                                         }
+                                    }
+                                }
+                            }
+                        }
+
+                        item(key = "app_and_widget_appearance_row_section") {
+                            val themeLabels = listOf("Hệ thống", "Sáng", "Tối")
+                            val currentThemeLabel = themeLabels.getOrElse(appThemeMode) { "Hệ thống" }
+                            val activeAppearanceSection = when (expandedSection) {
+                                ExpandableSection.APP_APPEARANCE_AUDIO,
+                                ExpandableSection.CLOCK_THEME_BG -> expandedSection
+                                else -> null
+                            }
+
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .animateContentSize(animationSpec = expandAnimSpec(cardBounceEnabled))
+                            ) {
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    CompactDualCard(
+                                        title = "Giao diện, Hiệu ứng & Nhạc nền ứng dụng",
+                                        badgeText = currentThemeLabel,
+                                        accentColor = accentCompose,
+                                        palette = palette,
+                                        bounceEnabled = cardBounceEnabled,
+                                        expanded = expandedSection == ExpandableSection.APP_APPEARANCE_AUDIO,
+                                        onToggle = { toggleSection(ExpandableSection.APP_APPEARANCE_AUDIO) },
+                                        modifier = Modifier.weight(1f)
+                                    )
+
+                                    CompactDualCard(
+                                        title = "Giao diện, đồng hồ và nền Widget",
+                                        badgeText = if (showSeconds) "HH:mm:ss" else "HH:mm",
+                                        accentColor = accentCompose,
+                                        palette = palette,
+                                        bounceEnabled = cardBounceEnabled,
+                                        expanded = expandedSection == ExpandableSection.CLOCK_THEME_BG,
+                                        onToggle = { toggleSection(ExpandableSection.CLOCK_THEME_BG) },
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+
+                                AnimatedContent(
+                                    targetState = activeAppearanceSection,
+                                    transitionSpec = {
+                                        val enterSpec = if (cardBounceEnabled) {
+                                            fadeIn(tween(180)) +
+                                                slideInVertically(
+                                                    animationSpec = spring(
+                                                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                                                        stiffness = Spring.StiffnessMediumLow
+                                                    ),
+                                                    initialOffsetY = { it / 8 }
+                                                ) +
+                                                scaleIn(
+                                                    animationSpec = spring(
+                                                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                                                        stiffness = Spring.StiffnessMediumLow
+                                                    ),
+                                                    initialScale = 0.97f
+                                                )
+                                        } else {
+                                            fadeIn(tween(160)) +
+                                                slideInVertically(
+                                                    animationSpec = tween(180),
+                                                    initialOffsetY = { it / 10 }
+                                                )
+                                        }
+                                        val exitSpec = fadeOut(tween(130)) +
+                                            slideOutVertically(
+                                                animationSpec = tween(130),
+                                                targetOffsetY = { -it / 12 }
+                                            )
+                                        enterSpec togetherWith exitSpec
+                                    },
+                                    label = "app_widget_appearance_panel_switch"
+                                ) { currentPanel ->
+                                    when (currentPanel) {
+                                        ExpandableSection.APP_APPEARANCE_AUDIO -> {
+                                            Surface(
+                                                shape = RoundedCornerShape(24.dp),
+                                                color = Color.Transparent,
+                                                contentColor = palette.textPrimary,
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clip(RoundedCornerShape(24.dp))
+                                                    .background(palette.liquidGlassBrush)
+                                                    .border(1.3.dp, accentCompose.copy(alpha = 0.65f), RoundedCornerShape(24.dp))
+                                            ) {
+                                                Column(modifier = Modifier.padding(16.dp)) {
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .height(52.dp)
+                                                    ) {
+                                                        Text(
+                                                            "Nền ứng dụng",
+                                                            fontSize = 13.5.sp,
+                                                            color = palette.textPrimary,
+                                                            fontWeight = FontWeight.Bold,
+                                                            maxLines = 1,
+                                                            softWrap = false
+                                                        )
+                                                        Spacer(modifier = Modifier.width(8.dp))
+                                                        Row(
+                                                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                                            verticalAlignment = Alignment.CenterVertically
+                                                        ) {
+                                                            themeLabels.forEachIndexed { idx, label ->
+                                                                val selected = appThemeMode == idx
+                                                                FilterChip(
+                                                                    selected = selected,
+                                                                    shape = RoundedCornerShape(12.dp),
+                                                                    colors = FilterChipDefaults.filterChipColors(
+                                                                        containerColor = palette.subtleBg,
+                                                                        labelColor = palette.textPrimary,
+                                                                        selectedContainerColor = accentCompose,
+                                                                        selectedLabelColor = palette.onAccentText
+                                                                    ),
+                                                                    onClick = {
+                                                                        appThemeMode = idx
+                                                                        AppPrefs.setAppThemeMode(context, idx)
+                                                                    },
+                                                                    label = {
+                                                                        Text(
+                                                                            label,
+                                                                            fontSize = 12.sp,
+                                                                            maxLines = 1,
+                                                                            softWrap = false,
+                                                                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
+                                                                        )
+                                                                    },
+                                                                    modifier = Modifier.height(34.dp)
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+
+                                                    SectionHairline(palette)
+
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .height(52.dp)
+                                                    ) {
+                                                        Text(
+                                                            "Hiệu ứng nảy khi bấm vào các thẻ",
+                                                            fontSize = 13.5.sp,
+                                                            color = palette.textPrimary,
+                                                            fontWeight = FontWeight.Bold,
+                                                            maxLines = 1,
+                                                            softWrap = false,
+                                                            overflow = TextOverflow.Clip,
+                                                            modifier = Modifier
+                                                                .weight(1f)
+                                                                .clipToBounds()
+                                                                .basicMarquee(
+                                                                    iterations = Int.MAX_VALUE,
+                                                                    repeatDelayMillis = 1200,
+                                                                    velocity = 24.dp
+                                                                )
+                                                        )
+                                                        Spacer(modifier = Modifier.width(10.dp))
+                                                        Switch(
+                                                            checked = cardBounceEnabled,
+                                                            colors = SwitchDefaults.colors(checkedTrackColor = accentCompose),
+                                                            onCheckedChange = { checked ->
+                                                                if (checked) {
+                                                                    pendingBatteryWarningTarget = BatteryWarningTarget.CARD_BOUNCE
+                                                                } else {
+                                                                    cardBounceEnabled = false
+                                                                    AppPrefs.setCardBounceEnabled(context, false)
+                                                                }
+                                                            }
+                                                        )
+                                                    }
+
+                                                    SectionHairline(palette)
+
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .height(52.dp)
+                                                    ) {
+                                                        Text(
+                                                            "Hiệu ứng thời tiết trong nền ứng dụng",
+                                                            fontSize = 13.5.sp,
+                                                            color = palette.textPrimary,
+                                                            fontWeight = FontWeight.Bold,
+                                                            maxLines = 1,
+                                                            softWrap = false,
+                                                            overflow = TextOverflow.Clip,
+                                                            modifier = Modifier
+                                                                .weight(1f)
+                                                                .clipToBounds()
+                                                                .basicMarquee(
+                                                                    iterations = Int.MAX_VALUE,
+                                                                    repeatDelayMillis = 1200,
+                                                                    velocity = 24.dp
+                                                                )
+                                                        )
+                                                        Spacer(modifier = Modifier.width(10.dp))
+                                                        Switch(
+                                                            checked = topWeatherBgEnabled,
+                                                            colors = SwitchDefaults.colors(checkedTrackColor = accentCompose),
+                                                            onCheckedChange = { checked ->
+                                                                if (checked) {
+                                                                    pendingBatteryWarningTarget = BatteryWarningTarget.TOP_WEATHER_BG
+                                                                } else {
+                                                                    topWeatherBgEnabled = false
+                                                                }
+                                                            }
+                                                        )
+                                                    }
+
+                                                    SectionHairline(palette)
+
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .height(52.dp)
+                                                    ) {
+                                                        Text(
+                                                            "Nhạc nền trong ứng dụng",
+                                                            fontSize = 13.5.sp,
+                                                            color = palette.textPrimary,
+                                                            fontWeight = FontWeight.Bold,
+                                                            maxLines = 1,
+                                                            softWrap = false,
+                                                            overflow = TextOverflow.Ellipsis,
+                                                            modifier = Modifier.weight(1f)
+                                                        )
+                                                        Spacer(modifier = Modifier.width(10.dp))
+                                                        Switch(
+                                                            checked = bgMusicEnabled,
+                                                            colors = SwitchDefaults.colors(checkedTrackColor = accentCompose),
+                                                            onCheckedChange = { checked ->
+                                                                if (checked) {
+                                                                    pendingBatteryWarningTarget = BatteryWarningTarget.BG_MUSIC
+                                                                } else {
+                                                                    bgMusicEnabled = false
+                                                                    AppPrefs.setBgMusicEnabled(context, false)
+                                                                }
+                                                            }
+                                                        )
+                                                    }
+
+                                                    if (bgMusicEnabled) {
+                                                        Spacer(modifier = Modifier.height(6.dp))
+                                                        LiquidGlassVolumeSlider(
+                                                            volume = bgMusicVolume,
+                                                            accentColor = accentCompose,
+                                                            palette = palette,
+                                                            onVolumeChange = { v ->
+                                                                val clamped = v.coerceIn(0f, 1f)
+                                                                bgMusicVolume = clamped
+                                                                try {
+                                                                    AppPrefs.setBgMusicVolume(context, clamped)
+                                                                } catch (_: Exception) {
+                                                                }
+                                                            }
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        ExpandableSection.CLOCK_THEME_BG -> {
+                                            Surface(
+                                                shape = RoundedCornerShape(24.dp),
+                                                color = Color.Transparent,
+                                                contentColor = palette.textPrimary,
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clip(RoundedCornerShape(24.dp))
+                                                    .background(palette.liquidGlassBrush)
+                                                    .border(1.3.dp, accentCompose.copy(alpha = 0.65f), RoundedCornerShape(24.dp))
+                                            ) {
+                                                Column(modifier = Modifier.padding(16.dp)) {
+                                                    FlatSwitchRow(
+                                                        title = "Hiển thị giây (chạy liên tục)",
+                                                        subtitle = "Định dạng HH:mm:ss trên đồng hồ Widget",
+                                                        checked = showSeconds,
+                                                        accentColor = accentCompose,
+                                                        palette = palette,
+                                                        onCheckedChange = { checked ->
+                                                            if (checked) {
+                                                                showSecondsWarningPopup = true
+                                                            } else {
+                                                                showSeconds = false
+                                                                AppPrefs.setShowSeconds(context, false)
+                                                                WeatherLunarWidget.updateAllWidgets(context)
+                                                            }
+                                                        }
+                                                    )
+                                                    SectionHairline(palette)
+
+                                                    FlatSwitchRow(
+                                                        title = "Hiệu ứng thời tiết trên Widget",
+                                                        subtitle = "Bật/tắt lớp hiệu ứng nắng, mây, sương mù, mưa theo thời tiết",
+                                                        checked = showWeatherEffect,
+                                                        accentColor = accentCompose,
+                                                        palette = palette,
+                                                        onCheckedChange = { checked ->
+                                                            showWeatherEffect = checked
+                                                            AppPrefs.setShowWeatherEffect(context, checked)
+                                                            WeatherLunarWidget.updateAllWidgets(context)
+                                                        }
+                                                    )
+                                                    SectionHairline(palette)
+
+                                                    FlatSwitchRow(
+                                                        title = "Hiển thị lịch âm",
+                                                        subtitle = "Bật/tắt dòng thông tin Âm lịch trên Widget",
+                                                        checked = showLunarDate,
+                                                        accentColor = accentCompose,
+                                                        palette = palette,
+                                                        onCheckedChange = { checked ->
+                                                            showLunarDate = checked
+                                                            AppPrefs.setShowLunarDate(context, checked)
+                                                            WeatherLunarWidget.updateAllWidgets(context)
+                                                        }
+                                                    )
+                                                    SectionHairline(palette)
+
+                                                    FlatSwitchRow(
+                                                        title = "Hiển thị dương lịch",
+                                                        subtitle = "Bật/tắt dòng thứ và ngày tháng Dương lịch trên Widget",
+                                                        checked = showSolarDate,
+                                                        accentColor = accentCompose,
+                                                        palette = palette,
+                                                        onCheckedChange = { checked ->
+                                                            showSolarDate = checked
+                                                            AppPrefs.setShowSolarDate(context, checked)
+                                                            WeatherLunarWidget.updateAllWidgets(context)
+                                                        }
+                                                    )
+                                                    SectionHairline(palette)
+
+                                                    FlatSwitchRow(
+                                                        title = "Hiển thị địa điểm",
+                                                        subtitle = "Bật/tắt tên địa danh cập nhật thời tiết trên Widget",
+                                                        checked = showLocationName,
+                                                        accentColor = accentCompose,
+                                                        palette = palette,
+                                                        onCheckedChange = { checked ->
+                                                            showLocationName = checked
+                                                            AppPrefs.setShowLocationName(context, checked)
+                                                            WeatherLunarWidget.updateAllWidgets(context)
+                                                        }
+                                                    )
+
+                                                    Spacer(modifier = Modifier.height(14.dp))
+
+                                                    Text(
+                                                        "Kiểu nền Widget trên màn hình chính",
+                                                        color = accentCompose,
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 13.sp
+                                                    )
+                                                    val bgLabels = listOf(
+                                                        "Kính lỏng tối",
+                                                        "Kính lỏng sáng",
+                                                        "Trong suốt",
+                                                        "Theo chủ đề app",
+                                                        "Liquid Glass"
+                                                    )
+                                                    LazyRow(
+                                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                        modifier = Modifier.padding(top = 8.dp)
+                                                    ) {
+                                                        items(bgLabels.size) { idx ->
+                                                            val selected = widgetBgMode == idx
+                                                            FilterChip(
+                                                                selected = selected,
+                                                                shape = RoundedCornerShape(12.dp),
+                                                                colors = FilterChipDefaults.filterChipColors(
+                                                                    containerColor = palette.subtleBg,
+                                                                    labelColor = palette.textPrimary,
+                                                                    selectedContainerColor = accentCompose.copy(alpha = 0.22f),
+                                                                    selectedLabelColor = palette.textPrimary
+                                                                ),
+                                                                onClick = {
+                                                                    widgetBgMode = idx
+                                                                    AppPrefs.setWidgetBgMode(context, idx)
+                                                                    WeatherLunarWidget.updateAllWidgets(context)
+                                                                },
+                                                                label = { Text(bgLabels[idx], fontWeight = FontWeight.SemiBold) }
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        null -> Unit
+                                        else -> Unit
                                     }
                                 }
                             }
