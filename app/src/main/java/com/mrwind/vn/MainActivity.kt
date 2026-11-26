@@ -16,13 +16,15 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.expandVertically
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
@@ -133,6 +135,11 @@ import kotlin.random.Random
 
 private const val APP_VERSION_NAME = "31.12-HPBD"
 private const val FEEDBACK_EMAIL = "duynghiduc12@gmail.com"
+
+private val SMOOTH_EXPAND_SPEC = spring<androidx.compose.ui.unit.IntSize>(
+    dampingRatio = Spring.DampingRatioNoBouncy,
+    stiffness = Spring.StiffnessMediumLow
+)
 
 private val DAILY_WARM_MESSAGES = listOf(
     "Chúc bạn hôm nay thật nhẹ nhàng, bình yên và gặp nhiều điều dễ thương",
@@ -1661,7 +1668,7 @@ fun ThoiTietAmLichApp() {
                             }
                         }
 
-                        // 2. Đồng hồ, giao diện, nền widget (Liquid Glass + Flat/Hairline bên trong)
+                        // 2. Đồng hồ, giao diện, nền widget
                         item(key = "clock_theme_bg_section") {
                             CollapsibleSectionCard(
                                 title = "Đồng hồ, Giao diện & Nền Widget",
@@ -2280,11 +2287,13 @@ fun ThoiTietAmLichApp() {
                             }
                         }
 
-                        // 6 & 7: Gộp "Tra cứu lịch âm" và "Tính tuổi" lên cùng 1 hàng (2 thẻ ngang, giữ nguyên kích cỡ hàng)
+                        // 6 & 7: Gộp "Tra cứu lịch âm" và "Tính tuổi" lên cùng 1 hàng
                         item(key = "lunar_and_age_row_section") {
                             Column(
                                 verticalArrangement = Arrangement.spacedBy(10.dp),
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .animateContentSize(animationSpec = SMOOTH_EXPAND_SPEC)
                             ) {
                                 Row(
                                     horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -2312,11 +2321,7 @@ fun ThoiTietAmLichApp() {
                                     )
                                 }
 
-                                AnimatedVisibility(
-                                    visible = expandedSection == ExpandableSection.LUNAR_LOOKUP,
-                                    enter = expandVertically() + fadeIn(),
-                                    exit = shrinkVertically() + fadeOut()
-                                ) {
+                                if (expandedSection == ExpandableSection.LUNAR_LOOKUP) {
                                     Surface(
                                         shape = RoundedCornerShape(24.dp),
                                         color = Color.Transparent,
@@ -2548,11 +2553,7 @@ fun ThoiTietAmLichApp() {
                                     }
                                 }
 
-                                AnimatedVisibility(
-                                    visible = expandedSection == ExpandableSection.AGE_CALC,
-                                    enter = expandVertically() + fadeIn(),
-                                    exit = shrinkVertically() + fadeOut()
-                                ) {
+                                if (expandedSection == ExpandableSection.AGE_CALC) {
                                     Surface(
                                         shape = RoundedCornerShape(24.dp),
                                         color = Color.Transparent,
@@ -2926,12 +2927,14 @@ fun ThoiTietAmLichApp() {
                             }
                         }
 
-                        // 8 & 9: Gộp "Nhắc ngày sinh nhật" và "Nhắc ngày lễ & kỷ niệm" lên cùng 1 hàng (2 thẻ ngang, giữ nguyên kích cỡ hàng)
+                        // 8 & 9: Gộp "Nhắc ngày sinh nhật" và "Nhắc ngày lễ & kỷ niệm" lên cùng 1 hàng
                         item(key = "birthday_and_holiday_row_section") {
                             val activeHolidayCount = if (holidayReminderEnabled) enabledHolidayIds.size else 0
                             Column(
                                 verticalArrangement = Arrangement.spacedBy(10.dp),
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .animateContentSize(animationSpec = SMOOTH_EXPAND_SPEC)
                             ) {
                                 Row(
                                     horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -2959,11 +2962,7 @@ fun ThoiTietAmLichApp() {
                                     )
                                 }
 
-                                AnimatedVisibility(
-                                    visible = expandedSection == ExpandableSection.BIRTHDAY,
-                                    enter = expandVertically() + fadeIn(),
-                                    exit = shrinkVertically() + fadeOut()
-                                ) {
+                                if (expandedSection == ExpandableSection.BIRTHDAY) {
                                     Surface(
                                         shape = RoundedCornerShape(24.dp),
                                         color = Color.Transparent,
@@ -3134,11 +3133,7 @@ fun ThoiTietAmLichApp() {
                                     }
                                 }
 
-                                AnimatedVisibility(
-                                    visible = expandedSection == ExpandableSection.HOLIDAY,
-                                    enter = expandVertically() + fadeIn(),
-                                    exit = shrinkVertically() + fadeOut()
-                                ) {
+                                if (expandedSection == ExpandableSection.HOLIDAY) {
                                     Surface(
                                         shape = RoundedCornerShape(24.dp),
                                         color = Color.Transparent,
@@ -4392,18 +4387,21 @@ private fun CompactDualCard(
 ) {
     val arrowRotation by animateFloatAsState(
         targetValue = if (expanded) 180f else 0f,
+        animationSpec = tween(durationMillis = 160),
         label = "dual_card_arrow_rotation"
     )
-    val borderBrush = if (expanded) {
-        Brush.linearGradient(
-            listOf(
-                accentColor.copy(alpha = 0.85f),
-                Color.White.copy(alpha = if (palette.isDark) 0.25f else 0.75f),
-                accentColor.copy(alpha = 0.25f)
+    val borderBrush = remember(expanded, accentColor, palette) {
+        if (expanded) {
+            Brush.linearGradient(
+                listOf(
+                    accentColor.copy(alpha = 0.85f),
+                    Color.White.copy(alpha = if (palette.isDark) 0.25f else 0.75f),
+                    accentColor.copy(alpha = 0.25f)
+                )
             )
-        )
-    } else {
-        palette.liquidGlassBorder
+        } else {
+            palette.liquidGlassBorder
+        }
     }
 
     Surface(
@@ -4535,6 +4533,7 @@ private fun CollapsibleSectionCard(
 ) {
     val arrowRotation by animateFloatAsState(
         targetValue = if (expanded) 180f else 0f,
+        animationSpec = tween(durationMillis = 160),
         label = "section_arrow_rotation"
     )
 
@@ -4566,7 +4565,11 @@ private fun CollapsibleSectionCard(
                 shape = RoundedCornerShape(24.dp)
             )
     ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .animateContentSize(animationSpec = SMOOTH_EXPAND_SPEC)
+        ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -4618,11 +4621,7 @@ private fun CollapsibleSectionCard(
                 )
             }
 
-            AnimatedVisibility(
-                visible = expanded,
-                enter = expandVertically() + fadeIn(),
-                exit = shrinkVertically() + fadeOut()
-            ) {
+            if (expanded) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
