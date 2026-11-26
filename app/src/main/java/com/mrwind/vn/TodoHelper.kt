@@ -18,6 +18,7 @@ import org.json.JSONObject
 import java.util.Calendar
 import java.util.Locale
 import java.util.TimeZone
+import java.util.concurrent.Executors
 
 data class TodoTaskItem(
     val id: String,
@@ -43,6 +44,8 @@ object TodoHelper {
     const val ACTION_TRIGGER_TASK = "com.mrwind.vn.ACTION_TRIGGER_TASK"
     const val ACTION_DAILY_RESET = "com.mrwind.vn.ACTION_DAILY_RESET"
     const val EXTRA_TASK_ID = "extra_task_id"
+
+    private val receiverExecutor = Executors.newSingleThreadExecutor()
 
     private fun tz(): TimeZone = TimeZone.getTimeZone("Asia/Ho_Chi_Minh")
 
@@ -284,6 +287,12 @@ object TodoHelper {
         }
     }
 
+    private fun canUseFullScreenIntentSafe(context: Context): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) return true
+        val nm = context.getSystemService(NotificationManager::class.java) ?: return false
+        return nm.canUseFullScreenIntent()
+    }
+
     fun showSystemPopupNotification(context: Context, task: TodoTaskItem) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS)
@@ -316,39 +325,59 @@ object TodoHelper {
             .setAutoCancel(true)
             .setDefaults(NotificationCompat.DEFAULT_ALL)
 
+        if (canUseFullScreenIntentSafe(context)) {
+            builder.setFullScreenIntent(contentPi, true)
+        }
+
         try {
             NotificationManagerCompat.from(context).notify(task.id.hashCode(), builder.build())
         } catch (_: SecurityException) {
+        }
+    }
+
+    internal fun handleReceiverIntent(context: Context, intent: Intent) {
+        val appCtx = context.applicationContext
+        when (intent.action) {
+            ACTION_DAILY_RESET -> {
+                clearAllTasksForToday(appCtx)
+                scheduleMidnightReset(appCtx)
+            }
+            Intent.ACTION_BOOT_COMPLETED,
+            Intent.ACTION_LOCKED_BOOT_COMPLETED,
+            Intent.ACTION_DATE_CHANGED,
+            Intent.ACTION_TIMEZONE_CHANGED,
+            "android.intent.action.TIME_SET" -> {
+                val tasks = ensureCurrentDayOrReset(appCtx)
+                scheduleAllTodayAlarms(appCtx, tasks)
+            }
+            ACTION_TRIGGER_TASK -> {
+                val tasks = ensureCurrentDayOrReset(appCtx)
+                val taskId = intent.getStringExtra(EXTRA_TASK_ID) ?: return
+                val matched = tasks.find { it.id == taskId } ?: return
+                val triggeredTask = matched.copy(triggeredToday = true)
+                val updated = tasks.map {
+                    if (it.id == taskId) triggeredTask else it
+                }
+                saveTasks(appCtx, updated)
+                setPendingPopupTaskId(appCtx, taskId)
+                showSystemPopupNotification(appCtx, triggeredTask)
+                scheduleMidnightReset(appCtx)
+            }
         }
     }
 }
 
 class TodoAlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        when (intent.action) {
-            TodoHelper.ACTION_DAILY_RESET -> {
-                TodoHelper.clearAllTasksForToday(context)
-                TodoHelper.scheduleMidnightReset(context)
-            }
-            Intent.ACTION_BOOT_COMPLETED,
-            Intent.ACTION_DATE_CHANGED,
-            Intent.ACTION_TIMEZONE_CHANGED,
-            "android.intent.action.TIME_SET" -> {
-                val tasks = TodoHelper.ensureCurrentDayOrReset(context)
-                TodoHelper.scheduleAllTodayAlarms(context, tasks)
-            }
-            TodoHelper.ACTION_TRIGGER_TASK -> {
-                val tasks = TodoHelper.ensureCurrentDayOrReset(context)
-                val taskId = intent.getStringExtra(TodoHelper.EXTRA_TASK_ID) ?: return
-                val matched = tasks.find { it.id == taskId } ?: return
-                val triggeredTask = matched.copy(triggeredToday = true)
-                val updated = tasks.map {
-                    if (it.id == taskId) triggeredTask else it
+        val pendingResult = goAsync()
+        TodoHelper.receiverExecutor.execute {
+            try {
+                TodoHelper.handleReceiverIntent(context, intent)
+            } finally {
+                try {
+                    pendingResult.finish()
+                } catch (_: Exception) {
                 }
-                TodoHelper.saveTasks(context, updated)
-                TodoHelper.setPendingPopupTaskId(context, taskId)
-                TodoHelper.showSystemPopupNotification(context, triggeredTask)
-                TodoHelper.scheduleMidnightReset(context)
             }
         }
     }
