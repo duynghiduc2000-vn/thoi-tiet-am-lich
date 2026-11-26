@@ -16,6 +16,11 @@ data class WeatherCache(
     val windSpeed: String = "--km/h",
     val minTemp: String = "--°",
     val maxTemp: String = "--°",
+    val hour1: String = "",
+    val hour2: String = "",
+    val hour3: String = "",
+    val hour4: String = "",
+    val lastUpdated: String = "",
     val lastUpdate: Long = 0L
 )
 
@@ -77,11 +82,17 @@ object AppPrefs {
     private const val KEY_WIND = "wind"
     private const val KEY_MIN_TEMP = "min_temp"
     private const val KEY_MAX_TEMP = "max_temp"
+    private const val KEY_HOUR_1 = "hour_1"
+    private const val KEY_HOUR_2 = "hour_2"
+    private const val KEY_HOUR_3 = "hour_3"
+    private const val KEY_HOUR_4 = "hour_4"
+    private const val KEY_LAST_UPDATED_STR = "last_updated_str"
     private const val KEY_LAST_UPDATE = "last_update"
 
     private const val KEY_BIRTHDAYS = "birthdays_json"
     private const val KEY_LAST_BDAY_NOTIFIED_DATE = "last_bday_notified_date"
     private const val KEY_LAST_BDAY_POPUP_DATE = "last_bday_popup_date"
+    private const val KEY_LAST_ADMIN_POPUP_DATE = "last_admin_popup_date"
 
     private const val KEY_HOLIDAY_REMINDER_ENABLED = "holiday_reminder_enabled"
     private const val KEY_ENABLED_HOLIDAY_IDS = "enabled_holiday_ids_json"
@@ -158,6 +169,10 @@ object AppPrefs {
         prefs(context).edit().putString(KEY_NEXT_SEVEN_DAYS_FORECAST, arr.toString()).apply()
     }
 
+    fun saveNextSevenDaysForecast(context: Context, items: List<String>) {
+        setNextSevenDaysForecast(context, items)
+    }
+
     fun isShowSignature(context: Context): Boolean =
         prefs(context).getBoolean(KEY_SHOW_SIGNATURE, true)
 
@@ -224,6 +239,11 @@ object AppPrefs {
             windSpeed = p.getString(KEY_WIND, "--km/h") ?: "--km/h",
             minTemp = p.getString(KEY_MIN_TEMP, "--°") ?: "--°",
             maxTemp = p.getString(KEY_MAX_TEMP, "--°") ?: "--°",
+            hour1 = p.getString(KEY_HOUR_1, "") ?: "",
+            hour2 = p.getString(KEY_HOUR_2, "") ?: "",
+            hour3 = p.getString(KEY_HOUR_3, "") ?: "",
+            hour4 = p.getString(KEY_HOUR_4, "") ?: "",
+            lastUpdated = p.getString(KEY_LAST_UPDATED_STR, "") ?: "",
             lastUpdate = p.getLong(KEY_LAST_UPDATE, 0L)
         )
     }
@@ -240,6 +260,11 @@ object AppPrefs {
             .putString(KEY_WIND, w.windSpeed)
             .putString(KEY_MIN_TEMP, w.minTemp)
             .putString(KEY_MAX_TEMP, w.maxTemp)
+            .putString(KEY_HOUR_1, w.hour1)
+            .putString(KEY_HOUR_2, w.hour2)
+            .putString(KEY_HOUR_3, w.hour3)
+            .putString(KEY_HOUR_4, w.hour4)
+            .putString(KEY_LAST_UPDATED_STR, w.lastUpdated)
             .putLong(KEY_LAST_UPDATE, w.lastUpdate)
             .apply()
     }
@@ -281,18 +306,39 @@ object AppPrefs {
         prefs(context).edit().putString(KEY_BIRTHDAYS, arr.toString()).apply()
     }
 
-    fun getLastBirthdayNotifiedDate(context: Context): String? =
+    fun getLastNotifyDate(context: Context): String? =
         prefs(context).getString(KEY_LAST_BDAY_NOTIFIED_DATE, null)
 
-    fun setLastBirthdayNotifiedDate(context: Context, dateKey: String) {
+    fun setLastNotifyDate(context: Context, dateKey: String) {
         prefs(context).edit().putString(KEY_LAST_BDAY_NOTIFIED_DATE, dateKey).apply()
     }
 
-    fun getLastBirthdayPopupDate(context: Context): String? =
+    fun getLastBirthdayNotifiedDate(context: Context): String? =
+        getLastNotifyDate(context)
+
+    fun setLastBirthdayNotifiedDate(context: Context, dateKey: String) {
+        setLastNotifyDate(context, dateKey)
+    }
+
+    fun getLastPopupDate(context: Context): String? =
         prefs(context).getString(KEY_LAST_BDAY_POPUP_DATE, null)
 
-    fun setLastBirthdayPopupDate(context: Context, dateKey: String) {
+    fun setLastPopupDate(context: Context, dateKey: String) {
         prefs(context).edit().putString(KEY_LAST_BDAY_POPUP_DATE, dateKey).apply()
+    }
+
+    fun getLastBirthdayPopupDate(context: Context): String? =
+        getLastPopupDate(context)
+
+    fun setLastBirthdayPopupDate(context: Context, dateKey: String) {
+        setLastPopupDate(context, dateKey)
+    }
+
+    fun getLastAdminPopupDate(context: Context): String? =
+        prefs(context).getString(KEY_LAST_ADMIN_POPUP_DATE, null)
+
+    fun setLastAdminPopupDate(context: Context, dateKey: String) {
+        prefs(context).edit().putString(KEY_LAST_ADMIN_POPUP_DATE, dateKey).apply()
     }
 
     fun isHolidayReminderEnabled(context: Context): Boolean =
