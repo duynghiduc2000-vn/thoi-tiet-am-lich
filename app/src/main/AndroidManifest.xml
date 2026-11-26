@@ -51,6 +51,7 @@
             <intent-filter>
                 <action android:name="com.mrwind.vn.ACTION_TRIGGER_TASK" />
                 <action android:name="com.mrwind.vn.ACTION_DAILY_RESET" />
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.TIME_SET" />
                 <action android:name="android.intent.action.TIMEZONE_CHANGED" />
