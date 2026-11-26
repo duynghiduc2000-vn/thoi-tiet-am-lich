@@ -125,23 +125,21 @@ object BirthdayHelper {
         "Thân (15h-17h)", "Dậu (17h-19h)", "Tuất (19h-21h)", "Hợi (21h-23h)"
     )
 
-    // Bảng Chi ngày Hoàng Đạo theo Chi tháng Âm lịch (index 0..11 tương ứng Tý..Hợi)
     private val HOANG_DAO_DAY_CHI_BY_MONTH_CHI = mapOf(
-        2 to setOf(0, 1, 4, 5, 7, 10),   // Tháng Dần
-        3 to setOf(2, 3, 6, 7, 9, 0),     // Tháng Mão
-        4 to setOf(4, 5, 8, 9, 11, 2),    // Tháng Thìn
-        5 to setOf(6, 7, 10, 11, 1, 4),    // Tháng Tỵ
-        6 to setOf(8, 9, 0, 1, 3, 6),      // Tháng Ngọ
-        7 to setOf(10, 11, 2, 3, 5, 8),    // Tháng Mùi
-        8 to setOf(0, 1, 4, 5, 7, 10),   // Tháng Thân
-        9 to setOf(2, 3, 6, 7, 9, 0),     // Tháng Dậu
-        10 to setOf(4, 5, 8, 9, 11, 2),   // Tháng Tuất
-        11 to setOf(6, 7, 10, 11, 1, 4),   // Tháng Hợi
-        0 to setOf(8, 9, 0, 1, 3, 6),     // Tháng Tý
-        1 to setOf(10, 11, 2, 3, 5, 8)    // Tháng Sửu
+        2 to setOf(0, 1, 4, 5, 7, 10),
+        3 to setOf(2, 3, 6, 7, 9, 0),
+        4 to setOf(4, 5, 8, 9, 11, 2),
+        5 to setOf(6, 7, 10, 11, 1, 4),
+        6 to setOf(8, 9, 0, 1, 3, 6),
+        7 to setOf(10, 11, 2, 3, 5, 8),
+        8 to setOf(0, 1, 4, 5, 7, 10),
+        9 to setOf(2, 3, 6, 7, 9, 0),
+        10 to setOf(4, 5, 8, 9, 11, 2),
+        11 to setOf(6, 7, 10, 11, 1, 4),
+        0 to setOf(8, 9, 0, 1, 3, 6),
+        1 to setOf(10, 11, 2, 3, 5, 8)
     )
 
-    // Bảng giờ Hoàng Đạo theo Chi ngày (index 0..11 tương ứng Tý..Hợi)
     private val HOANG_DAO_HOURS_BY_DAY_CHI = mapOf(
         0 to listOf(0, 1, 3, 6, 8, 9),
         1 to listOf(2, 3, 5, 8, 10, 11),
@@ -260,7 +258,6 @@ object BirthdayHelper {
     }
 
     private fun solarTermIndexFromDegrees(deg: Double): Int {
-        // Bắt đầu từ Xuân phân (0°): mỗi tiết khí cách nhau 15°
         return (floor(((deg + 7.5) % 360.0) / 15.0).toInt()) % 24
     }
 
@@ -374,6 +371,29 @@ object BirthdayHelper {
         return "${CAN_NAMES[canIdx]} ${CHI_NAMES[chiIdx]}"
     }
 
+    private fun readIntPropertyOrZero(target: Any, vararg names: String): Int {
+        for (name in names) {
+            try {
+                val getter = target.javaClass.methods.firstOrNull {
+                    it.name.equals("get${name.replaceFirstChar { c -> c.uppercase() }}", ignoreCase = true) &&
+                        it.parameterCount == 0
+                }
+                if (getter != null) {
+                    val v = getter.invoke(target)
+                    if (v is Int) return v
+                }
+                val field = target.javaClass.declaredFields.firstOrNull { it.name.equals(name, ignoreCase = true) }
+                if (field != null) {
+                    field.isAccessible = true
+                    val v = field.get(target)
+                    if (v is Int) return v
+                }
+            } catch (_: Exception) {
+            }
+        }
+        return 0
+    }
+
     fun getLunarUsefulInsightForToday(context: Context): LunarUsefulInsight {
         val tzOffset = 7.0
         val todayCal = vietnamCalendarAtOffset(0)
@@ -384,9 +404,13 @@ object BirthdayHelper {
 
         val todayLunar = LunarCalendar.todayLunar()
         val lunarSummary = todayLunar.shortSummary()
-        val lunarDay = todayCal.get(Calendar.DAY_OF_MONTH)
-        val lunarMonth = todayCal.get(Calendar.MONTH) + 1
-        val lunarYear = todayCal.get(Calendar.YEAR)
+        val rawLunarDay = readIntPropertyOrZero(todayLunar, "lunarDay", "day")
+        val rawLunarMonth = readIntPropertyOrZero(todayLunar, "lunarMonth", "month")
+        val rawLunarYear = readIntPropertyOrZero(todayLunar, "lunarYear", "year")
+        val lunarDay = if (rawLunarDay in 1..30) rawLunarDay else day
+        val lunarMonth = if (rawLunarMonth in 1..12) rawLunarMonth else month
+        val lunarYear = if (rawLunarYear > 0) rawLunarYear else year
+
         val lunarDateKey = "$year-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}"
         val lunarDateLabel = lunarSummary.ifBlank { "Ngày $lunarDay/$lunarMonth/$lunarYear" }
 
@@ -743,6 +767,12 @@ object BirthdayHelper {
             AppPrefs.setLastNotifyDate(context, key)
         } catch (_: SecurityException) {
         }
+    }
+
+    fun runDailyBackgroundReminders(context: Context) {
+        notifyTodayBirthdaysOncePerDay(context)
+        notifyTodayHolidaysOncePerDay(context)
+        notifyLunarUsefulInfoOncePerDay(context)
     }
 
     private fun createLunarUsefulChannelIfNeeded(context: Context) {
