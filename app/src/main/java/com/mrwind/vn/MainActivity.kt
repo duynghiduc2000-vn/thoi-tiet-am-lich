@@ -51,6 +51,7 @@ import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.BatteryAlert
 import androidx.compose.material.icons.filled.Cake
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Celebration
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CheckCircleOutline
 import androidx.compose.material.icons.filled.Close
@@ -182,6 +183,7 @@ class MainActivity : ComponentActivity() {
 
         WeatherService.scheduleTwoHourlySync(this)
         BirthdayHelper.notifyTodayBirthdaysOncePerDay(this)
+        BirthdayHelper.notifyTodayHolidaysOncePerDay(this)
         WeatherLunarWidget.updateAllWidgets(this)
         val initialTasks = TodoHelper.ensureCurrentDayOrReset(this)
         TodoHelper.scheduleAllTodayAlarms(this, initialTasks)
@@ -720,6 +722,7 @@ fun ThoiTietAmLichApp() {
     val scope = rememberCoroutineScope()
 
     val nowCal = remember { Calendar.getInstance(TimeZone.getTimeZone("Asia/Ho_Chi_Minh")) }
+    val currentSolarYear = remember { nowCal.get(Calendar.YEAR) }
 
     var appThemeMode by remember { mutableIntStateOf(AppPrefs.getAppThemeMode(context)) }
     var widgetBgMode by remember { mutableIntStateOf(AppPrefs.getWidgetBgMode(context)) }
@@ -776,6 +779,16 @@ fun ThoiTietAmLichApp() {
     var bdayMonthInput by remember { mutableStateOf("1") }
     var bdayError by remember { mutableStateOf<String?>(null) }
 
+    var holidayReminderEnabled by remember { mutableStateOf(AppPrefs.isHolidayReminderEnabled(context)) }
+    var enabledHolidayIds by remember {
+        val allHolidayIds = BirthdayHelper.DEFAULT_VIETNAM_AND_INTERNATIONAL_HOLIDAYS.map { it.id }.toSet()
+        mutableStateOf(AppPrefs.getEnabledHolidayIds(context) ?: allHolidayIds)
+    }
+    var activeHolidayAlerts by remember {
+        mutableStateOf(BirthdayHelper.getActiveHolidaysForToday(context))
+    }
+    var showHolidayPopup by remember { mutableStateOf(false) }
+
     var clockThemeExpanded by remember { mutableStateOf(false) }
     var accentExpanded by remember { mutableStateOf(false) }
     var locationSigExpanded by remember { mutableStateOf(false) }
@@ -783,6 +796,7 @@ fun ThoiTietAmLichApp() {
     var lunarLookupExpanded by remember { mutableStateOf(false) }
     var ageCalcExpanded by remember { mutableStateOf(false) }
     var birthdayExpanded by remember { mutableStateOf(false) }
+    var holidayExpanded by remember { mutableStateOf(false) }
 
     val lookupSectionBringIntoView = remember { BringIntoViewRequester() }
     val ageSectionBringIntoView = remember { BringIntoViewRequester() }
@@ -843,6 +857,14 @@ fun ThoiTietAmLichApp() {
         TodoHelper.ensureChannel(context)
         refreshTodosAndCheckDueTasks()
         fiveDayForecast = WeatherService.fetchFiveDayForecast(context)
+
+        val currentAlerts = BirthdayHelper.getActiveHolidaysForToday(context)
+        activeHolidayAlerts = currentAlerts
+        if (currentAlerts.isNotEmpty() &&
+            AppPrefs.getLastHolidayAlertKey(context) != BirthdayHelper.todayDateKey()
+        ) {
+            showHolidayPopup = true
+        }
 
         if (BirthdayHelper.shouldShowAppPopupToday(context)) {
             showBirthdayPopup = true
@@ -2589,6 +2611,131 @@ fun ThoiTietAmLichApp() {
                         }
                     }
 
+                    // 9. Thẻ riêng: Nhắc ngày lễ & kỷ niệm (Dương lịch + Âm lịch gộp 1 danh sách)
+                    item(key = "holiday_reminder_section") {
+                        CollapsibleSectionCard(
+                            title = "Nhắc ngày lễ & kỷ niệm",
+                            badgeText = if (holidayReminderEnabled) "${enabledHolidayIds.size} bật" else "Tắt",
+                            accentColor = accentCompose,
+                            palette = palette,
+                            expanded = holidayExpanded,
+                            onToggle = { holidayExpanded = !holidayExpanded }
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = palette.subtleBg,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 14.dp, vertical = 10.dp)
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            "Bật nhắc ngày lễ / kỷ niệm",
+                                            color = palette.textPrimary,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                        Text(
+                                            "Nhắc trước 1 ngày (Ngày mai là...) và đúng ngày (Hôm nay là...)",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = palette.textSecondary
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Switch(
+                                        checked = holidayReminderEnabled,
+                                        colors = SwitchDefaults.colors(checkedTrackColor = accentCompose),
+                                        onCheckedChange = { checked ->
+                                            holidayReminderEnabled = checked
+                                            AppPrefs.setHolidayReminderEnabled(context, checked)
+                                            val alerts = BirthdayHelper.getActiveHolidaysForToday(context)
+                                            activeHolidayAlerts = alerts
+                                            if (checked) {
+                                                BirthdayHelper.notifyTodayHolidaysOncePerDay(context)
+                                            }
+                                        }
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            Text(
+                                "Danh sách ngày lễ Việt Nam & quốc tế phổ biến (Dương lịch & Âm lịch gộp chung, tính theo năm $currentSolarYear):",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = palette.textSecondary
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                BirthdayHelper.DEFAULT_VIETNAM_AND_INTERNATIONAL_HOLIDAYS.forEach { holiday ->
+                                    val isItemEnabled = holiday.id in enabledHolidayIds
+                                    val resolvedSolar = remember(holiday.id, currentSolarYear) {
+                                        BirthdayHelper.resolveSolarDateForHoliday(holiday, currentSolarYear)
+                                    }
+                                    val typeTag = if (holiday.calendarType == HolidayCalendarType.LUNAR) {
+                                        "Âm ${holiday.day}/${holiday.month}"
+                                    } else {
+                                        "Dương ${holiday.day.toString().padStart(2, '0')}/${holiday.month.toString().padStart(2, '0')}"
+                                    }
+                                    val solarNote = resolvedSolar?.let { (sd, sm, sy) ->
+                                        "Dương: ${sd.toString().padStart(2, '0')}/${sm.toString().padStart(2, '0')}/$sy"
+                                    } ?: ""
+
+                                    Surface(
+                                        shape = RoundedCornerShape(16.dp),
+                                        color = palette.subtleBg,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 14.dp, vertical = 8.dp)
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    holiday.title,
+                                                    color = palette.textPrimary,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    style = MaterialTheme.typography.bodyMedium
+                                                )
+                                                Text(
+                                                    if (solarNote.isNotEmpty()) "$typeTag • $solarNote" else typeTag,
+                                                    color = palette.textSecondary,
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    modifier = Modifier.padding(top = 2.dp)
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Switch(
+                                                checked = isItemEnabled,
+                                                enabled = holidayReminderEnabled,
+                                                colors = SwitchDefaults.colors(checkedTrackColor = accentCompose),
+                                                onCheckedChange = { checked ->
+                                                    val nextSet = if (checked) {
+                                                        enabledHolidayIds + holiday.id
+                                                    } else {
+                                                        enabledHolidayIds - holiday.id
+                                                    }
+                                                    enabledHolidayIds = nextSet
+                                                    AppPrefs.setEnabledHolidayIds(context, nextSet)
+                                                    activeHolidayAlerts = BirthdayHelper.getActiveHolidaysForToday(context)
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     // Chân trang
                     item(key = "footer_section") {
                         Column(
@@ -2604,6 +2751,154 @@ fun ThoiTietAmLichApp() {
                                 color = palette.textSecondary,
                                 textAlign = TextAlign.Center
                             )
+                        }
+                    }
+                }
+            }
+
+            // Pop-up nhắc ngày lễ (trước 1 ngày & đúng ngày)
+            AnimatedVisibility(
+                visible = showHolidayPopup && activeHolidayAlerts.isNotEmpty(),
+                enter = fadeIn() + scaleIn(initialScale = 0.92f),
+                exit = fadeOut() + scaleOut(targetScale = 0.92f),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.65f))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            BirthdayHelper.markAppPopupShownToday(context)
+                            showHolidayPopup = false
+                        }
+                        .padding(horizontal = 24.dp)
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(28.dp),
+                        tonalElevation = 6.dp,
+                        color = palette.cardBg,
+                        contentColor = palette.textPrimary,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(1.dp, palette.border, RoundedCornerShape(28.dp))
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) {}
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(22.dp)
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.End,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                IconButton(
+                                    onClick = {
+                                        BirthdayHelper.markAppPopupShownToday(context)
+                                        showHolidayPopup = false
+                                    },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Close,
+                                        contentDescription = "Đóng",
+                                        tint = palette.textSecondary
+                                    )
+                                }
+                            }
+
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(64.dp)
+                                    .clip(CircleShape)
+                                    .background(accentCompose.copy(alpha = 0.16f))
+                                    .border(1.5.dp, accentCompose.copy(alpha = 0.55f), CircleShape)
+                            ) {
+                                Icon(
+                                    Icons.Default.Celebration,
+                                    contentDescription = null,
+                                    tint = accentCompose,
+                                    modifier = Modifier.size(32.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            Text(
+                                "Nhắc ngày lễ & kỷ niệm",
+                                style = MaterialTheme.typography.headlineSmall,
+                                color = palette.textPrimary,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center
+                            )
+
+                            Spacer(modifier = Modifier.height(6.dp))
+
+                            Surface(
+                                shape = RoundedCornerShape(999.dp),
+                                color = accentCompose.copy(alpha = 0.18f)
+                            ) {
+                                Text(
+                                    solarToday,
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = accentCompose,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                activeHolidayAlerts.forEach { alert ->
+                                    Surface(
+                                        shape = RoundedCornerShape(16.dp),
+                                        color = palette.subtleBg,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text(
+                                            alert.message,
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = palette.textPrimary,
+                                            textAlign = TextAlign.Center,
+                                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)
+                                        )
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(18.dp))
+
+                            Button(
+                                onClick = {
+                                    BirthdayHelper.markAppPopupShownToday(context)
+                                    showHolidayPopup = false
+                                },
+                                shape = RoundedCornerShape(16.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = accentCompose,
+                                    contentColor = palette.onAccentText
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp)
+                            ) {
+                                Text(
+                                    "Đã rõ!",
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
                     }
                 }
