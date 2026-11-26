@@ -39,10 +39,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -51,6 +54,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -114,12 +118,14 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -130,6 +136,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontStyle
@@ -138,6 +145,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -238,6 +246,7 @@ private fun dailyWarmMessageForToday(calendar: Calendar): String {
 }
 
 private enum class ExpandableSection {
+    APP_APPEARANCE_AUDIO,
     CLOCK_THEME_BG,
     ACCENT_COLOR,
     LOCATION_SIGNATURE,
@@ -381,7 +390,6 @@ private fun buildAdaptivePalette(isDark: Boolean, accentColor: Color): AdaptiveP
 }
 
 private fun isDaytimeWindow(hourOfDay: Int): Boolean {
-    // 06:00 -> 17:59 là ban ngày; 18:00 -> 05:59 là ban đêm
     return hourOfDay in 6..17
 }
 
@@ -391,7 +399,6 @@ private fun buildCrescentMoonPath(
     innerCenter: Offset,
     innerRadius: Float
 ): Path {
-    // Tạo hình trăng khuyết mềm mại bằng hiệu giữa 2 đường tròn
     val outerPath = Path().apply {
         addOval(
             androidx.compose.ui.geometry.Rect(
@@ -418,7 +425,6 @@ private fun buildCrescentMoonPath(
 }
 
 private fun buildSoftCloudPath(baseX: Float, baseY: Float, scale: Float): Path {
-    // Đám mây xanh nhạt bo tròn nhiều múi mượt mà giống ảnh tham chiếu
     return Path().apply {
         moveTo(baseX + 6f * scale, baseY + 11f * scale)
         cubicTo(
@@ -545,12 +551,10 @@ private fun TopBarDayNightIndicator(
                     modifier = Modifier.rotate(sunSpin * 0.15f)
                 )
             } else {
-                // Trăng khuyết vàng + đám mây xanh nhạt chuyển động nhẹ nhàng
                 Canvas(modifier = Modifier.size(30.dp)) {
                     val w = size.width
                     val h = size.height
 
-                    // 1. Mặt trăng khuyết nghiêng nhẹ nhàng
                     rotate(
                         degrees = moonTilt - 18f,
                         pivot = Offset(w * 0.56f, h * 0.44f)
@@ -567,7 +571,6 @@ private fun TopBarDayNightIndicator(
                         )
                     }
 
-                    // 2. Đám mây xanh nhạt chuyển động nhẹ nhàng ở góc dưới trái
                     val dx = cloudGlidePx.dp.toPx()
                     val dy = cloudBobPx.dp.toPx()
                     translate(left = dx, top = dy) {
@@ -768,6 +771,173 @@ private fun TopWeatherCanvasEffect(
                     1.0f to (if (isDark) Color(0xFF09090B) else Color(0xFFF4F5F7))
                 )
             )
+        }
+    }
+}
+
+@Composable
+private fun LiquidGlassVolumeSlider(
+    volume: Float,
+    accentColor: Color,
+    palette: AdaptivePalette,
+    onVolumeChange: (Float) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val density = LocalDensity.current
+    val currentOnVolumeChange by rememberUpdatedState(onVolumeChange)
+    val clamped = volume.coerceIn(0f, 1f)
+    val percent = (clamped * 100f).roundToInt()
+
+    val glassFill = remember(palette.isDark, accentColor) {
+        if (palette.isDark) {
+            Brush.linearGradient(
+                listOf(
+                    Color(0xFF283244).copy(alpha = 0.72f),
+                    Color(0xFF171C26).copy(alpha = 0.62f),
+                    accentColor.copy(alpha = 0.18f),
+                    Color(0xFF11151D).copy(alpha = 0.75f)
+                )
+            )
+        } else {
+            Brush.linearGradient(
+                listOf(
+                    Color.White.copy(alpha = 0.92f),
+                    accentColor.copy(alpha = 0.14f),
+                    Color(0xFFEFF4FA).copy(alpha = 0.82f)
+                )
+            )
+        }
+    }
+
+    val glassBorder = remember(palette.isDark, accentColor) {
+        Brush.linearGradient(
+            listOf(
+                Color.White.copy(alpha = if (palette.isDark) 0.34f else 0.95f),
+                accentColor.copy(alpha = 0.48f),
+                Color.White.copy(alpha = if (palette.isDark) 0.12f else 0.65f)
+            )
+        )
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(glassFill)
+            .border(1.2.dp, glassBorder, RoundedCornerShape(18.dp))
+            .padding(horizontal = 14.dp, vertical = 11.dp)
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "Âm lượng nhạc nền",
+                    fontSize = 12.5.sp,
+                    color = palette.textPrimary,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Surface(
+                    shape = RoundedCornerShape(999.dp),
+                    color = accentColor.copy(alpha = 0.18f),
+                    modifier = Modifier.border(
+                        width = 0.8.dp,
+                        color = accentColor.copy(alpha = 0.45f),
+                        shape = RoundedCornerShape(999.dp)
+                    )
+                ) {
+                    Text(
+                        text = "$percent%",
+                        fontSize = 11.5.sp,
+                        color = accentColor,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 2.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            val thumbSize = 20.dp
+            val trackHeight = 6.dp
+
+            BoxWithConstraints(
+                contentAlignment = Alignment.CenterStart,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(28.dp)
+                    .pointerInput(Unit) {
+                        detectTapGestures { offset ->
+                            val thumbPx = with(density) { thumbSize.toPx() }
+                            val usableWidth = (size.width.toFloat() - thumbPx).coerceAtLeast(1f)
+                            val ratio = ((offset.x - thumbPx / 2f) / usableWidth).coerceIn(0f, 1f)
+                            currentOnVolumeChange(ratio)
+                        }
+                    }
+                    .pointerInput(Unit) {
+                        detectDragGestures { change, _ ->
+                            change.consume()
+                            val thumbPx = with(density) { thumbSize.toPx() }
+                            val usableWidth = (size.width.toFloat() - thumbPx).coerceAtLeast(1f)
+                            val ratio = ((change.position.x - thumbPx / 2f) / usableWidth).coerceIn(0f, 1f)
+                            currentOnVolumeChange(ratio)
+                        }
+                    }
+            ) {
+                val maxWidthPx = with(density) { maxWidth.toPx() }
+                val thumbPx = with(density) { thumbSize.toPx() }
+                val usableWidthPx = (maxWidthPx - thumbPx).coerceAtLeast(1f)
+                val thumbOffsetPx = (clamped * usableWidthPx).roundToInt()
+
+                // Nền rãnh trượt
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(trackHeight)
+                        .clip(CircleShape)
+                        .background(
+                            if (palette.isDark) Color.White.copy(alpha = 0.14f)
+                            else Color.Black.copy(alpha = 0.12f)
+                        )
+                )
+
+                // Phần rãnh đã kéo
+                Box(
+                    modifier = Modifier
+                        .width(with(density) { (thumbOffsetPx + thumbPx / 2f).toDp() })
+                        .height(trackHeight)
+                        .clip(CircleShape)
+                        .background(
+                            Brush.horizontalGradient(
+                                listOf(
+                                    accentColor.copy(alpha = 0.72f),
+                                    accentColor
+                                )
+                            )
+                        )
+                )
+
+                // Nút kéo hình tròn (Circular Thumb)
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .offset { IntOffset(thumbOffsetPx, 0) }
+                        .size(thumbSize)
+                        .shadow(elevation = 4.dp, shape = CircleShape)
+                        .clip(CircleShape)
+                        .background(accentColor)
+                        .border(2.2.dp, Color.White, CircleShape)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(6.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.90f))
+                    )
+                }
+            }
         }
     }
 }
@@ -1542,7 +1712,7 @@ fun ThoiTietAmLichApp() {
     var appThemeMode by remember { mutableIntStateOf(AppPrefs.getAppThemeMode(context)) }
     var topWeatherBgEnabled by remember { mutableStateOf(false) }
 
-    // Trạng thái nhạc nền trong ứng dụng (mặc định tắt, âm lượng mặc định 0.25f)
+    // Trạng thái nhạc nền trong ứng dụng (mặc định tắt, âm lượng mặc định 0.15f)
     var bgMusicEnabled by remember { mutableStateOf(AppPrefs.isBgMusicEnabled(context)) }
     var bgMusicVolume by remember { mutableFloatStateOf(AppPrefs.getBgMusicVolume(context)) }
     var isAppResumed by remember { mutableStateOf(false) }
@@ -2112,179 +2282,148 @@ fun ThoiTietAmLichApp() {
                         }
 
                         item(key = "app_theme_and_weather_bg_card") {
-                            Surface(
-                                shape = RoundedCornerShape(24.dp),
-                                color = Color.Transparent,
-                                contentColor = palette.textPrimary,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .animateContentSize(animationSpec = SMOOTH_EXPAND_SPEC)
-                                    .clip(RoundedCornerShape(24.dp))
-                                    .background(palette.liquidGlassBrush)
-                                    .border(1.dp, palette.liquidGlassBorder, RoundedCornerShape(24.dp))
+                            val themeLabels = listOf("Hệ thống", "Sáng", "Tối")
+                            val currentThemeLabel = themeLabels.getOrElse(appThemeMode) { "Hệ thống" }
+
+                            CollapsibleSectionCard(
+                                title = "Giao diện, Hiệu ứng & Nhạc nền ứng dụng",
+                                badgeText = currentThemeLabel,
+                                accentColor = accentCompose,
+                                palette = palette,
+                                expanded = expandedSection == ExpandableSection.APP_APPEARANCE_AUDIO,
+                                onToggle = { toggleSection(ExpandableSection.APP_APPEARANCE_AUDIO) }
                             ) {
-                                Column(
+                                // Hàng 1: Nền ứng dụng (độ cao cố định 52.dp đồng nhất với hàng 2)
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween,
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(horizontal = 14.dp, vertical = 8.dp)
+                                        .height(52.dp)
                                 ) {
+                                    Text(
+                                        "Nền ứng dụng",
+                                        fontSize = 13.5.sp,
+                                        color = palette.textPrimary,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
                                     Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(vertical = 4.dp)
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Text(
-                                            "Nền ứng dụng",
-                                            fontSize = 13.5.sp,
-                                            color = palette.textPrimary,
-                                            fontWeight = FontWeight.Bold,
-                                            maxLines = 1,
-                                            softWrap = false
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Row(
-                                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            val themeLabels = listOf("Hệ thống", "Sáng", "Tối")
-                                            themeLabels.forEachIndexed { idx, label ->
-                                                val selected = appThemeMode == idx
-                                                FilterChip(
-                                                    selected = selected,
-                                                    shape = RoundedCornerShape(12.dp),
-                                                    colors = FilterChipDefaults.filterChipColors(
-                                                        containerColor = palette.subtleBg,
-                                                        labelColor = palette.textPrimary,
-                                                        selectedContainerColor = accentCompose,
-                                                        selectedLabelColor = palette.onAccentText
-                                                    ),
-                                                    onClick = {
-                                                        appThemeMode = idx
-                                                        AppPrefs.setAppThemeMode(context, idx)
-                                                    },
-                                                    label = {
-                                                        Text(
-                                                            label,
-                                                            fontSize = 12.sp,
-                                                            maxLines = 1,
-                                                            softWrap = false,
-                                                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
-                                                        )
-                                                    },
-                                                    modifier = Modifier.height(34.dp)
-                                                )
-                                            }
-                                        }
-                                    }
-
-                                    SectionHairline(palette, topPadding = 4.dp)
-
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(vertical = 6.dp)
-                                    ) {
-                                        Text(
-                                            "Hiệu ứng thời tiết trong nền ứng dụng",
-                                            fontSize = 13.5.sp,
-                                            color = palette.textPrimary,
-                                            fontWeight = FontWeight.Bold,
-                                            maxLines = 1,
-                                            softWrap = false,
-                                            overflow = TextOverflow.Clip,
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .clipToBounds()
-                                                .basicMarquee(
-                                                    iterations = Int.MAX_VALUE,
-                                                    repeatDelayMillis = 1200,
-                                                    velocity = 24.dp
-                                                )
-                                        )
-                                        Spacer(modifier = Modifier.width(10.dp))
-                                        Switch(
-                                            checked = topWeatherBgEnabled,
-                                            colors = SwitchDefaults.colors(checkedTrackColor = accentCompose),
-                                            onCheckedChange = { checked ->
-                                                topWeatherBgEnabled = checked
-                                            }
-                                        )
-                                    }
-
-                                    SectionHairline(palette, topPadding = 2.dp)
-
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(vertical = 6.dp)
-                                    ) {
-                                        Text(
-                                            "Nhạc nền trong ứng dụng",
-                                            fontSize = 13.5.sp,
-                                            color = palette.textPrimary,
-                                            fontWeight = FontWeight.Bold,
-                                            maxLines = 1,
-                                            softWrap = false,
-                                            overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                        Spacer(modifier = Modifier.width(10.dp))
-                                        Switch(
-                                            checked = bgMusicEnabled,
-                                            colors = SwitchDefaults.colors(checkedTrackColor = accentCompose),
-                                            onCheckedChange = { checked ->
-                                                bgMusicEnabled = checked
-                                                AppPrefs.setBgMusicEnabled(context, checked)
-                                            }
-                                        )
-                                    }
-
-                                    if (bgMusicEnabled) {
-                                        Column(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(bottom = 4.dp)
-                                        ) {
-                                            Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                modifier = Modifier.fillMaxWidth()
-                                            ) {
-                                                Text(
-                                                    "Âm lượng nhạc nền",
-                                                    fontSize = 12.sp,
-                                                    color = palette.textSecondary,
-                                                    fontWeight = FontWeight.Medium
-                                                )
-                                                Text(
-                                                    "${(bgMusicVolume * 100f).roundToInt()}%",
-                                                    fontSize = 12.sp,
-                                                    color = accentCompose,
-                                                    fontWeight = FontWeight.Bold
-                                                )
-                                            }
-                                            Slider(
-                                                value = bgMusicVolume,
-                                                onValueChange = { raw ->
-                                                    val v = raw.coerceIn(0f, 1f)
-                                                    bgMusicVolume = v
-                                                    AppPrefs.setBgMusicVolume(context, v)
+                                        themeLabels.forEachIndexed { idx, label ->
+                                            val selected = appThemeMode == idx
+                                            FilterChip(
+                                                selected = selected,
+                                                shape = RoundedCornerShape(12.dp),
+                                                colors = FilterChipDefaults.filterChipColors(
+                                                    containerColor = palette.subtleBg,
+                                                    labelColor = palette.textPrimary,
+                                                    selectedContainerColor = accentCompose,
+                                                    selectedLabelColor = palette.onAccentText
+                                                ),
+                                                onClick = {
+                                                    appThemeMode = idx
+                                                    AppPrefs.setAppThemeMode(context, idx)
                                                 },
-                                                valueRange = 0f..1f,
-                                                colors = SliderDefaults.colors(
-                                                    thumbColor = accentCompose,
-                                                    activeTrackColor = accentCompose,
-                                                    inactiveTrackColor = palette.subtleBg
-                                                )
+                                                label = {
+                                                    Text(
+                                                        label,
+                                                        fontSize = 12.sp,
+                                                        maxLines = 1,
+                                                        softWrap = false,
+                                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
+                                                    )
+                                                },
+                                                modifier = Modifier.height(34.dp)
                                             )
                                         }
                                     }
+                                }
+
+                                SectionHairline(palette)
+
+                                // Hàng 2: Hiệu ứng thời tiết trong nền ứng dụng (độ cao cố định 52.dp đồng nhất với hàng 1)
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(52.dp)
+                                ) {
+                                    Text(
+                                        "Hiệu ứng thời tiết trong nền ứng dụng",
+                                        fontSize = 13.5.sp,
+                                        color = palette.textPrimary,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Clip,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clipToBounds()
+                                            .basicMarquee(
+                                                iterations = Int.MAX_VALUE,
+                                                repeatDelayMillis = 1200,
+                                                velocity = 24.dp
+                                            )
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Switch(
+                                        checked = topWeatherBgEnabled,
+                                        colors = SwitchDefaults.colors(checkedTrackColor = accentCompose),
+                                        onCheckedChange = { checked ->
+                                            topWeatherBgEnabled = checked
+                                        }
+                                    )
+                                }
+
+                                SectionHairline(palette)
+
+                                // Hàng 3: Nhạc nền trong ứng dụng + Khung Liquid Glass điều chỉnh âm lượng
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(52.dp)
+                                ) {
+                                    Text(
+                                        "Nhạc nền trong ứng dụng",
+                                        fontSize = 13.5.sp,
+                                        color = palette.textPrimary,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Switch(
+                                        checked = bgMusicEnabled,
+                                        colors = SwitchDefaults.colors(checkedTrackColor = accentCompose),
+                                        onCheckedChange = { checked ->
+                                            bgMusicEnabled = checked
+                                            AppPrefs.setBgMusicEnabled(context, checked)
+                                        }
+                                    )
+                                }
+
+                                if (bgMusicEnabled) {
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    LiquidGlassVolumeSlider(
+                                        volume = bgMusicVolume,
+                                        accentColor = accentCompose,
+                                        palette = palette,
+                                        onVolumeChange = { v ->
+                                            val clamped = v.coerceIn(0f, 1f)
+                                            bgMusicVolume = clamped
+                                            AppPrefs.setBgMusicVolume(context, clamped)
+                                        }
+                                    )
                                 }
                             }
                         }
