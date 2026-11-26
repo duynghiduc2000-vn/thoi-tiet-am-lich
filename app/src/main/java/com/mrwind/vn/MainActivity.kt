@@ -17,7 +17,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
@@ -142,7 +141,6 @@ import java.util.Locale
 import java.util.TimeZone
 import java.util.UUID
 import kotlin.math.PI
-import kotlin.math.cos
 import kotlin.math.floor
 import kotlin.math.roundToInt
 import kotlin.math.sin
@@ -377,33 +375,16 @@ private fun TopWeatherCanvasEffect(
     isDark: Boolean,
     modifier: Modifier = Modifier
 ) {
+    // Dùng 1 transition chung để giảm chi phí vẽ và tiết kiệm pin hơn
     val transition = rememberInfiniteTransition(label = "top_weather_canvas")
-    val slowDrift by transition.animateFloat(
+    val progress by transition.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 12_000, easing = LinearEasing),
+            animation = tween(durationMillis = 8_000, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
         ),
-        label = "slow_drift"
-    )
-    val rainFlow by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1_800, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "rain_flow"
-    )
-    val pulsePhase by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 4_200, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "pulse_phase"
+        label = "weather_progress"
     )
 
     val isThunder = weatherCode in listOf(95, 96, 99)
@@ -411,82 +392,52 @@ private fun TopWeatherCanvasEffect(
     val isFog = weatherCode in listOf(45, 48)
     val isCloudy = weatherCode in listOf(1, 2, 3)
 
-    val tintTone = remember(weatherCode, accentColor) {
-        when {
-            weatherCode == 0 -> Color(0xFFFFCA28)
-            isThunder -> Color(0xFF9575CD)
-            isRain -> Color(0xFF4FC3F7)
-            isFog -> Color(0xFFB0BEC5)
-            isCloudy -> accentColor
-            else -> accentColor
-        }
-    }
-
     Box(modifier = modifier.clip(RoundedCornerShape(28.dp))) {
         Canvas(modifier = Modifier.fillMaxSize()) {
             val w = size.width
             val h = size.height
-            val baseAlpha = if (isDark) 0.16f else 0.20f
 
-            // Ánh sáng nền nhẹ ở góc trên
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(
-                        tintTone.copy(alpha = baseAlpha * (0.85f + 0.25f * pulsePhase)),
-                        Color.Transparent
-                    ),
-                    center = Offset(w * 0.85f, h * 0.16f),
-                    radius = size.maxDimension * 0.62f
-                ),
-                radius = size.maxDimension * 0.62f,
-                center = Offset(w * 0.85f, h * 0.16f)
-            )
-
-            if (weatherCode == 0 || weatherCode in 1..2) {
-                // Tia nắng tỏa nhẹ xoay chậm
-                val sunCenter = Offset(w * 0.86f, h * 0.16f)
-                val rayCount = 8
-                val rotBase = slowDrift * (2.0 * PI).toFloat()
-                val rayColor = Color(0xFFFFCA28).copy(alpha = if (isDark) 0.10f else 0.14f)
-                for (i in 0 until rayCount) {
-                    val angle = rotBase + i * (2.0 * PI / rayCount).toFloat()
-                    val innerR = 26.dp.toPx()
-                    val outerR = 68.dp.toPx() + 8.dp.toPx() * pulsePhase
-                    drawLine(
-                        color = rayColor,
-                        start = Offset(
-                            sunCenter.x + cos(angle) * innerR,
-                            sunCenter.y + sin(angle) * innerR
-                        ),
-                        end = Offset(
-                            sunCenter.x + cos(angle) * outerR,
-                            sunCenter.y + sin(angle) * outerR
-                        ),
-                        strokeWidth = 3.dp.toPx(),
-                        cap = StrokeCap.Round
-                    )
-                }
+            // 1. Luồng gió / ánh sáng lấp lánh trôi đa điểm (không vẽ mảng sáng góc gây viền)
+            val sparkleCount = 16
+            val sparkleColor = if (isDark) {
+                accentColor.copy(alpha = 0.20f)
+            } else {
+                accentColor.copy(alpha = 0.24f)
+            }
+            for (i in 0 until sparkleCount) {
+                val baseX = ((i * 97) % 100) / 100f
+                val baseY = ((i * 61 + 13) % 85) / 100f
+                val x = (((baseX + progress * (0.18f + (i % 4) * 0.05f)) % 1.15f) - 0.07f) * w
+                val wave = sin((progress * 2.0 * PI + i * 0.8)).toFloat()
+                val y = (baseY * h + wave * 8.dp.toPx()).coerceIn(6.dp.toPx(), h - 12.dp.toPx())
+                val radius = (2.dp.toPx() + (i % 3) * 1.1.dp.toPx()) * (0.75f + 0.35f * wave)
+                drawCircle(
+                    color = sparkleColor,
+                    radius = radius.coerceAtLeast(1.5.dp.toPx()),
+                    center = Offset(x, y)
+                )
             }
 
-            if (isCloudy || isRain || isFog) {
-                // Các cụm mây trôi ngang nhẹ nhàng
+            // 2. Nhiều cụm mây tầng trôi ngang đều ở các độ cao khác nhau
+            if (isCloudy || isRain || isFog || weatherCode !in listOf(0)) {
                 val cloudColor = if (isDark) {
-                    Color.White.copy(alpha = if (isRain) 0.08f else 0.07f)
+                    Color.White.copy(alpha = if (isRain) 0.11f else 0.09f)
                 } else {
-                    Color(0xFF90A4AE).copy(alpha = if (isRain) 0.16f else 0.13f)
+                    Color(0xFF78909C).copy(alpha = if (isRain) 0.18f else 0.15f)
                 }
-
-                val cloudConfigs = listOf(
-                    Triple(0.15f, 0.22f, 1.0f),
-                    Triple(0.62f, 0.42f, 0.82f),
-                    Triple(0.32f, 0.68f, 1.15f)
+                val cloudRows = listOf(
+                    Triple(0.05f, 0.14f, 0.72f),
+                    Triple(0.55f, 0.26f, 0.90f),
+                    Triple(0.18f, 0.46f, 0.85f),
+                    Triple(0.72f, 0.58f, 0.68f),
+                    Triple(0.40f, 0.74f, 0.95f)
                 )
-                cloudConfigs.forEachIndexed { idx, (startXRatio, yRatio, scale) ->
-                    val travel = ((startXRatio + slowDrift * (0.35f + idx * 0.08f)) % 1.35f) - 0.18f
-                    val cx = travel * w
-                    val cy = yRatio * h
-                    val cw = 110.dp.toPx() * scale
-                    val ch = 26.dp.toPx() * scale
+                cloudRows.forEachIndexed { idx, (startX, yFrac, scale) ->
+                    val speed = 0.22f + idx * 0.05f
+                    val cx = (((startX + progress * speed) % 1.35f) - 0.18f) * w
+                    val cy = yFrac * h
+                    val cw = 78.dp.toPx() * scale
+                    val ch = 18.dp.toPx() * scale
                     drawRoundRect(
                         color = cloudColor,
                         topLeft = Offset(cx, cy),
@@ -495,50 +446,67 @@ private fun TopWeatherCanvasEffect(
                     )
                     drawCircle(
                         color = cloudColor,
-                        radius = ch * 0.72f,
-                        center = Offset(cx + cw * 0.32f, cy)
+                        radius = ch * 0.68f,
+                        center = Offset(cx + cw * 0.28f, cy)
                     )
                     drawCircle(
                         color = cloudColor,
-                        radius = ch * 0.56f,
-                        center = Offset(cx + cw * 0.62f, cy + ch * 0.1f)
+                        radius = ch * 0.52f,
+                        center = Offset(cx + cw * 0.60f, cy + ch * 0.08f)
                     )
                 }
             }
 
-            if (isFog) {
-                // Lớp sương mù gợn nhẹ
-                val fogColor = if (isDark) {
-                    Color.White.copy(alpha = 0.07f + 0.03f * pulsePhase)
-                } else {
-                    Color.White.copy(alpha = 0.34f)
+            // 3. Tia nắng xiên nhẹ khi trời nắng / ít mây
+            if (weatherCode in listOf(0, 1, 2)) {
+                val sunRayColor = Color(0xFFFFCA28).copy(alpha = if (isDark) 0.11f else 0.15f)
+                for (i in 0 until 6) {
+                    val shiftX = (((0.12f + i * 0.16f + progress * 0.12f) % 1.1f) - 0.05f) * w
+                    val topY = (0.04f + (i % 3) * 0.12f) * h
+                    drawLine(
+                        color = sunRayColor,
+                        start = Offset(shiftX, topY),
+                        end = Offset(shiftX - 18.dp.toPx(), topY + 26.dp.toPx()),
+                        strokeWidth = 2.2.dp.toPx(),
+                        cap = StrokeCap.Round
+                    )
                 }
-                for (i in 0 until 4) {
-                    val shift = ((slowDrift * 0.25f + i * 0.15f) % 0.4f - 0.2f) * w
-                    val yPos = h * (0.24f + i * 0.18f)
+            }
+
+            // 4. Nhiều dải sương khi sương mù
+            if (isFog) {
+                val fogColor = if (isDark) {
+                    Color.White.copy(alpha = 0.09f)
+                } else {
+                    Color.White.copy(alpha = 0.36f)
+                }
+                for (i in 0 until 6) {
+                    val xShift = (((i * 0.22f + progress * (0.2f + i * 0.03f)) % 1.3f) - 0.15f) * w
+                    val yPos = h * (0.12f + i * 0.14f)
                     drawRoundRect(
                         color = fogColor,
-                        topLeft = Offset(shift, yPos),
-                        size = Size(w * 0.9f, 14.dp.toPx()),
-                        cornerRadius = CornerRadius(7.dp.toPx(), 7.dp.toPx())
+                        topLeft = Offset(xShift, yPos),
+                        size = Size(w * 0.45f, 10.dp.toPx()),
+                        cornerRadius = CornerRadius(5.dp.toPx(), 5.dp.toPx())
                     )
                 }
             }
 
+            // 5. Hạt mưa rơi chéo đều khắp vùng
             if (isRain) {
-                // Hạt mưa mảnh rơi chéo
                 val dropColor = if (isDark) {
-                    Color(0xFF81D4FA).copy(alpha = 0.20f)
+                    Color(0xFF81D4FA).copy(alpha = 0.24f)
                 } else {
-                    Color(0xFF0288D1).copy(alpha = 0.22f)
+                    Color(0xFF0288D1).copy(alpha = 0.25f)
                 }
-                val dropCount = 22
-                val dropLen = 16.dp.toPx()
+                val rainCycle = (progress * 4f) % 1f
+                val dropCount = 26
+                val dropLen = 15.dp.toPx()
                 for (i in 0 until dropCount) {
-                    val lane = ((i + 0.35f) / dropCount) * w
-                    val yOffset = ((i * 53) % 260).toFloat()
-                    val y = (yOffset + rainFlow * (h + 90f)) % (h + 50f) - 25f
-                    val x = lane - rainFlow * 26.dp.toPx()
+                    val lane = ((i + 0.4f) / dropCount) * w
+                    val yOffset = ((i * 59) % 280).toFloat()
+                    val y = (yOffset + rainCycle * (h + 90f)) % (h + 50f) - 25f
+                    val x = lane - rainCycle * 24.dp.toPx()
                     drawLine(
                         color = dropColor,
                         start = Offset(x, y),
@@ -549,23 +517,42 @@ private fun TopWeatherCanvasEffect(
                 }
             }
 
+            // 6. Tia chớp mảnh khi có dông
             if (isThunder) {
-                // Nháy sáng nhẹ khi có dông
-                val flashAlpha = if (pulsePhase > 0.88f) {
-                    ((pulsePhase - 0.88f) / 0.12f) * if (isDark) 0.16f else 0.14f
-                } else {
-                    0f
-                }
-                if (flashAlpha > 0f) {
-                    drawRect(color = Color(0xFFE1BEE7).copy(alpha = flashAlpha))
+                val flashWave = sin(progress * 6.0 * PI).toFloat()
+                if (flashWave > 0.82f) {
+                    val boltColor = Color(0xFFE1BEE7).copy(alpha = if (isDark) 0.26f else 0.22f)
+                    val bx = w * 0.72f
+                    val by = h * 0.18f
+                    drawLine(
+                        color = boltColor,
+                        start = Offset(bx, by),
+                        end = Offset(bx - 10.dp.toPx(), by + 18.dp.toPx()),
+                        strokeWidth = 2.5.dp.toPx(),
+                        cap = StrokeCap.Round
+                    )
+                    drawLine(
+                        color = boltColor,
+                        start = Offset(bx - 10.dp.toPx(), by + 18.dp.toPx()),
+                        end = Offset(bx + 2.dp.toPx(), by + 18.dp.toPx()),
+                        strokeWidth = 2.5.dp.toPx(),
+                        cap = StrokeCap.Round
+                    )
+                    drawLine(
+                        color = boltColor,
+                        start = Offset(bx + 2.dp.toPx(), by + 18.dp.toPx()),
+                        end = Offset(bx - 12.dp.toPx(), by + 38.dp.toPx()),
+                        strokeWidth = 2.5.dp.toPx(),
+                        cap = StrokeCap.Round
+                    )
                 }
             }
 
-            // Làm mờ dần ở phần dưới để hòa mượt với nền chính
+            // Làm mờ dần ở mép dưới để không tạo đường viền cắt cứng
             drawRect(
                 brush = Brush.verticalGradient(
                     0.0f to Color.Transparent,
-                    0.72f to Color.Transparent,
+                    0.76f to Color.Transparent,
                     1.0f to (if (isDark) Color(0xFF09090B) else Color(0xFFF4F5F7))
                 )
             )
@@ -1340,7 +1327,8 @@ fun ThoiTietAmLichApp() {
     }
 
     var appThemeMode by remember { mutableIntStateOf(AppPrefs.getAppThemeMode(context)) }
-    var topWeatherBgEnabled by remember { mutableStateOf(true) }
+    // Mặc định tắt để không tốn pin khi chưa bật
+    var topWeatherBgEnabled by remember { mutableStateOf(false) }
     var widgetBgMode by remember { mutableIntStateOf(AppPrefs.getWidgetBgMode(context)) }
     var accentColorInt by remember { mutableIntStateOf(AppPrefs.getAccentColor(context)) }
     var showSeconds by remember { mutableStateOf(AppPrefs.isShowSeconds(context)) }
@@ -1900,7 +1888,7 @@ fun ThoiTietAmLichApp() {
                             }
                         }
 
-                        // Công tắc bật/tắt nền động thời tiết phía trên (bên ngoài thẻ, ngay dưới nền ứng dụng)
+                        // Công tắc bật/tắt nền động thời tiết phía trên (bên ngoài thẻ, ngay dưới nền ứng dụng, mặc định tắt)
                         item(key = "top_weather_bg_toggle_bar") {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
