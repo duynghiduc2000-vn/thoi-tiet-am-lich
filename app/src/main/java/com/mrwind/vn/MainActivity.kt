@@ -375,7 +375,6 @@ private fun TopWeatherCanvasEffect(
     isDark: Boolean,
     modifier: Modifier = Modifier
 ) {
-    // Dùng 1 transition chung để giảm chi phí vẽ và tiết kiệm pin hơn
     val transition = rememberInfiniteTransition(label = "top_weather_canvas")
     val progress by transition.animateFloat(
         initialValue = 0f,
@@ -397,7 +396,6 @@ private fun TopWeatherCanvasEffect(
             val w = size.width
             val h = size.height
 
-            // 1. Luồng gió / ánh sáng lấp lánh trôi đa điểm (không vẽ mảng sáng góc gây viền)
             val sparkleCount = 16
             val sparkleColor = if (isDark) {
                 accentColor.copy(alpha = 0.20f)
@@ -418,7 +416,6 @@ private fun TopWeatherCanvasEffect(
                 )
             }
 
-            // 2. Nhiều cụm mây tầng trôi ngang đều ở các độ cao khác nhau
             if (isCloudy || isRain || isFog || weatherCode !in listOf(0)) {
                 val cloudColor = if (isDark) {
                     Color.White.copy(alpha = if (isRain) 0.11f else 0.09f)
@@ -457,7 +454,6 @@ private fun TopWeatherCanvasEffect(
                 }
             }
 
-            // 3. Tia nắng xiên nhẹ khi trời nắng / ít mây
             if (weatherCode in listOf(0, 1, 2)) {
                 val sunRayColor = Color(0xFFFFCA28).copy(alpha = if (isDark) 0.11f else 0.15f)
                 for (i in 0 until 6) {
@@ -473,7 +469,6 @@ private fun TopWeatherCanvasEffect(
                 }
             }
 
-            // 4. Nhiều dải sương khi sương mù
             if (isFog) {
                 val fogColor = if (isDark) {
                     Color.White.copy(alpha = 0.09f)
@@ -492,7 +487,6 @@ private fun TopWeatherCanvasEffect(
                 }
             }
 
-            // 5. Hạt mưa rơi chéo đều khắp vùng
             if (isRain) {
                 val dropColor = if (isDark) {
                     Color(0xFF81D4FA).copy(alpha = 0.24f)
@@ -517,7 +511,6 @@ private fun TopWeatherCanvasEffect(
                 }
             }
 
-            // 6. Tia chớp mảnh khi có dông
             if (isThunder) {
                 val flashWave = sin(progress * 6.0 * PI).toFloat()
                 if (flashWave > 0.82f) {
@@ -548,7 +541,6 @@ private fun TopWeatherCanvasEffect(
                 }
             }
 
-            // Làm mờ dần ở mép dưới để không tạo đường viền cắt cứng
             drawRect(
                 brush = Brush.verticalGradient(
                     0.0f to Color.Transparent,
@@ -1327,7 +1319,6 @@ fun ThoiTietAmLichApp() {
     }
 
     var appThemeMode by remember { mutableIntStateOf(AppPrefs.getAppThemeMode(context)) }
-    // Mặc định tắt để không tốn pin khi chưa bật
     var topWeatherBgEnabled by remember { mutableStateOf(false) }
     var widgetBgMode by remember { mutableIntStateOf(AppPrefs.getWidgetBgMode(context)) }
     var accentColorInt by remember { mutableIntStateOf(AppPrefs.getAccentColor(context)) }
@@ -1758,17 +1749,19 @@ fun ThoiTietAmLichApp() {
                                         }
                                     }
 
+                                    // 1. 2 ô Cập nhật và Ghim Widget hỗ trợ Liquid Glass đồng bộ các thẻ
                                     Row(
                                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
                                         Surface(
                                             shape = RoundedCornerShape(20.dp),
-                                            color = palette.cardBg,
+                                            color = Color.Transparent,
                                             modifier = Modifier
                                                 .weight(1f)
                                                 .clip(RoundedCornerShape(20.dp))
-                                                .border(1.dp, palette.border, RoundedCornerShape(20.dp))
+                                                .background(palette.liquidGlassBrush)
+                                                .border(1.dp, palette.liquidGlassBorder, RoundedCornerShape(20.dp))
                                                 .clickable(enabled = !isSyncing) {
                                                     scope.launch {
                                                         syncWeatherData()
@@ -1799,11 +1792,12 @@ fun ThoiTietAmLichApp() {
 
                                         Surface(
                                             shape = RoundedCornerShape(20.dp),
-                                            color = palette.cardBg,
+                                            color = Color.Transparent,
                                             modifier = Modifier
                                                 .weight(1f)
                                                 .clip(RoundedCornerShape(20.dp))
-                                                .border(1.dp, palette.border, RoundedCornerShape(20.dp))
+                                                .background(palette.liquidGlassBrush)
+                                                .border(1.dp, palette.liquidGlassBorder, RoundedCornerShape(20.dp))
                                                 .clickable {
                                                     val pinned = WeatherLunarWidget.requestPinWidget(context)
                                                     if (!pinned) {
@@ -1841,78 +1835,96 @@ fun ThoiTietAmLichApp() {
                             }
                         }
 
-                        item(key = "app_theme_outside_bar") {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween,
+                        // 2 & 3. Khung Liquid Glass bọc chung Nền ứng dụng và Hiệu ứng thời tiết trong nền ứng dụng
+                        item(key = "app_theme_and_weather_bg_card") {
+                            Surface(
+                                shape = RoundedCornerShape(24.dp),
+                                color = Color.Transparent,
+                                contentColor = palette.textPrimary,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 4.dp, vertical = 2.dp)
+                                    .clip(RoundedCornerShape(24.dp))
+                                    .background(palette.liquidGlassBrush)
+                                    .border(1.dp, palette.liquidGlassBorder, RoundedCornerShape(24.dp))
                             ) {
-                                Text(
-                                    "Nền ứng dụng",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    color = palette.textPrimary,
-                                    fontWeight = FontWeight.Bold,
-                                    maxLines = 1,
-                                    softWrap = false
-                                )
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    val themeLabels = listOf("Hệ thống", "Sáng", "Tối")
-                                    themeLabels.forEachIndexed { idx, label ->
-                                        val selected = appThemeMode == idx
-                                        FilterChip(
-                                            selected = selected,
-                                            shape = RoundedCornerShape(12.dp),
-                                            colors = FilterChipDefaults.filterChipColors(
-                                                containerColor = palette.cardBg,
-                                                labelColor = palette.textPrimary,
-                                                selectedContainerColor = accentCompose,
-                                                selectedLabelColor = palette.onAccentText
-                                            ),
-                                            onClick = {
-                                                appThemeMode = idx
-                                                AppPrefs.setAppThemeMode(context, idx)
-                                            },
-                                            label = {
-                                                Text(
-                                                    label,
-                                                    maxLines = 1,
-                                                    softWrap = false,
-                                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 4.dp)
+                                    ) {
+                                        Text(
+                                            "Nền ứng dụng",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            color = palette.textPrimary,
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1,
+                                            softWrap = false
+                                        )
+                                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            val themeLabels = listOf("Hệ thống", "Sáng", "Tối")
+                                            themeLabels.forEachIndexed { idx, label ->
+                                                val selected = appThemeMode == idx
+                                                FilterChip(
+                                                    selected = selected,
+                                                    shape = RoundedCornerShape(12.dp),
+                                                    colors = FilterChipDefaults.filterChipColors(
+                                                        containerColor = palette.subtleBg,
+                                                        labelColor = palette.textPrimary,
+                                                        selectedContainerColor = accentCompose,
+                                                        selectedLabelColor = palette.onAccentText
+                                                    ),
+                                                    onClick = {
+                                                        appThemeMode = idx
+                                                        AppPrefs.setAppThemeMode(context, idx)
+                                                    },
+                                                    label = {
+                                                        Text(
+                                                            label,
+                                                            maxLines = 1,
+                                                            softWrap = false,
+                                                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
+                                                        )
+                                                    }
                                                 )
+                                            }
+                                        }
+                                    }
+
+                                    SectionHairline(palette, topPadding = 4.dp)
+
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 6.dp)
+                                    ) {
+                                        Text(
+                                            "Hiệu ứng thời tiết trong nền ứng dụng",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            color = palette.textPrimary,
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Switch(
+                                            checked = topWeatherBgEnabled,
+                                            colors = SwitchDefaults.colors(checkedTrackColor = accentCompose),
+                                            onCheckedChange = { checked ->
+                                                topWeatherBgEnabled = checked
                                             }
                                         )
                                     }
                                 }
-                            }
-                        }
-
-                        // Công tắc bật/tắt nền động thời tiết phía trên (bên ngoài thẻ, ngay dưới nền ứng dụng, mặc định tắt)
-                        item(key = "top_weather_bg_toggle_bar") {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 4.dp, vertical = 0.dp)
-                            ) {
-                                Text(
-                                    "Hiệu ứng nền thời tiết trên",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    color = palette.textPrimary,
-                                    fontWeight = FontWeight.Bold,
-                                    maxLines = 1,
-                                    softWrap = false,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                Switch(
-                                    checked = topWeatherBgEnabled,
-                                    colors = SwitchDefaults.colors(checkedTrackColor = accentCompose),
-                                    onCheckedChange = { checked ->
-                                        topWeatherBgEnabled = checked
-                                    }
-                                )
                             }
                         }
 
@@ -4689,7 +4701,7 @@ private fun CompactDualCard(
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = title,
-                    fontSize = 13.5.sp,
+                    style = MaterialTheme.typography.titleMedium,
                     color = palette.textPrimary,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
