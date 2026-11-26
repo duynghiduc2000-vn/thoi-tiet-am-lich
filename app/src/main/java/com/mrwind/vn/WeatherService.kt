@@ -90,17 +90,9 @@ object WeatherService {
         return shortWeekdayLabel(cal)
     }
 
-    private fun saveFourDaysToPrefs(context: Context, items: List<String>) {
+    private fun saveSevenDaysToPrefs(context: Context, items: List<String>) {
         if (items.isEmpty()) return
-        try {
-            val method = AppPrefs::class.java.getMethod(
-                "saveNextFourDaysForecast",
-                Context::class.java,
-                List::class.java
-            )
-            method.invoke(null, context, items.take(4))
-        } catch (_: Exception) {
-        }
+        AppPrefs.saveNextSevenDaysForecast(context, items.take(7))
     }
 
     suspend fun searchLocationsByName(query: String): List<SearchLocationResult> =
@@ -180,15 +172,14 @@ object WeatherService {
 
         if (fetched != null) {
             AppPrefs.saveWeather(context, fetched)
-            val dailyList = fetchFiveDayForecast(context)
+            val dailyList = fetchForecastDays(context, days = 8)
             if (dailyList.size > 1) {
-                val fourNext = dailyList.drop(1).take(4).mapIndexed { index, day ->
+                val sevenNext = dailyList.drop(1).take(7).mapIndexed { index, day ->
                     val shortDay = normalizeShortDayLabel(day.dayLabel, index + 1)
                     val icon = weatherEmojiForWidgetCode(day.weatherCode)
-                    val maxTemp = day.maxTemp.ifBlank { "--°" }
-                    "$shortDay|$icon|$maxTemp"
+                    "$shortDay|$icon"
                 }
-                saveFourDaysToPrefs(context, fourNext)
+                saveSevenDaysToPrefs(context, sevenNext)
             }
             WeatherLunarWidget.updateAllWidgets(context)
             fetched
@@ -198,15 +189,19 @@ object WeatherService {
     }
 
     suspend fun fetchFiveDayForecast(context: Context): List<DailyForecastItem> =
+        fetchForecastDays(context, days = 5)
+
+    suspend fun fetchForecastDays(context: Context, days: Int = 8): List<DailyForecastItem> =
         withContext(Dispatchers.IO) {
             val cached = AppPrefs.getWeather(context)
             val lat = cached.latitude
             val lon = cached.longitude
+            val safeDays = days.coerceIn(1, 14)
             try {
                 val urlStr =
                     "https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon" +
                         "&daily=weather_code,temperature_2m_max,temperature_2m_min" +
-                        "&timezone=Asia%2FBangkok&forecast_days=5"
+                        "&timezone=Asia%2FBangkok&forecast_days=$safeDays"
                 val conn = (URL(urlStr).openConnection() as HttpURLConnection).apply {
                     requestMethod = "GET"
                     connectTimeout = 10000
