@@ -23,6 +23,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
@@ -46,6 +47,42 @@ object WeatherService {
         val lat: Double,
         val lon: Double
     )
+
+    private fun shortWeekdayLabel(calendar: Calendar): String = when (calendar.get(Calendar.DAY_OF_WEEK)) {
+        Calendar.MONDAY -> "T2"
+        Calendar.TUESDAY -> "T3"
+        Calendar.WEDNESDAY -> "T4"
+        Calendar.THURSDAY -> "T5"
+        Calendar.FRIDAY -> "T6"
+        Calendar.SATURDAY -> "T7"
+        Calendar.SUNDAY -> "CN"
+        else -> ""
+    }
+
+    private fun weatherEmojiForWidgetCode(code: Int): String = when (code) {
+        0 -> "☀️"
+        1, 2 -> "⛅"
+        3 -> "☁️"
+        45, 48 -> "🌫️"
+        51, 53, 55, 56, 57 -> "🌦️"
+        61, 63, 65, 66, 67, 80, 81, 82 -> "🌧️"
+        71, 73, 75, 77, 85, 86 -> "❄️"
+        95, 96, 99 -> "⛈️"
+        else -> "🌤️"
+    }
+
+    private fun saveFourDaysToPrefs(context: Context, items: List<String>) {
+        if (items.isEmpty()) return
+        try {
+            val method = AppPrefs::class.java.getMethod(
+                "saveNextFourDaysForecast",
+                Context::class.java,
+                List::class.java
+            )
+            method.invoke(null, context, items.take(4))
+        } catch (_: Exception) {
+        }
+    }
 
     suspend fun searchLocationsByName(query: String): List<SearchLocationResult> =
         withContext(Dispatchers.IO) {
@@ -124,6 +161,23 @@ object WeatherService {
 
         if (fetched != null) {
             AppPrefs.saveWeather(context, fetched)
+            val dailyList = fetchFiveDayForecast(context)
+            if (dailyList.size > 1) {
+                val fourNext = dailyList.drop(1).take(4).map { day ->
+                    val shortDay = day.dayLabel
+                        .replace("Thứ Hai", "T2")
+                        .replace("Thứ Ba", "T3")
+                        .replace("Thứ Tư", "T4")
+                        .replace("Thứ Năm", "T5")
+                        .replace("Thứ Sáu", "T6")
+                        .replace("Thứ Bảy", "T7")
+                        .replace("Chủ Nhật", "CN")
+                        .take(3)
+                        .trim()
+                    "$shortDay ${weatherEmojiForWidgetCode(day.weatherCode)}"
+                }
+                saveFourDaysToPrefs(context, fourNext)
+            }
             WeatherLunarWidget.updateAllWidgets(context)
             fetched
         } else {
