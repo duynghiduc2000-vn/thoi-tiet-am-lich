@@ -7,6 +7,8 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.AudioAttributes
+import android.media.MediaPlayer
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -104,8 +106,10 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -137,6 +141,9 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -1519,6 +1526,7 @@ private fun LiquidGlassPopupSurface(
 @Composable
 fun ThoiTietAmLichApp() {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
     val baseDensity = LocalDensity.current
     val lockedFontScaleDensity = remember(baseDensity) {
@@ -1533,6 +1541,79 @@ fun ThoiTietAmLichApp() {
 
     var appThemeMode by remember { mutableIntStateOf(AppPrefs.getAppThemeMode(context)) }
     var topWeatherBgEnabled by remember { mutableStateOf(false) }
+
+    // Trạng thái nhạc nền trong ứng dụng (mặc định tắt, âm lượng mặc định 0.25f)
+    var bgMusicEnabled by remember { mutableStateOf(AppPrefs.isBgMusicEnabled(context)) }
+    var bgMusicVolume by remember { mutableFloatStateOf(AppPrefs.getBgMusicVolume(context)) }
+    var isAppResumed by remember { mutableStateOf(false) }
+
+    val mediaPlayer = remember(context) {
+        MediaPlayer.create(context.applicationContext, R.raw.app_bg_music)?.apply {
+            isLooping = true
+            setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                    .build()
+            )
+        }
+    }
+
+    fun applyBgMusicState() {
+        val mp = mediaPlayer ?: return
+        val clampedVol = bgMusicVolume.coerceIn(0f, 1f)
+        try {
+            mp.setVolume(clampedVol, clampedVol)
+            if (bgMusicEnabled && isAppResumed) {
+                if (!mp.isPlaying) {
+                    mp.start()
+                }
+            } else {
+                if (mp.isPlaying) {
+                    mp.pause()
+                }
+            }
+        } catch (_: IllegalStateException) {
+        }
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> {
+                    isAppResumed = true
+                    applyBgMusicState()
+                }
+                Lifecycle.Event.ON_PAUSE,
+                Lifecycle.Event.ON_STOP -> {
+                    isAppResumed = false
+                    applyBgMusicState()
+                }
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    LaunchedEffect(bgMusicEnabled, bgMusicVolume, isAppResumed) {
+        applyBgMusicState()
+    }
+
+    DisposableEffect(mediaPlayer) {
+        onDispose {
+            try {
+                if (mediaPlayer?.isPlaying == true) {
+                    mediaPlayer.stop()
+                }
+                mediaPlayer?.release()
+            } catch (_: Exception) {
+            }
+        }
+    }
+
     var widgetBgMode by remember { mutableIntStateOf(AppPrefs.getWidgetBgMode(context)) }
     var accentColorInt by remember { mutableIntStateOf(AppPrefs.getAccentColor(context)) }
     var showSeconds by remember { mutableStateOf(AppPrefs.isShowSeconds(context)) }
@@ -2037,6 +2118,7 @@ fun ThoiTietAmLichApp() {
                                 contentColor = palette.textPrimary,
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .animateContentSize(animationSpec = SMOOTH_EXPAND_SPEC)
                                     .clip(RoundedCornerShape(24.dp))
                                     .background(palette.liquidGlassBrush)
                                     .border(1.dp, palette.liquidGlassBorder, RoundedCornerShape(24.dp))
@@ -2131,6 +2213,77 @@ fun ThoiTietAmLichApp() {
                                                 topWeatherBgEnabled = checked
                                             }
                                         )
+                                    }
+
+                                    SectionHairline(palette, topPadding = 2.dp)
+
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 6.dp)
+                                    ) {
+                                        Text(
+                                            "Nhạc nền trong ứng dụng",
+                                            fontSize = 13.5.sp,
+                                            color = palette.textPrimary,
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1,
+                                            softWrap = false,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Switch(
+                                            checked = bgMusicEnabled,
+                                            colors = SwitchDefaults.colors(checkedTrackColor = accentCompose),
+                                            onCheckedChange = { checked ->
+                                                bgMusicEnabled = checked
+                                                AppPrefs.setBgMusicEnabled(context, checked)
+                                            }
+                                        )
+                                    }
+
+                                    if (bgMusicEnabled) {
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(bottom = 4.dp)
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Text(
+                                                    "Âm lượng nhạc nền",
+                                                    fontSize = 12.sp,
+                                                    color = palette.textSecondary,
+                                                    fontWeight = FontWeight.Medium
+                                                )
+                                                Text(
+                                                    "${(bgMusicVolume * 100f).roundToInt()}%",
+                                                    fontSize = 12.sp,
+                                                    color = accentCompose,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                            Slider(
+                                                value = bgMusicVolume,
+                                                onValueChange = { raw ->
+                                                    val v = raw.coerceIn(0f, 1f)
+                                                    bgMusicVolume = v
+                                                    AppPrefs.setBgMusicVolume(context, v)
+                                                },
+                                                valueRange = 0f..1f,
+                                                colors = SliderDefaults.colors(
+                                                    thumbColor = accentCompose,
+                                                    activeTrackColor = accentCompose,
+                                                    inactiveTrackColor = palette.subtleBg
+                                                )
+                                            )
+                                        }
                                     }
                                 }
                             }
