@@ -71,6 +71,25 @@ object WeatherService {
         else -> "🌤️"
     }
 
+    private fun normalizeShortDayLabel(rawLabel: String, offsetDays: Int): String {
+        val cleaned = rawLabel
+            .replace("Thứ Hai", "T2", ignoreCase = true)
+            .replace("Thứ Ba", "T3", ignoreCase = true)
+            .replace("Thứ Tư", "T4", ignoreCase = true)
+            .replace("Thứ Năm", "T5", ignoreCase = true)
+            .replace("Thứ Sáu", "T6", ignoreCase = true)
+            .replace("Thứ Bảy", "T7", ignoreCase = true)
+            .replace("Chủ Nhật", "CN", ignoreCase = true)
+            .trim()
+        if (cleaned.isNotEmpty() && !cleaned.equals("Hôm nay", ignoreCase = true)) {
+            return cleaned.take(3).trim()
+        }
+        val cal = Calendar.getInstance(TimeZone.getTimeZone("Asia/Ho_Chi_Minh")).apply {
+            add(Calendar.DAY_OF_MONTH, offsetDays)
+        }
+        return shortWeekdayLabel(cal)
+    }
+
     private fun saveFourDaysToPrefs(context: Context, items: List<String>) {
         if (items.isEmpty()) return
         try {
@@ -163,18 +182,11 @@ object WeatherService {
             AppPrefs.saveWeather(context, fetched)
             val dailyList = fetchFiveDayForecast(context)
             if (dailyList.size > 1) {
-                val fourNext = dailyList.drop(1).take(4).map { day ->
-                    val shortDay = day.dayLabel
-                        .replace("Thứ Hai", "T2")
-                        .replace("Thứ Ba", "T3")
-                        .replace("Thứ Tư", "T4")
-                        .replace("Thứ Năm", "T5")
-                        .replace("Thứ Sáu", "T6")
-                        .replace("Thứ Bảy", "T7")
-                        .replace("Chủ Nhật", "CN")
-                        .take(3)
-                        .trim()
-                    "$shortDay ${weatherEmojiForWidgetCode(day.weatherCode)}"
+                val fourNext = dailyList.drop(1).take(4).mapIndexed { index, day ->
+                    val shortDay = normalizeShortDayLabel(day.dayLabel, index + 1)
+                    val icon = weatherEmojiForWidgetCode(day.weatherCode)
+                    val maxTemp = day.maxTemp.ifBlank { "--°" }
+                    "$shortDay|$icon|$maxTemp"
                 }
                 saveFourDaysToPrefs(context, fourNext)
             }
