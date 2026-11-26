@@ -92,6 +92,38 @@ object AppPrefs {
         prefs(context).edit().putBoolean("show_weather_effect", show).apply()
     }
 
+    // Hiển thị lịch âm trên Widget (mặc định bật)
+    fun isShowLunarDate(context: Context): Boolean =
+        prefs(context).getBoolean("show_lunar_date", true)
+
+    fun setShowLunarDate(context: Context, show: Boolean) {
+        prefs(context).edit().putBoolean("show_lunar_date", show).apply()
+    }
+
+    // Hiển thị nhiệt độ (kèm thời tiết) trên Widget (mặc định bật)
+    fun isShowWeatherInfo(context: Context): Boolean =
+        prefs(context).getBoolean("show_weather_info", true)
+
+    fun setShowWeatherInfo(context: Context, show: Boolean) {
+        prefs(context).edit().putBoolean("show_weather_info", show).apply()
+    }
+
+    // Hiển thị dương lịch trên Widget (mặc định bật)
+    fun isShowSolarDate(context: Context): Boolean =
+        prefs(context).getBoolean("show_solar_date", true)
+
+    fun setShowSolarDate(context: Context, show: Boolean) {
+        prefs(context).edit().putBoolean("show_solar_date", show).apply()
+    }
+
+    // Hiển thị địa điểm trên Widget (mặc định bật)
+    fun isShowLocationName(context: Context): Boolean =
+        prefs(context).getBoolean("show_location_name", true)
+
+    fun setShowLocationName(context: Context, show: Boolean) {
+        prefs(context).edit().putBoolean("show_location_name", show).apply()
+    }
+
     // Hiển thị dự báo 7 ngày trên Widget
     fun isShowSevenDayForecast(context: Context): Boolean =
         prefs(context).getBoolean(KEY_SHOW_SEVEN_DAYS, true)
