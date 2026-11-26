@@ -331,8 +331,9 @@ class TodoAlarmReceiver : BroadcastReceiver() {
                 TodoHelper.scheduleMidnightReset(context)
             }
             Intent.ACTION_BOOT_COMPLETED,
-            Intent.ACTION_TIME_SET,
-            Intent.ACTION_TIMEZONE_CHANGED -> {
+            Intent.ACTION_DATE_CHANGED,
+            Intent.ACTION_TIMEZONE_CHANGED,
+            "android.intent.action.TIME_SET" -> {
                 val tasks = TodoHelper.ensureCurrentDayOrReset(context)
                 TodoHelper.scheduleAllTodayAlarms(context, tasks)
             }
