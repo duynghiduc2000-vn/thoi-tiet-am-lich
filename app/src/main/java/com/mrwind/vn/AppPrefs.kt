@@ -49,7 +49,7 @@ data class WeatherCache(
 
 object AppPrefs {
     private const val PREF_NAME = "thoi_tiet_am_lich_prefs"
-    private const val KEY_NEXT_FOUR_DAYS = "widget_next_four_days_json"
+    private const val KEY_NEXT_SEVEN_DAYS = "widget_next_seven_days_json"
 
     // Giao diện App: 0 = Theo hệ thống, 1 = Sáng, 2 = Tối
     fun getAppThemeMode(context: Context): Int =
@@ -138,14 +138,14 @@ object AppPrefs {
         prefs(context).edit().putBoolean("auto_location", auto).apply()
     }
 
-    fun saveNextFourDaysForecast(context: Context, items: List<String>) {
+    fun saveNextSevenDaysForecast(context: Context, items: List<String>) {
         val arr = JSONArray()
-        items.take(4).forEach { arr.put(it) }
-        prefs(context).edit().putString(KEY_NEXT_FOUR_DAYS, arr.toString()).apply()
+        items.take(7).forEach { arr.put(it) }
+        prefs(context).edit().putString(KEY_NEXT_SEVEN_DAYS, arr.toString()).apply()
     }
 
-    fun getNextFourDaysForecast(context: Context): List<String> {
-        val raw = prefs(context).getString(KEY_NEXT_FOUR_DAYS, "[]") ?: "[]"
+    fun getNextSevenDaysForecast(context: Context): List<String> {
+        val raw = prefs(context).getString(KEY_NEXT_SEVEN_DAYS, "[]") ?: "[]"
         val out = mutableListOf<String>()
         try {
             val arr = JSONArray(raw)
