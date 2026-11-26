@@ -144,6 +144,8 @@ private data class AdaptivePalette(
     val screenBg: Color,
     val screenBrush: Brush,
     val cardBg: Color,
+    val liquidGlassBrush: Brush,
+    val liquidGlassBorder: Color,
     val subtleBg: Color,
     val textPrimary: Color,
     val textSecondary: Color,
@@ -159,12 +161,27 @@ private fun buildAdaptivePalette(isDark: Boolean, accentColor: Color): AdaptiveP
             screenBg = screenBg,
             screenBrush = Brush.verticalGradient(
                 listOf(
-                    accentColor.copy(alpha = 0.08f),
+                    accentColor.copy(alpha = 0.09f),
                     Color(0xFF09090B),
                     Color(0xFF050507)
                 )
             ),
             cardBg = Color(0xFF121215),
+            liquidGlassBrush = Brush.linearGradient(
+                listOf(
+                    Color(0xFF232B3A).copy(alpha = 0.78f),
+                    Color(0xFF14171F).copy(alpha = 0.68f),
+                    accentColor.copy(alpha = 0.14f),
+                    Color(0xFF0D0F14).copy(alpha = 0.80f)
+                )
+            ),
+            liquidGlassBorder = Brush.linearGradient(
+                listOf(
+                    Color.White.copy(alpha = 0.28f),
+                    accentColor.copy(alpha = 0.26f),
+                    Color.White.copy(alpha = 0.08f)
+                )
+            ),
             subtleBg = Color(0xFF1B1B20),
             textPrimary = Color(0xFFFAFAFA),
             textSecondary = Color(0xFFA1A1AA),
@@ -178,12 +195,26 @@ private fun buildAdaptivePalette(isDark: Boolean, accentColor: Color): AdaptiveP
             screenBg = screenBg,
             screenBrush = Brush.verticalGradient(
                 listOf(
-                    accentColor.copy(alpha = 0.07f),
+                    accentColor.copy(alpha = 0.08f),
                     Color(0xFFF4F5F7),
                     Color(0xFFECEEF2)
                 )
             ),
             cardBg = Color(0xFFFFFFFF),
+            liquidGlassBrush = Brush.linearGradient(
+                listOf(
+                    Color.White.copy(alpha = 0.88f),
+                    accentColor.copy(alpha = 0.10f),
+                    Color(0xFFF3F6FA).copy(alpha = 0.76f)
+                )
+            ),
+            liquidGlassBorder = Brush.linearGradient(
+                listOf(
+                    Color.White.copy(alpha = 0.90f),
+                    accentColor.copy(alpha = 0.25f),
+                    Color.Black.copy(alpha = 0.08f)
+                )
+            ),
             subtleBg = Color(0xFFF1F3F6),
             textPrimary = Color(0xFF09090B),
             textSecondary = Color(0xFF52525B),
@@ -880,6 +911,31 @@ private fun WidgetPreviewBox(
     }
 }
 
+@Composable
+private fun LiquidGlassPopupSurface(
+    palette: AdaptivePalette,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(28.dp),
+        tonalElevation = 0.dp,
+        color = Color.Transparent,
+        contentColor = palette.textPrimary,
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(28.dp))
+            .background(palette.liquidGlassBrush)
+            .border(1.2.dp, palette.liquidGlassBorder, RoundedCornerShape(28.dp))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) {}
+    ) {
+        content()
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun ThoiTietAmLichApp() {
@@ -1232,7 +1288,6 @@ fun ThoiTietAmLichApp() {
                                 verticalArrangement = Arrangement.spacedBy(12.dp),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                // Tiêu đề kiểu tạp chí (Editorial)
                                 Column(modifier = Modifier.padding(horizontal = 2.dp)) {
                                     Text(
                                         solarToday.uppercase(Locale.getDefault()),
@@ -1251,7 +1306,6 @@ fun ThoiTietAmLichApp() {
                                     )
                                 }
 
-                                // Ô Bento lớn: Xem trước Widget
                                 Surface(
                                     shape = RoundedCornerShape(24.dp),
                                     color = palette.cardBg,
@@ -1309,7 +1363,6 @@ fun ThoiTietAmLichApp() {
                                     }
                                 }
 
-                                // 2 ô Bento nhỏ ghép ngang: Cập nhật & Ghim Widget
                                 Row(
                                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                                     modifier = Modifier.fillMaxWidth()
@@ -1436,7 +1489,7 @@ fun ThoiTietAmLichApp() {
                             }
                         }
 
-                        // 2. Đồng hồ, giao diện, nền widget (Flat / Hairline bên trong)
+                        // 2. Đồng hồ, giao diện, nền widget (Liquid Glass + Flat/Hairline bên trong)
                         item(key = "clock_theme_bg_section") {
                             CollapsibleSectionCard(
                                 title = "Đồng hồ, Giao diện & Nền Widget",
@@ -2289,7 +2342,7 @@ fun ThoiTietAmLichApp() {
                             }
                         }
 
-                        // 6b. Thông tin hữu ích theo ngày Âm lịch (Editorial + Hairline)
+                        // 6b. Thông tin hữu ích theo ngày Âm lịch
                         item(key = "lunar_useful_info_section") {
                             Column(
                                 modifier = Modifier
@@ -2953,7 +3006,7 @@ fun ThoiTietAmLichApp() {
                     }
                 }
 
-                // Pop-up nhắc ngày lễ (trước 1 ngày & đúng ngày)
+                // Pop-up nhắc ngày lễ (Liquid Glass)
                 AnimatedVisibility(
                     visible = showHolidayPopup && activeHolidayAlerts.isNotEmpty(),
                     enter = fadeIn() + scaleIn(initialScale = 0.92f),
@@ -2974,19 +3027,7 @@ fun ThoiTietAmLichApp() {
                             }
                             .padding(horizontal = 24.dp)
                     ) {
-                        Surface(
-                            shape = RoundedCornerShape(28.dp),
-                            tonalElevation = 6.dp,
-                            color = palette.cardBg,
-                            contentColor = palette.textPrimary,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .border(1.dp, palette.border, RoundedCornerShape(28.dp))
-                                .clickable(
-                                    interactionSource = remember { MutableInteractionSource() },
-                                    indication = null
-                                ) {}
-                        ) {
+                        LiquidGlassPopupSurface(palette = palette) {
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 modifier = Modifier.padding(22.dp)
@@ -3101,7 +3142,7 @@ fun ThoiTietAmLichApp() {
                     }
                 }
 
-                // Pop-up nhắc việc cần làm ngay khi tới giờ
+                // Pop-up nhắc việc cần làm ngay khi tới giờ (Liquid Glass)
                 AnimatedVisibility(
                     visible = activeTodoPopup != null,
                     enter = fadeIn() + scaleIn(initialScale = 0.92f),
@@ -3120,19 +3161,7 @@ fun ThoiTietAmLichApp() {
                             ) {}
                             .padding(horizontal = 24.dp)
                     ) {
-                        Surface(
-                            shape = RoundedCornerShape(28.dp),
-                            tonalElevation = 6.dp,
-                            color = palette.cardBg,
-                            contentColor = palette.textPrimary,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .border(1.dp, palette.border, RoundedCornerShape(28.dp))
-                                .clickable(
-                                    interactionSource = remember { MutableInteractionSource() },
-                                    indication = null
-                                ) {}
-                        ) {
+                        LiquidGlassPopupSurface(palette = palette) {
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 modifier = Modifier.padding(22.dp)
@@ -3253,7 +3282,7 @@ fun ThoiTietAmLichApp() {
                     }
                 }
 
-                // Pop-up hiển thị kết quả tính tuổi
+                // Pop-up hiển thị kết quả tính tuổi (Liquid Glass)
                 AnimatedVisibility(
                     visible = ageResultPopup != null,
                     enter = fadeIn() + scaleIn(initialScale = 0.92f),
@@ -3272,19 +3301,7 @@ fun ThoiTietAmLichApp() {
                             ) { ageResultPopup = null }
                             .padding(horizontal = 24.dp)
                     ) {
-                        Surface(
-                            shape = RoundedCornerShape(28.dp),
-                            tonalElevation = 6.dp,
-                            color = palette.cardBg,
-                            contentColor = palette.textPrimary,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .border(1.dp, palette.border, RoundedCornerShape(28.dp))
-                                .clickable(
-                                    interactionSource = remember { MutableInteractionSource() },
-                                    indication = null
-                                ) {}
-                        ) {
+                        LiquidGlassPopupSurface(palette = palette) {
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 modifier = Modifier.padding(22.dp)
@@ -3396,7 +3413,7 @@ fun ThoiTietAmLichApp() {
                     }
                 }
 
-                // Pop-up hiển thị sau khi xóa lịch sử tính tuổi
+                // Pop-up hiển thị sau khi xóa lịch sử tính tuổi (Liquid Glass)
                 AnimatedVisibility(
                     visible = showAgeHistoryClearedPopup,
                     enter = fadeIn() + scaleIn(initialScale = 0.92f),
@@ -3414,19 +3431,7 @@ fun ThoiTietAmLichApp() {
                             ) { showAgeHistoryClearedPopup = false }
                             .padding(horizontal = 24.dp)
                     ) {
-                        Surface(
-                            shape = RoundedCornerShape(28.dp),
-                            tonalElevation = 6.dp,
-                            color = palette.cardBg,
-                            contentColor = palette.textPrimary,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .border(1.dp, palette.border, RoundedCornerShape(28.dp))
-                                .clickable(
-                                    interactionSource = remember { MutableInteractionSource() },
-                                    indication = null
-                                ) {}
-                        ) {
+                        LiquidGlassPopupSurface(palette = palette) {
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 modifier = Modifier.padding(22.dp)
@@ -3489,7 +3494,7 @@ fun ThoiTietAmLichApp() {
                     }
                 }
 
-                // Pop-up thông báo kết quả tra cứu lịch âm
+                // Pop-up thông báo kết quả tra cứu lịch âm (Liquid Glass)
                 AnimatedVisibility(
                     visible = lunarResultPopup != null,
                     enter = fadeIn() + scaleIn(initialScale = 0.92f),
@@ -3508,19 +3513,7 @@ fun ThoiTietAmLichApp() {
                             ) { lunarResultPopup = null }
                             .padding(horizontal = 24.dp)
                     ) {
-                        Surface(
-                            shape = RoundedCornerShape(28.dp),
-                            tonalElevation = 6.dp,
-                            color = palette.cardBg,
-                            contentColor = palette.textPrimary,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .border(1.dp, palette.border, RoundedCornerShape(28.dp))
-                                .clickable(
-                                    interactionSource = remember { MutableInteractionSource() },
-                                    indication = null
-                                ) {}
-                        ) {
+                        LiquidGlassPopupSurface(palette = palette) {
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 modifier = Modifier.padding(22.dp)
@@ -3624,7 +3617,7 @@ fun ThoiTietAmLichApp() {
                     }
                 }
 
-                // Pop-up hiển thị sau khi xóa lịch sử tìm kiếm
+                // Pop-up hiển thị sau khi xóa lịch sử tìm kiếm (Liquid Glass)
                 AnimatedVisibility(
                     visible = showHistoryClearedPopup,
                     enter = fadeIn() + scaleIn(initialScale = 0.92f),
@@ -3642,19 +3635,7 @@ fun ThoiTietAmLichApp() {
                             ) { showHistoryClearedPopup = false }
                             .padding(horizontal = 24.dp)
                     ) {
-                        Surface(
-                            shape = RoundedCornerShape(28.dp),
-                            tonalElevation = 6.dp,
-                            color = palette.cardBg,
-                            contentColor = palette.textPrimary,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .border(1.dp, palette.border, RoundedCornerShape(28.dp))
-                                .clickable(
-                                    interactionSource = remember { MutableInteractionSource() },
-                                    indication = null
-                                ) {}
-                        ) {
+                        LiquidGlassPopupSurface(palette = palette) {
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 modifier = Modifier.padding(22.dp)
@@ -3717,7 +3698,7 @@ fun ThoiTietAmLichApp() {
                     }
                 }
 
-                // Pop-up cảnh báo hao pin khi bật hiển thị giây
+                // Pop-up cảnh báo hao pin khi bật hiển thị giây (Liquid Glass)
                 AnimatedVisibility(
                     visible = showSecondsWarningPopup,
                     enter = fadeIn() + scaleIn(initialScale = 0.92f),
@@ -3735,19 +3716,7 @@ fun ThoiTietAmLichApp() {
                             ) { showSecondsWarningPopup = false }
                             .padding(horizontal = 24.dp)
                     ) {
-                        Surface(
-                            shape = RoundedCornerShape(28.dp),
-                            tonalElevation = 6.dp,
-                            color = palette.cardBg,
-                            contentColor = palette.textPrimary,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .border(1.dp, palette.border, RoundedCornerShape(28.dp))
-                                .clickable(
-                                    interactionSource = remember { MutableInteractionSource() },
-                                    indication = null
-                                ) {}
-                        ) {
+                        LiquidGlassPopupSurface(palette = palette) {
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 modifier = Modifier.padding(22.dp)
@@ -3850,7 +3819,7 @@ fun ThoiTietAmLichApp() {
                     }
                 }
 
-                // Pop-up nhắc sinh nhật hiện đại
+                // Pop-up nhắc sinh nhật hiện đại (Liquid Glass)
                 AnimatedVisibility(
                     visible = showBirthdayPopup && (todayBirthdays.isNotEmpty() || showAdminBirthdayToday),
                     enter = fadeIn() + scaleIn(initialScale = 0.92f),
@@ -3868,19 +3837,7 @@ fun ThoiTietAmLichApp() {
                             ) { showBirthdayPopup = false }
                             .padding(horizontal = 24.dp)
                     ) {
-                        Surface(
-                            shape = RoundedCornerShape(28.dp),
-                            tonalElevation = 6.dp,
-                            color = palette.cardBg,
-                            contentColor = palette.textPrimary,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .border(1.dp, palette.border, RoundedCornerShape(28.dp))
-                                .clickable(
-                                    interactionSource = remember { MutableInteractionSource() },
-                                    indication = null
-                                ) {}
-                        ) {
+                        LiquidGlassPopupSurface(palette = palette) {
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 modifier = Modifier.padding(22.dp)
@@ -4104,13 +4061,24 @@ private fun CollapsibleSectionCard(
 
     Surface(
         shape = RoundedCornerShape(24.dp),
-        color = palette.cardBg,
+        color = Color.Transparent,
         contentColor = palette.textPrimary,
         modifier = Modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(24.dp))
+            .background(palette.liquidGlassBrush)
             .border(
-                width = 1.dp,
-                color = if (expanded) accentColor.copy(alpha = 0.45f) else palette.border,
+                width = if (expanded) 1.4.dp else 1.dp,
+                brush = if (expanded) {
+                    Brush.linearGradient(
+                        listOf(
+                            accentColor.copy(alpha = 0.75f),
+                            palette.liquidGlassBorder.toString().let { palette.liquidGlassBorder }
+                        )
+                    )
+                } else {
+                    palette.liquidGlassBorder
+                },
                 shape = RoundedCornerShape(24.dp)
             )
     ) {
