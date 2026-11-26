@@ -232,6 +232,10 @@ class WeatherLunarWidget : AppWidgetProvider() {
             val accentColor = AppPrefs.getAccentColor(context)
             val showSeconds = AppPrefs.isShowSeconds(context)
             val showWeatherEffect = AppPrefs.isShowWeatherEffect(context)
+            val showLunarDate = AppPrefs.isShowLunarDate(context)
+            val showWeatherInfo = AppPrefs.isShowWeatherInfo(context)
+            val showSolarDate = AppPrefs.isShowSolarDate(context)
+            val showLocationName = AppPrefs.isShowLocationName(context)
             val showSevenDayForecast = AppPrefs.isShowSevenDayForecast(context)
             val showSignature = AppPrefs.isShowSignature(context)
 
@@ -260,10 +264,12 @@ class WeatherLunarWidget : AppWidgetProvider() {
             val primaryTextColor = if (isLightGlass) Color.parseColor("#111827") else Color.WHITE
             val secondaryTextColor = if (isLightGlass) Color.parseColor("#374151") else Color.parseColor("#E5E7EB")
 
+            views.setViewVisibility(R.id.tv_lunar_date, if (showLunarDate) View.VISIBLE else View.GONE)
             views.setTextViewText(R.id.tv_lunar_date, lunar.shortSummary())
             views.setTextColor(R.id.tv_lunar_date, accentColor)
             views.setTextViewTextSize(R.id.tv_lunar_date, TypedValue.COMPLEX_UNIT_PX, lunarPx)
 
+            views.setViewVisibility(R.id.tv_solar_date, if (showSolarDate) View.VISIBLE else View.GONE)
             views.setTextViewText(R.id.tv_solar_date, LunarCalendar.formatVietnameseSolarDate(cal))
             views.setTextColor(R.id.tv_solar_date, primaryTextColor)
             views.setTextViewTextSize(R.id.tv_solar_date, TypedValue.COMPLEX_UNIT_PX, solarPx)
@@ -313,10 +319,14 @@ class WeatherLunarWidget : AppWidgetProvider() {
                 }
             }
 
+            val weatherVisibility = if (showWeatherInfo) View.VISIBLE else View.GONE
+            views.setViewVisibility(R.id.btn_refresh_weather, weatherVisibility)
+            views.setViewVisibility(R.id.right_column, weatherVisibility)
             views.setTextViewText(R.id.tv_weather_emoji, weatherEmojiForCode(weather.weatherCode))
             views.setTextViewText(R.id.tv_current_temp, weather.currentTemp)
             views.setTextColor(R.id.tv_current_temp, accentColor)
 
+            views.setViewVisibility(R.id.tv_location_name, if (showLocationName) View.VISIBLE else View.GONE)
             views.setTextViewText(R.id.tv_location_name, weather.locationName)
             views.setTextColor(R.id.tv_location_name, primaryTextColor)
 
