@@ -246,6 +246,8 @@ class WeatherLunarWidget : AppWidgetProvider() {
                 1 -> views.setInt(R.id.widget_root, "setBackgroundResource", R.drawable.bg_widget_glass_light)
                 2 -> views.setInt(R.id.widget_root, "setBackgroundResource", R.drawable.bg_widget_transparent)
                 3 -> views.setInt(R.id.widget_root, "setBackgroundResource", R.drawable.bg_widget_theme)
+                4 -> views.setInt(R.id.widget_root, "setBackgroundResource", R.drawable.bg_widget_liquid_glass)
+                else -> views.setInt(R.id.widget_root, "setBackgroundResource", R.drawable.bg_widget_glass_dark)
             }
 
             views.setViewVisibility(
