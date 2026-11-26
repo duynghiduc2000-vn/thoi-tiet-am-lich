@@ -1,5 +1,6 @@
 package com.mrwind.vn
 
+import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -262,7 +263,7 @@ object BirthdayHelper {
     }
 
     private fun sunMajorTerm(dayNumber: Int, timeZoneOffset: Double = 7.0): Int {
-        return floor(sunLongitude(dayNumber - 0.5.toInt(), timeZoneOffset) / Math.PI * 6).toInt()
+        return floor(sunLongitude(dayNumber - 1, timeZoneOffset) / Math.PI * 6).toInt()
     }
 
     private fun lunarMonth11(yy: Int, timeZoneOffset: Double = 7.0): Int {
@@ -360,9 +361,15 @@ object BirthdayHelper {
     }
 
     fun lunarYearCanChi(lunarYear: Int): String {
-        val yearCanIndex = (lunarYear + 6) % 10
-        val yearChiIndex = (lunarYear + 8) % 12
-        return "${CAN_NAMES[(yearCanIndex + 10) % 10]} ${CHI_NAMES[(yearChiIndex + 12) % 12]}"
+        val yearCanIndex = ((lunarYear + 6) % 10 + 10) % 10
+        val yearChiIndex = ((lunarYear + 8) % 12 + 12) % 12
+        return "${CAN_NAMES[yearCanIndex]} ${CHI_NAMES[yearChiIndex]}"
+    }
+
+    private fun dayCanChiFromJd(jd: Int): String {
+        val canIdx = ((jd + 9) % 10 + 10) % 10
+        val chiIdx = ((jd + 1) % 12 + 12) % 12
+        return "${CAN_NAMES[canIdx]} ${CHI_NAMES[chiIdx]}"
     }
 
     fun getLunarUsefulInsightForToday(context: Context): LunarUsefulInsight {
@@ -373,15 +380,15 @@ object BirthdayHelper {
         val year = todayCal.get(Calendar.YEAR)
         val jd = jdFromDate(day, month, year)
 
-        val lunar = LunarCalendar.convertSolarToLunar(day, month, year, tzOffset)
-        val lunarDay = lunar.lunarDay
-        val lunarMonth = lunar.lunarMonth
-        val lunarYear = lunar.lunarYear
-        val leapSuffix = if (lunar.isLeapMonth) " (nhuận)" else ""
-        val lunarDateKey = "$lunarYear-${lunarMonth.toString().padStart(2, '0')}-${lunarDay.toString().padStart(2, '0')}-${if (lunar.isLeapMonth) 1 else 0}"
-        val lunarDateLabel = "Ngày $lunarDay/$lunarMonth/$lunarYear$leapSuffix"
+        val todayLunar = LunarCalendar.todayLunar()
+        val lunarSummary = todayLunar.shortSummary()
+        val lunarDay = todayCal.get(Calendar.DAY_OF_MONTH)
+        val lunarMonth = todayCal.get(Calendar.MONTH) + 1
+        val lunarYear = todayCal.get(Calendar.YEAR)
+        val lunarDateKey = "$year-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}"
+        val lunarDateLabel = lunarSummary.ifBlank { "Ngày $lunarDay/$lunarMonth/$lunarYear" }
 
-        val dayCanChi = LunarCalendar.canChiOfDay(jd)
+        val dayCanChi = dayCanChiFromJd(jd)
         val dayChiIdx = ((jd + 1) % 12 + 12) % 12
         val monthChiIdx = ((lunarMonth + 1) % 12 + 12) % 12
         val isHoangDaoDay = HOANG_DAO_DAY_CHI_BY_MONTH_CHI[monthChiIdx]?.contains(dayChiIdx) == true
@@ -414,11 +421,11 @@ object BirthdayHelper {
             lunarDay == 1 -> "Hôm nay là Mùng 1 Âm lịch — ngày đầu tháng, thuận tiện thắp hương/cúng gia tiên và đặt mục tiêu mới."
             lunarDay == 15 -> "Hôm nay là ngày Rằm Âm lịch — trăng tròn giữa tháng, thuận tiện cúng Rằm/thắp hương."
             lunarDay < 15 -> {
-                val rem = 15 - lunarDay
-                "Còn $rem ngày nữa tới ngày Rằm (15/$lunarMonth Âm lịch)."
+                val remDays = 15 - lunarDay
+                "Còn $remDays ngày nữa tới ngày Rằm (15/$lunarMonth Âm lịch)."
             }
             else -> {
-                val estDaysInMonth = if (lunarDay <= 29) 30 else 30
+                val estDaysInMonth = 30
                 val remToNewMonth = (estDaysInMonth - lunarDay + 1).coerceAtLeast(1)
                 "Sắp bước sang Mùng 1 tháng Âm lịch kế tiếp (ước tính khoảng $remToNewMonth ngày)."
             }
