@@ -7,7 +7,9 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
+import android.provider.Settings
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
@@ -53,6 +55,28 @@ object TodoHelper {
 
     private fun prefs(context: Context) =
         context.getSharedPreferences(PREF_TODO, Context.MODE_PRIVATE)
+
+    fun canScheduleExactAlarms(context: Context): Boolean {
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return false
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            alarmManager.canScheduleExactAlarms()
+        } else {
+            true
+        }
+    }
+
+    fun openExactAlarmSettings(context: Context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
+                data = Uri.parse("package:${context.packageName}")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            try {
+                context.startActivity(intent)
+            } catch (_: Exception) {
+            }
+        }
+    }
 
     fun ensureCurrentDayOrReset(context: Context): List<TodoTaskItem> {
         val currentKey = todayKey()
@@ -115,25 +139,29 @@ object TodoHelper {
         val nowMillis = System.currentTimeMillis()
         val cal = Calendar.getInstance(tz())
 
-        tasks.forEachIndexed { idx, task ->
+        tasks.forEach { task ->
+            val intent = Intent(context, TodoAlarmReceiver::class.java).apply {
+                action = ACTION_TRIGGER_TASK
+                putExtra(EXTRA_TASK_ID, task.id)
+            }
+            val pi = PendingIntent.getBroadcast(
+                context,
+                task.id.hashCode(),
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+
             val target = (cal.clone() as Calendar).apply {
                 set(Calendar.HOUR_OF_DAY, task.hour)
                 set(Calendar.MINUTE, task.minute)
                 set(Calendar.SECOND, 0)
                 set(Calendar.MILLISECOND, 0)
             }
-            if (target.timeInMillis > nowMillis && !task.triggeredToday) {
-                val intent = Intent(context, TodoAlarmReceiver::class.java).apply {
-                    action = ACTION_TRIGGER_TASK
-                    putExtra(EXTRA_TASK_ID, task.id)
-                }
-                val pi = PendingIntent.getBroadcast(
-                    context,
-                    9000 + idx,
-                    intent,
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                )
-                setExactSafe(alarmManager, target.timeInMillis, pi)
+
+            if (target.timeInMillis > nowMillis && !task.triggeredToday && !task.isDone) {
+                setAlarmClockSafe(context, alarmManager, target.timeInMillis, pi)
+            } else {
+                alarmManager.cancel(pi)
             }
         }
         scheduleMidnightReset(context)
@@ -158,6 +186,34 @@ object TodoHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         setExactSafe(alarmManager, midnight.timeInMillis, pi)
+    }
+
+    private fun setAlarmClockSafe(
+        context: Context,
+        alarmManager: AlarmManager,
+        triggerAtMillis: Long,
+        operation: PendingIntent
+    ) {
+        val showAppIntent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val showAppPi = PendingIntent.getActivity(
+            context,
+            "show_alarm_ui".hashCode(),
+            showAppIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        try {
+            if (canScheduleExactAlarms(context)) {
+                val info = AlarmManager.AlarmClockInfo(triggerAtMillis, showAppPi)
+                alarmManager.setAlarmClock(info, operation)
+            } else {
+                alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, operation)
+            }
+        } catch (_: SecurityException) {
+            setExactSafe(alarmManager, triggerAtMillis, operation)
+        }
     }
 
     private fun setExactSafe(alarmManager: AlarmManager, triggerAtMillis: Long, operation: PendingIntent) {
@@ -241,7 +297,7 @@ object TodoHelper {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra(EXTRA_TASK_ID, task.id)
         }
-        val fullScreenPi = PendingIntent.getActivity(
+        val contentPi = PendingIntent.getActivity(
             context,
             task.id.hashCode(),
             openAppIntent,
@@ -256,8 +312,7 @@ object TodoHelper {
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setContentIntent(fullScreenPi)
-            .setFullScreenIntent(fullScreenPi, true)
+            .setContentIntent(contentPi)
             .setAutoCancel(true)
             .setDefaults(NotificationCompat.DEFAULT_ALL)
 
@@ -275,20 +330,23 @@ class TodoAlarmReceiver : BroadcastReceiver() {
                 TodoHelper.clearAllTasksForToday(context)
                 TodoHelper.scheduleMidnightReset(context)
             }
-            TodoHelper.ACTION_TRIGGER_TASK, Intent.ACTION_BOOT_COMPLETED -> {
+            Intent.ACTION_BOOT_COMPLETED,
+            Intent.ACTION_TIME_SET,
+            Intent.ACTION_TIMEZONE_CHANGED -> {
                 val tasks = TodoHelper.ensureCurrentDayOrReset(context)
-                if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
-                    TodoHelper.scheduleAllTodayAlarms(context, tasks)
-                    return
-                }
+                TodoHelper.scheduleAllTodayAlarms(context, tasks)
+            }
+            TodoHelper.ACTION_TRIGGER_TASK -> {
+                val tasks = TodoHelper.ensureCurrentDayOrReset(context)
                 val taskId = intent.getStringExtra(TodoHelper.EXTRA_TASK_ID) ?: return
                 val matched = tasks.find { it.id == taskId } ?: return
+                val triggeredTask = matched.copy(triggeredToday = true)
                 val updated = tasks.map {
-                    if (it.id == taskId) it.copy(triggeredToday = true) else it
+                    if (it.id == taskId) triggeredTask else it
                 }
                 TodoHelper.saveTasks(context, updated)
                 TodoHelper.setPendingPopupTaskId(context, taskId)
-                TodoHelper.showSystemPopupNotification(context, matched.copy(triggeredToday = true))
+                TodoHelper.showSystemPopupNotification(context, triggeredTask)
                 TodoHelper.scheduleMidnightReset(context)
             }
         }
