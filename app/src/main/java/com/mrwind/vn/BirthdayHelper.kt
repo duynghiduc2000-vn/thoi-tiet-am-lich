@@ -235,7 +235,7 @@ object BirthdayHelper {
         val k = floor(0.5 + (a11 - 2415021.076998695) / 29.530588853).toInt()
         val off = lunarMonth - 11
         val monthOffset = if (off < 0) off + 12 else off
-        var leapOff = leapMonthOffset(a11, timeZoneOffset)
+        val leapOff = leapMonthOffset(a11, timeZoneOffset)
         var leapMonth = if (leapOff > 0) leapOff - 2 else 0
         if (leapMonth < 0) leapMonth += 12
 
@@ -265,9 +265,23 @@ object BirthdayHelper {
                         lunarMonth = holiday.month,
                         lunarYear = ly,
                         lunarLeap = holiday.isLunarLeapMonth
-                    ) ?: continue
-                    if (converted.year == solarYear) {
+                    )
+                    if (converted != null && converted.year == solarYear) {
                         return Triple(converted.day, converted.month, converted.year)
+                    }
+
+                    // Nếu ngày lễ không chỉ định riêng tháng nhuận nhưng năm âm lịch có tháng nhuận cùng tháng,
+                    // thử thêm phương án tháng nhuận để không bỏ sót hoặc lệch ngày.
+                    if (!holiday.isLunarLeapMonth) {
+                        val leapConverted = lunarToSolar(
+                            lunarDay = holiday.day,
+                            lunarMonth = holiday.month,
+                            lunarYear = ly,
+                            lunarLeap = true
+                        )
+                        if (leapConverted != null && leapConverted.year == solarYear && leapConverted != converted) {
+                            return Triple(leapConverted.day, leapConverted.month, leapConverted.year)
+                        }
                     }
                 }
                 null
@@ -319,6 +333,15 @@ object BirthdayHelper {
             method.invoke(null, context, value)
         } catch (_: Exception) {
         }
+    }
+
+    private fun buildHolidayAlertToken(alerts: List<ActiveHolidayAlert>): String {
+        val dayKey = todayDateKey()
+        val sig = alerts
+            .map { "${it.holiday.id}:${it.timing.name}:${it.targetDateKey}" }
+            .sorted()
+            .joinToString(",")
+        return "$dayKey|$sig"
     }
 
     fun getActiveHolidaysForToday(context: Context): List<ActiveHolidayAlert> {
@@ -381,8 +404,9 @@ object BirthdayHelper {
         val hasUserBirthdaysToday = getTodayBirthdays(context).isNotEmpty()
         val hasAdminPopupToday = isAdminBirthdayToday() &&
             AppPrefs.getLastAdminPopupDate(context) != todayDateKey()
-        val hasHolidayPopupToday = getActiveHolidaysForToday(context).isNotEmpty() &&
-            getLastHolidayAlertKey(context) != todayDateKey()
+        val activeHolidays = getActiveHolidaysForToday(context)
+        val hasHolidayPopupToday = activeHolidays.isNotEmpty() &&
+            getLastHolidayAlertKey(context) != buildHolidayAlertToken(activeHolidays)
         return hasUserBirthdaysToday || hasAdminPopupToday || hasHolidayPopupToday
     }
 
@@ -394,8 +418,9 @@ object BirthdayHelper {
         if (isAdminBirthdayToday()) {
             AppPrefs.setLastAdminPopupDate(context, key)
         }
-        if (getActiveHolidaysForToday(context).isNotEmpty()) {
-            setLastHolidayAlertKey(context, key)
+        val activeHolidays = getActiveHolidaysForToday(context)
+        if (activeHolidays.isNotEmpty()) {
+            setLastHolidayAlertKey(context, buildHolidayAlertToken(activeHolidays))
         }
     }
 
@@ -403,8 +428,8 @@ object BirthdayHelper {
         val alerts = getActiveHolidaysForToday(context)
         if (alerts.isEmpty()) return
 
-        val key = todayDateKey()
-        if (getLastHolidayAlertKey(context) == key) return
+        val token = buildHolidayAlertToken(alerts)
+        if (getLastHolidayAlertKey(context) == token) return
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             val granted = ContextCompat.checkSelfPermission(
@@ -441,7 +466,7 @@ object BirthdayHelper {
 
         try {
             NotificationManagerCompat.from(context).notify(HOLIDAY_NOTIFICATION_ID, notification)
-            setLastHolidayAlertKey(context, key)
+            setLastHolidayAlertKey(context, token)
         } catch (_: SecurityException) {
         }
     }
