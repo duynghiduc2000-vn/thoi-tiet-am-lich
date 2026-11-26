@@ -168,6 +168,7 @@ import kotlin.random.Random
 
 private const val APP_VERSION_NAME = "31.12-HPBD"
 private const val FEEDBACK_EMAIL = "duynghiduc12@gmail.com"
+private const val DEFAULT_BG_MUSIC_VOLUME = 0.15f
 
 private val SMOOTH_EXPAND_SPEC = spring<androidx.compose.ui.unit.IntSize>(
     dampingRatio = Spring.DampingRatioNoBouncy,
@@ -258,6 +259,11 @@ private enum class ExpandableSection {
     BIRTHDAY,
     HOLIDAY,
     BUG_REPORT
+}
+
+private enum class BatteryWarningTarget {
+    TOP_WEATHER_BG,
+    BG_MUSIC
 }
 
 private enum class FeedbackCategory(val label: String) {
@@ -470,6 +476,7 @@ private fun buildSoftCloudPath(baseX: Float, baseY: Float, scale: Float): Path {
 private fun TopBarDayNightIndicator(
     palette: AdaptivePalette,
     accentColor: Color,
+    isActive: Boolean,
     modifier: Modifier = Modifier
 ) {
     var isDay by remember {
@@ -477,54 +484,67 @@ private fun TopBarDayNightIndicator(
         mutableStateOf(isDaytimeWindow(h))
     }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(isActive) {
+        if (!isActive) return@LaunchedEffect
         while (true) {
             val h = Calendar.getInstance(TimeZone.getTimeZone("Asia/Ho_Chi_Minh")).get(Calendar.HOUR_OF_DAY)
             isDay = isDaytimeWindow(h)
-            delay(30_000L)
+            delay(60_000L)
         }
     }
 
-    val infiniteTransition = rememberInfiniteTransition(label = "day_night_top_badge")
-    val sunSpin by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 16_000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "sun_spin"
-    )
-    val moonTilt by infiniteTransition.animateFloat(
-        initialValue = -5f,
-        targetValue = 5f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 3_200, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "moon_tilt"
-    )
-    val cloudGlidePx by infiniteTransition.animateFloat(
-        initialValue = -2.6f,
-        targetValue = 2.6f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 2_800, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "cloud_glide"
-    )
-    val cloudBobPx by infiniteTransition.animateFloat(
-        initialValue = -0.9f,
-        targetValue = 0.9f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 2_100, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "cloud_bob"
-    )
-
     val moonGoldColor = Color(0xFFFFCA63)
     val cloudIceBlueColor = Color(0xFFB5E3F2)
+
+    val sunSpin: Float
+    val moonTilt: Float
+    val cloudGlidePx: Float
+    val cloudBobPx: Float
+
+    if (isActive) {
+        val infiniteTransition = rememberInfiniteTransition(label = "day_night_top_badge")
+        sunSpin = infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 360f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 18_000, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "sun_spin"
+        ).value
+        moonTilt = infiniteTransition.animateFloat(
+            initialValue = -5f,
+            targetValue = 5f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 3_600, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "moon_tilt"
+        ).value
+        cloudGlidePx = infiniteTransition.animateFloat(
+            initialValue = -2.4f,
+            targetValue = 2.4f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 3_200, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "cloud_glide"
+        ).value
+        cloudBobPx = infiniteTransition.animateFloat(
+            initialValue = -0.8f,
+            targetValue = 0.8f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 2_400, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "cloud_bob"
+        ).value
+    } else {
+        sunSpin = 0f
+        moonTilt = 0f
+        cloudGlidePx = 0f
+        cloudBobPx = 0f
+    }
 
     Surface(
         shape = CircleShape,
@@ -596,18 +616,24 @@ private fun TopWeatherCanvasEffect(
     weatherCode: Int,
     accentColor: Color,
     isDark: Boolean,
+    isActive: Boolean,
     modifier: Modifier = Modifier
 ) {
-    val transition = rememberInfiniteTransition(label = "top_weather_canvas")
-    val progress by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 8_000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "weather_progress"
-    )
+    val progress: Float
+    if (isActive) {
+        val transition = rememberInfiniteTransition(label = "top_weather_canvas")
+        progress = transition.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 10_000, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "weather_progress"
+        ).value
+    } else {
+        progress = 0.25f
+    }
 
     val isThunder = weatherCode in listOf(95, 96, 99)
     val isRain = weatherCode in listOf(51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82) || isThunder
@@ -619,7 +645,7 @@ private fun TopWeatherCanvasEffect(
             val w = size.width
             val h = size.height
 
-            val sparkleCount = 16
+            val sparkleCount = 14
             val sparkleColor = if (isDark) {
                 accentColor.copy(alpha = 0.20f)
             } else {
@@ -717,7 +743,7 @@ private fun TopWeatherCanvasEffect(
                     Color(0xFF0288D1).copy(alpha = 0.25f)
                 }
                 val rainCycle = (progress * 4f) % 1f
-                val dropCount = 26
+                val dropCount = 22
                 val dropLen = 15.dp.toPx()
                 for (i in 0 until dropCount) {
                     val lane = ((i + 0.4f) / dropCount) * w
@@ -891,7 +917,6 @@ private fun LiquidGlassVolumeSlider(
                 val usableWidthPx = (maxWidthPx - thumbPx).coerceAtLeast(1f)
                 val thumbOffsetPx = (clamped * usableWidthPx).roundToInt()
 
-                // Nền rãnh trượt
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -903,7 +928,6 @@ private fun LiquidGlassVolumeSlider(
                         )
                 )
 
-                // Phần rãnh đã kéo
                 Box(
                     modifier = Modifier
                         .width(with(density) { (thumbOffsetPx + thumbPx / 2f).toDp() })
@@ -919,7 +943,6 @@ private fun LiquidGlassVolumeSlider(
                         )
                 )
 
-                // Nút kéo hình tròn (Circular Thumb)
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
@@ -1317,6 +1340,7 @@ private fun sendFeedbackViaMail(
 @Composable
 private fun WidgetClockText(
     showSeconds: Boolean,
+    isActive: Boolean,
     fontSize: androidx.compose.ui.unit.TextUnit,
     color: Color
 ) {
@@ -1327,13 +1351,21 @@ private fun WidgetClockText(
         mutableStateOf(fmt.format(Date()))
     }
 
-    LaunchedEffect(showSeconds) {
+    LaunchedEffect(showSeconds, isActive) {
         val fmt = SimpleDateFormat(if (showSeconds) "HH:mm:ss" else "HH:mm", Locale.US).apply {
             timeZone = TimeZone.getTimeZone("Asia/Ho_Chi_Minh")
         }
+        clockText = fmt.format(Date())
+        if (!isActive) return@LaunchedEffect
         while (true) {
+            val nowMs = System.currentTimeMillis()
+            val waitMs = if (showSeconds) {
+                1_000L - (nowMs % 1_000L).coerceIn(0L, 999L)
+            } else {
+                60_000L - (nowMs % 60_000L).coerceIn(0L, 59_999L)
+            }
+            delay(waitMs.coerceAtLeast(250L))
             clockText = fmt.format(Date())
-            delay(if (showSeconds) 1_000L else 15_000L)
         }
     }
 
@@ -1357,6 +1389,7 @@ private fun WidgetPreviewBox(
     widgetBgMode: Int,
     accentColor: Color,
     showSeconds: Boolean,
+    isClockActive: Boolean,
     showWeatherEffect: Boolean,
     showLunarDate: Boolean,
     showWeatherInfo: Boolean,
@@ -1569,6 +1602,7 @@ private fun WidgetPreviewBox(
                 ) {
                     WidgetClockText(
                         showSeconds = showSeconds,
+                        isActive = isClockActive,
                         fontSize = clockSp,
                         color = primaryText
                     )
@@ -1696,6 +1730,7 @@ private fun LiquidGlassPopupSurface(
 @Composable
 fun ThoiTietAmLichApp() {
     val context = LocalContext.current
+    val appContext = remember(context) { context.applicationContext }
     val lifecycleOwner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
     val baseDensity = LocalDensity.current
@@ -1714,27 +1749,68 @@ fun ThoiTietAmLichApp() {
 
     // Trạng thái nhạc nền trong ứng dụng (mặc định tắt, âm lượng mặc định 0.15f)
     var bgMusicEnabled by remember { mutableStateOf(AppPrefs.isBgMusicEnabled(context)) }
-    var bgMusicVolume by remember { mutableFloatStateOf(AppPrefs.getBgMusicVolume(context)) }
+    var bgMusicVolume by remember {
+        mutableFloatStateOf(
+            try {
+                AppPrefs.getBgMusicVolume(context)
+            } catch (_: Exception) {
+                DEFAULT_BG_MUSIC_VOLUME
+            }
+        )
+    }
     var isAppResumed by remember { mutableStateOf(false) }
+    var mediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
 
-    val mediaPlayer = remember(context) {
-        MediaPlayer.create(context.applicationContext, R.raw.app_bg_music)?.apply {
-            isLooping = true
-            setAudioAttributes(
-                AudioAttributes.Builder()
-                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                    .setUsage(AudioAttributes.USAGE_MEDIA)
-                    .build()
-            )
+    fun releaseBgMusicPlayer() {
+        val current = mediaPlayer
+        mediaPlayer = null
+        if (current != null) {
+            try {
+                if (current.isPlaying) {
+                    current.stop()
+                }
+                current.release()
+            } catch (_: Exception) {
+            }
+        }
+    }
+
+    fun getOrCreateBgMusicPlayer(): MediaPlayer? {
+        mediaPlayer?.let { return it }
+        return try {
+            MediaPlayer.create(appContext, R.raw.app_bg_music)?.apply {
+                isLooping = true
+                setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .build()
+                )
+                mediaPlayer = this
+            }
+        } catch (_: Exception) {
+            null
         }
     }
 
     fun applyBgMusicState() {
-        val mp = mediaPlayer ?: return
         val clampedVol = bgMusicVolume.coerceIn(0f, 1f)
+        if (!bgMusicEnabled) {
+            mediaPlayer?.let { mp ->
+                try {
+                    if (mp.isPlaying) {
+                        mp.pause()
+                    }
+                } catch (_: IllegalStateException) {
+                }
+            }
+            return
+        }
+
+        val mp = getOrCreateBgMusicPlayer() ?: return
         try {
             mp.setVolume(clampedVol, clampedVol)
-            if (bgMusicEnabled && isAppResumed) {
+            if (isAppResumed) {
                 if (!mp.isPlaying) {
                     mp.start()
                 }
@@ -1772,15 +1848,9 @@ fun ThoiTietAmLichApp() {
         applyBgMusicState()
     }
 
-    DisposableEffect(mediaPlayer) {
+    DisposableEffect(Unit) {
         onDispose {
-            try {
-                if (mediaPlayer?.isPlaying == true) {
-                    mediaPlayer.stop()
-                }
-                mediaPlayer?.release()
-            } catch (_: Exception) {
-            }
+            releaseBgMusicPlayer()
         }
     }
 
@@ -1788,6 +1858,7 @@ fun ThoiTietAmLichApp() {
     var accentColorInt by remember { mutableIntStateOf(AppPrefs.getAccentColor(context)) }
     var showSeconds by remember { mutableStateOf(AppPrefs.isShowSeconds(context)) }
     var showSecondsWarningPopup by remember { mutableStateOf(false) }
+    var pendingBatteryWarningTarget by remember { mutableStateOf<BatteryWarningTarget?>(null) }
     var showWeatherEffect by remember { mutableStateOf(AppPrefs.isShowWeatherEffect(context)) }
     var showLunarDate by remember { mutableStateOf(AppPrefs.isShowLunarDate(context)) }
     var showWeatherInfo by remember { mutableStateOf(AppPrefs.isShowWeatherInfo(context)) }
@@ -1878,6 +1949,33 @@ fun ThoiTietAmLichApp() {
     val showAdminBirthdayToday = remember { BirthdayHelper.isAdminBirthdayToday() }
     var showBirthdayPopup by remember { mutableStateOf(false) }
 
+    val hasBlockingPopup = remember(
+        showHolidayPopup,
+        activeHolidayAlerts,
+        activeTodoPopup,
+        ageResultPopup,
+        showAgeHistoryClearedPopup,
+        lunarResultPopup,
+        showHistoryClearedPopup,
+        showSecondsWarningPopup,
+        pendingBatteryWarningTarget,
+        showBirthdayPopup,
+        todayBirthdays,
+        showAdminBirthdayToday
+    ) {
+        (showHolidayPopup && activeHolidayAlerts.isNotEmpty()) ||
+            activeTodoPopup != null ||
+            ageResultPopup != null ||
+            showAgeHistoryClearedPopup ||
+            lunarResultPopup != null ||
+            showHistoryClearedPopup ||
+            showSecondsWarningPopup ||
+            pendingBatteryWarningTarget != null ||
+            (showBirthdayPopup && (todayBirthdays.isNotEmpty() || showAdminBirthdayToday))
+    }
+
+    val canAnimateVisuals = isAppResumed && !hasBlockingPopup
+
     val previewSevenDays = remember(weather) {
         resolvePreviewSevenDays(context, weather.weatherCode)
     }
@@ -1961,7 +2059,7 @@ fun ThoiTietAmLichApp() {
         }
 
         while (true) {
-            delay(30_000L)
+            delay(60_000L)
             refreshTodosAndCheckDueTasks()
         }
     }
@@ -2090,7 +2188,8 @@ fun ThoiTietAmLichApp() {
                             actions = {
                                 TopBarDayNightIndicator(
                                     palette = palette,
-                                    accentColor = accentCompose
+                                    accentColor = accentCompose,
+                                    isActive = canAnimateVisuals
                                 )
                             }
                         )
@@ -2111,6 +2210,7 @@ fun ThoiTietAmLichApp() {
                                         weatherCode = weather.weatherCode,
                                         accentColor = accentCompose,
                                         isDark = palette.isDark,
+                                        isActive = canAnimateVisuals,
                                         modifier = Modifier.matchParentSize()
                                     )
                                 }
@@ -2178,6 +2278,7 @@ fun ThoiTietAmLichApp() {
                                                 widgetBgMode = widgetBgMode,
                                                 accentColor = accentCompose,
                                                 showSeconds = showSeconds,
+                                                isClockActive = canAnimateVisuals,
                                                 showWeatherEffect = showWeatherEffect,
                                                 showLunarDate = showLunarDate,
                                                 showWeatherInfo = showWeatherInfo,
@@ -2293,7 +2394,6 @@ fun ThoiTietAmLichApp() {
                                 expanded = expandedSection == ExpandableSection.APP_APPEARANCE_AUDIO,
                                 onToggle = { toggleSection(ExpandableSection.APP_APPEARANCE_AUDIO) }
                             ) {
-                                // Hàng 1: Nền ứng dụng (độ cao cố định 52.dp đồng nhất với hàng 2)
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -2346,7 +2446,6 @@ fun ThoiTietAmLichApp() {
 
                                 SectionHairline(palette)
 
-                                // Hàng 2: Hiệu ứng thời tiết trong nền ứng dụng (độ cao cố định 52.dp đồng nhất với hàng 1)
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -2376,14 +2475,17 @@ fun ThoiTietAmLichApp() {
                                         checked = topWeatherBgEnabled,
                                         colors = SwitchDefaults.colors(checkedTrackColor = accentCompose),
                                         onCheckedChange = { checked ->
-                                            topWeatherBgEnabled = checked
+                                            if (checked) {
+                                                pendingBatteryWarningTarget = BatteryWarningTarget.TOP_WEATHER_BG
+                                            } else {
+                                                topWeatherBgEnabled = false
+                                            }
                                         }
                                     )
                                 }
 
                                 SectionHairline(palette)
 
-                                // Hàng 3: Nhạc nền trong ứng dụng + Khung Liquid Glass điều chỉnh âm lượng
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -2406,8 +2508,12 @@ fun ThoiTietAmLichApp() {
                                         checked = bgMusicEnabled,
                                         colors = SwitchDefaults.colors(checkedTrackColor = accentCompose),
                                         onCheckedChange = { checked ->
-                                            bgMusicEnabled = checked
-                                            AppPrefs.setBgMusicEnabled(context, checked)
+                                            if (checked) {
+                                                pendingBatteryWarningTarget = BatteryWarningTarget.BG_MUSIC
+                                            } else {
+                                                bgMusicEnabled = false
+                                                AppPrefs.setBgMusicEnabled(context, false)
+                                            }
                                         }
                                     )
                                 }
@@ -2421,7 +2527,10 @@ fun ThoiTietAmLichApp() {
                                         onVolumeChange = { v ->
                                             val clamped = v.coerceIn(0f, 1f)
                                             bgMusicVolume = clamped
-                                            AppPrefs.setBgMusicVolume(context, clamped)
+                                            try {
+                                                AppPrefs.setBgMusicVolume(context, clamped)
+                                            } catch (_: Exception) {
+                                            }
                                         }
                                     )
                                 }
@@ -4825,11 +4934,15 @@ fun ThoiTietAmLichApp() {
                 }
 
                 AnimatedVisibility(
-                    visible = showSecondsWarningPopup,
+                    visible = showSecondsWarningPopup || pendingBatteryWarningTarget != null,
                     enter = fadeIn() + scaleIn(initialScale = 0.92f),
                     exit = fadeOut() + scaleOut(targetScale = 0.92f),
                     modifier = Modifier.fillMaxSize()
                 ) {
+                    val closeBatteryWarningPopup = {
+                        showSecondsWarningPopup = false
+                        pendingBatteryWarningTarget = null
+                    }
                     Box(
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
@@ -4838,7 +4951,7 @@ fun ThoiTietAmLichApp() {
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null
-                            ) { showSecondsWarningPopup = false }
+                            ) { closeBatteryWarningPopup() }
                             .padding(horizontal = 24.dp)
                     ) {
                         LiquidGlassPopupSurface(palette = palette) {
@@ -4851,7 +4964,7 @@ fun ThoiTietAmLichApp() {
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     IconButton(
-                                        onClick = { showSecondsWarningPopup = false },
+                                        onClick = closeBatteryWarningPopup,
                                         modifier = Modifier.size(32.dp)
                                     ) {
                                         Icon(
@@ -4904,7 +5017,7 @@ fun ThoiTietAmLichApp() {
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     OutlinedButton(
-                                        onClick = { showSecondsWarningPopup = false },
+                                        onClick = closeBatteryWarningPopup,
                                         shape = RoundedCornerShape(16.dp),
                                         modifier = Modifier
                                             .weight(1f)
@@ -4919,10 +5032,21 @@ fun ThoiTietAmLichApp() {
 
                                     Button(
                                         onClick = {
-                                            showSecondsWarningPopup = false
-                                            showSeconds = true
-                                            AppPrefs.setShowSeconds(context, true)
-                                            WeatherLunarWidget.updateAllWidgets(context)
+                                            when {
+                                                showSecondsWarningPopup -> {
+                                                    showSeconds = true
+                                                    AppPrefs.setShowSeconds(context, true)
+                                                    WeatherLunarWidget.updateAllWidgets(context)
+                                                }
+                                                pendingBatteryWarningTarget == BatteryWarningTarget.TOP_WEATHER_BG -> {
+                                                    topWeatherBgEnabled = true
+                                                }
+                                                pendingBatteryWarningTarget == BatteryWarningTarget.BG_MUSIC -> {
+                                                    bgMusicEnabled = true
+                                                    AppPrefs.setBgMusicEnabled(context, true)
+                                                }
+                                            }
+                                            closeBatteryWarningPopup()
                                         },
                                         shape = RoundedCornerShape(16.dp),
                                         colors = ButtonDefaults.buttonColors(
