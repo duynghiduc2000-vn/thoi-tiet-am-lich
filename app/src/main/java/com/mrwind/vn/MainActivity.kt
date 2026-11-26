@@ -6,7 +6,6 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.net.Uri
@@ -17,6 +16,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -33,6 +33,9 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -136,6 +139,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -146,6 +150,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -170,10 +175,18 @@ private const val APP_VERSION_NAME = "31.12-HPBD"
 private const val FEEDBACK_EMAIL = "duynghiduc12@gmail.com"
 private const val DEFAULT_BG_MUSIC_VOLUME = 0.15f
 
-private val SMOOTH_EXPAND_SPEC = spring<androidx.compose.ui.unit.IntSize>(
+private val SMOOTH_EXPAND_SPEC = spring<IntSize>(
     dampingRatio = Spring.DampingRatioNoBouncy,
     stiffness = Spring.StiffnessMediumLow
 )
+
+private val BOUNCY_EXPAND_SPEC = spring<IntSize>(
+    dampingRatio = Spring.DampingRatioMediumBouncy,
+    stiffness = Spring.StiffnessMediumLow
+)
+
+private fun expandAnimSpec(bounceEnabled: Boolean) =
+    if (bounceEnabled) BOUNCY_EXPAND_SPEC else SMOOTH_EXPAND_SPEC
 
 private val DAILY_WARM_MESSAGES = listOf(
     "Chúc bạn hôm nay thật nhẹ nhàng, bình yên và gặp nhiều điều dễ thương",
@@ -263,7 +276,8 @@ private enum class ExpandableSection {
 
 private enum class BatteryWarningTarget {
     TOP_WEATHER_BG,
-    BG_MUSIC
+    BG_MUSIC,
+    CARD_BOUNCE
 }
 
 private enum class FeedbackCategory(val label: String) {
@@ -1745,6 +1759,7 @@ fun ThoiTietAmLichApp() {
     }
 
     var appThemeMode by remember { mutableIntStateOf(AppPrefs.getAppThemeMode(context)) }
+    var cardBounceEnabled by remember { mutableStateOf(AppPrefs.isCardBounceEnabled(context)) }
     var topWeatherBgEnabled by remember { mutableStateOf(false) }
 
     // Trạng thái nhạc nền trong ứng dụng (mặc định tắt, âm lượng mặc định 0.15f)
@@ -2391,6 +2406,7 @@ fun ThoiTietAmLichApp() {
                                 badgeText = currentThemeLabel,
                                 accentColor = accentCompose,
                                 palette = palette,
+                                bounceEnabled = cardBounceEnabled,
                                 expanded = expandedSection == ExpandableSection.APP_APPEARANCE_AUDIO,
                                 onToggle = { toggleSection(ExpandableSection.APP_APPEARANCE_AUDIO) }
                             ) {
@@ -2442,6 +2458,47 @@ fun ThoiTietAmLichApp() {
                                             )
                                         }
                                     }
+                                }
+
+                                SectionHairline(palette)
+
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(52.dp)
+                                ) {
+                                    Text(
+                                        "Hiệu ứng nảy ghi bấm vào các thẻ",
+                                        fontSize = 13.5.sp,
+                                        color = palette.textPrimary,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Clip,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clipToBounds()
+                                            .basicMarquee(
+                                                iterations = Int.MAX_VALUE,
+                                                repeatDelayMillis = 1200,
+                                                velocity = 24.dp
+                                            )
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Switch(
+                                        checked = cardBounceEnabled,
+                                        colors = SwitchDefaults.colors(checkedTrackColor = accentCompose),
+                                        onCheckedChange = { checked ->
+                                            if (checked) {
+                                                pendingBatteryWarningTarget = BatteryWarningTarget.CARD_BOUNCE
+                                            } else {
+                                                cardBounceEnabled = false
+                                                AppPrefs.setCardBounceEnabled(context, false)
+                                            }
+                                        }
+                                    )
                                 }
 
                                 SectionHairline(palette)
@@ -2543,6 +2600,7 @@ fun ThoiTietAmLichApp() {
                                 badgeText = if (showSeconds) "HH:mm:ss" else "HH:mm",
                                 accentColor = accentCompose,
                                 palette = palette,
+                                bounceEnabled = cardBounceEnabled,
                                 expanded = expandedSection == ExpandableSection.CLOCK_THEME_BG,
                                 onToggle = { toggleSection(ExpandableSection.CLOCK_THEME_BG) }
                             ) {
@@ -2681,6 +2739,7 @@ fun ThoiTietAmLichApp() {
                                 badgeText = selectedAccentName,
                                 accentColor = accentCompose,
                                 palette = palette,
+                                bounceEnabled = cardBounceEnabled,
                                 expanded = expandedSection == ExpandableSection.ACCENT_COLOR,
                                 onToggle = { toggleSection(ExpandableSection.ACCENT_COLOR) }
                             ) {
@@ -2728,6 +2787,7 @@ fun ThoiTietAmLichApp() {
                                 badgeText = if (autoLocation) "GPS" else "Tùy chọn",
                                 accentColor = accentCompose,
                                 palette = palette,
+                                bounceEnabled = cardBounceEnabled,
                                 expanded = expandedSection == ExpandableSection.LOCATION_SIGNATURE,
                                 onToggle = { toggleSection(ExpandableSection.LOCATION_SIGNATURE) }
                             ) {
@@ -2881,6 +2941,7 @@ fun ThoiTietAmLichApp() {
                                 badgeText = "1 – 20",
                                 accentColor = accentCompose,
                                 palette = palette,
+                                bounceEnabled = cardBounceEnabled,
                                 expanded = expandedSection == ExpandableSection.FONT_SCALE,
                                 onToggle = { toggleSection(ExpandableSection.FONT_SCALE) }
                             ) {
@@ -2954,6 +3015,7 @@ fun ThoiTietAmLichApp() {
                                     badgeText = "${todoTasks.size}/${TodoHelper.MAX_TASKS_PER_DAY}",
                                     accentColor = accentCompose,
                                     palette = palette,
+                                    bounceEnabled = cardBounceEnabled,
                                     expanded = expandedSection == ExpandableSection.TODO,
                                     onToggle = { toggleSection(ExpandableSection.TODO) }
                                 ) {
@@ -3152,11 +3214,17 @@ fun ThoiTietAmLichApp() {
                         }
 
                         item(key = "lunar_and_age_row_section") {
+                            val activeDualSection = when (expandedSection) {
+                                ExpandableSection.LUNAR_LOOKUP,
+                                ExpandableSection.AGE_CALC -> expandedSection
+                                else -> null
+                            }
+
                             Column(
                                 verticalArrangement = Arrangement.spacedBy(10.dp),
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .animateContentSize(animationSpec = SMOOTH_EXPAND_SPEC)
+                                    .animateContentSize(animationSpec = expandAnimSpec(cardBounceEnabled))
                             ) {
                                 Row(
                                     horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -3168,6 +3236,7 @@ fun ThoiTietAmLichApp() {
                                         badgeText = "${lunarHistory.size} lưu",
                                         accentColor = accentCompose,
                                         palette = palette,
+                                        bounceEnabled = cardBounceEnabled,
                                         expanded = expandedSection == ExpandableSection.LUNAR_LOOKUP,
                                         onToggle = { toggleSection(ExpandableSection.LUNAR_LOOKUP) },
                                         modifier = Modifier.weight(1f)
@@ -3178,479 +3247,521 @@ fun ThoiTietAmLichApp() {
                                         badgeText = "${ageHistory.size} lưu",
                                         accentColor = accentCompose,
                                         palette = palette,
+                                        bounceEnabled = cardBounceEnabled,
                                         expanded = expandedSection == ExpandableSection.AGE_CALC,
                                         onToggle = { toggleSection(ExpandableSection.AGE_CALC) },
                                         modifier = Modifier.weight(1f)
                                     )
                                 }
 
-                                if (expandedSection == ExpandableSection.LUNAR_LOOKUP) {
-                                    Surface(
-                                        shape = RoundedCornerShape(24.dp),
-                                        color = Color.Transparent,
-                                        contentColor = palette.textPrimary,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .bringIntoViewRequester(lookupSectionBringIntoView)
-                                            .clip(RoundedCornerShape(24.dp))
-                                            .background(palette.liquidGlassBrush)
-                                            .border(1.3.dp, accentCompose.copy(alpha = 0.65f), RoundedCornerShape(24.dp))
-                                    ) {
-                                        Column(modifier = Modifier.padding(16.dp)) {
-                                            Text(
-                                                "Nhập ngày, tháng, năm dương lịch và bấm Tìm kiếm để xem thông báo lịch âm.",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = palette.textSecondary
-                                            )
-                                            Spacer(modifier = Modifier.height(10.dp))
-
-                                            Row(
-                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                                modifier = Modifier.fillMaxWidth()
-                                            ) {
-                                                ModernTextField(
-                                                    value = lookupDayInput,
-                                                    onValueChange = {
-                                                        lookupDayInput = it.filter { ch -> ch.isDigit() }.take(2)
-                                                        lookupError = null
-                                                    },
-                                                    label = "Ngày",
-                                                    accentColor = accentCompose,
-                                                    palette = palette,
-                                                    modifier = Modifier
-                                                        .weight(1f)
-                                                        .onFocusChanged { focusState ->
-                                                            if (focusState.isFocused) {
-                                                                scope.launch {
-                                                                    delay(180)
-                                                                    lookupSectionBringIntoView.bringIntoView()
-                                                                }
-                                                            }
-                                                        }
+                                AnimatedContent(
+                                    targetState = activeDualSection,
+                                    transitionSpec = {
+                                        val enterSpec = if (cardBounceEnabled) {
+                                            fadeIn(tween(180)) +
+                                                slideInVertically(
+                                                    animationSpec = spring(
+                                                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                                                        stiffness = Spring.StiffnessMediumLow
+                                                    ),
+                                                    initialOffsetY = { it / 8 }
+                                                ) +
+                                                scaleIn(
+                                                    animationSpec = spring(
+                                                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                                                        stiffness = Spring.StiffnessMediumLow
+                                                    ),
+                                                    initialScale = 0.97f
                                                 )
-                                                ModernTextField(
-                                                    value = lookupMonthInput,
-                                                    onValueChange = {
-                                                        lookupMonthInput = it.filter { ch -> ch.isDigit() }.take(2)
-                                                        lookupError = null
-                                                    },
-                                                    label = "Tháng",
-                                                    accentColor = accentCompose,
-                                                    palette = palette,
-                                                    modifier = Modifier
-                                                        .weight(1f)
-                                                        .onFocusChanged { focusState ->
-                                                            if (focusState.isFocused) {
-                                                                scope.launch {
-                                                                    delay(180)
-                                                                    lookupSectionBringIntoView.bringIntoView()
-                                                                }
-                                                            }
-                                                        }
+                                        } else {
+                                            fadeIn(tween(160)) +
+                                                slideInVertically(
+                                                    animationSpec = tween(180),
+                                                    initialOffsetY = { it / 10 }
                                                 )
-                                                ModernTextField(
-                                                    value = lookupYearInput,
-                                                    onValueChange = {
-                                                        lookupYearInput = it.filter { ch -> ch.isDigit() }.take(4)
-                                                        lookupError = null
-                                                    },
-                                                    label = "Năm",
-                                                    accentColor = accentCompose,
-                                                    palette = palette,
-                                                    modifier = Modifier
-                                                        .weight(1.35f)
-                                                        .onFocusChanged { focusState ->
-                                                            if (focusState.isFocused) {
-                                                                scope.launch {
-                                                                    delay(180)
-                                                                    lookupSectionBringIntoView.bringIntoView()
-                                                                }
-                                                            }
-                                                        }
-                                                )
-                                            }
-
-                                            if (lookupError != null) {
-                                                Text(
-                                                    lookupError!!,
-                                                    color = MaterialTheme.colorScheme.error,
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    modifier = Modifier.padding(top = 6.dp)
-                                                )
-                                            }
-
-                                            Spacer(modifier = Modifier.height(10.dp))
-
-                                            Button(
-                                                onClick = {
-                                                    val d = lookupDayInput.toIntOrNull() ?: 0
-                                                    val m = lookupMonthInput.toIntOrNull() ?: 0
-                                                    val y = lookupYearInput.toIntOrNull() ?: 0
-                                                    if (y !in 1900..2100 || m !in 1..12 || d !in 1..31) {
-                                                        lookupError = "Vui lòng nhập ngày (1–31), tháng (1–12), năm (1900–2100) hợp lệ."
-                                                        return@Button
-                                                    }
-                                                    try {
-                                                        performLunarLookup(d, m, y)
-                                                        lookupError = null
-                                                    } catch (_: Exception) {
-                                                        lookupError = "Ngày dương lịch không tồn tại (ví dụ 30/02 hoặc 31/04)."
-                                                    }
-                                                },
-                                                shape = RoundedCornerShape(16.dp),
-                                                colors = ButtonDefaults.buttonColors(
-                                                    containerColor = accentCompose,
-                                                    contentColor = palette.onAccentText
-                                                ),
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .height(46.dp)
-                                            ) {
-                                                Icon(Icons.Default.Search, contentDescription = null)
-                                                Spacer(modifier = Modifier.width(6.dp))
-                                                Text("Tìm kiếm", fontWeight = FontWeight.Bold)
-                                            }
-
-                                            Spacer(modifier = Modifier.height(14.dp))
-
-                                            Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                modifier = Modifier.fillMaxWidth()
-                                            ) {
-                                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    Icon(
-                                                        Icons.Default.History,
-                                                        contentDescription = null,
-                                                        tint = accentCompose,
-                                                        modifier = Modifier.size(18.dp)
-                                                    )
-                                                    Spacer(modifier = Modifier.width(6.dp))
-                                                    Text(
-                                                        "Lịch sử tìm kiếm (${lunarHistory.size})",
-                                                        color = palette.textPrimary,
-                                                        fontWeight = FontWeight.SemiBold
-                                                    )
-                                                }
-
-                                                if (lunarHistory.isNotEmpty()) {
-                                                    OutlinedButton(
-                                                        onClick = {
-                                                            AppPrefs.clearLunarHistory(context)
-                                                            lunarHistory = emptyList()
-                                                            showHistoryClearedPopup = true
-                                                        },
-                                                        shape = RoundedCornerShape(12.dp),
-                                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
-                                                    ) {
-                                                        Icon(
-                                                            Icons.Default.DeleteSweep,
-                                                            contentDescription = null,
-                                                            tint = palette.textPrimary,
-                                                            modifier = Modifier.size(18.dp)
-                                                        )
-                                                        Spacer(modifier = Modifier.width(4.dp))
-                                                        Text("Xóa lịch sử", color = palette.textPrimary, fontSize = 12.sp)
-                                                    }
-                                                }
-                                            }
-
-                                            if (lunarHistory.isEmpty()) {
-                                                Text(
-                                                    "Chưa có lịch sử tra cứu nào.",
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = palette.textSecondary,
-                                                    modifier = Modifier.padding(top = 6.dp)
-                                                )
-                                            } else {
-                                                Spacer(modifier = Modifier.height(8.dp))
-                                                Column {
-                                                    lunarHistory.forEachIndexed { idx, item ->
-                                                        if (idx > 0) SectionHairline(palette)
-                                                        val solarStr = remember(item.id) {
-                                                            "${item.solarDay.toString().padStart(2, '0')}/${item.solarMonth.toString().padStart(2, '0')}/${item.solarYear}"
-                                                        }
-                                                        val freshSummary = remember(item.id) {
-                                                            try {
-                                                                convertSolarToLunarSummary(
-                                                                    item.solarDay,
-                                                                    item.solarMonth,
-                                                                    item.solarYear
-                                                                )
-                                                            } catch (_: Exception) {
-                                                                item.lunarSummary
-                                                            }
-                                                        }
-                                                        Column(
-                                                            modifier = Modifier
-                                                                .fillMaxWidth()
-                                                                .clickable {
-                                                                    lookupDayInput = item.solarDay.toString()
-                                                                    lookupMonthInput = item.solarMonth.toString()
-                                                                    lookupYearInput = item.solarYear.toString()
-                                                                    lunarResultPopup = LunarResultPopupData(
-                                                                        solarLabel = "Dương lịch: $solarStr",
-                                                                        lunarSummary = freshSummary
-                                                                    )
-                                                                }
-                                                                .padding(vertical = 10.dp)
-                                                        ) {
-                                                            Text(
-                                                                "📅 Dương: $solarStr",
-                                                                color = accentCompose,
-                                                                fontWeight = FontWeight.Bold,
-                                                                style = MaterialTheme.typography.bodyMedium
-                                                            )
-                                                            Text(
-                                                                freshSummary,
-                                                                color = palette.textPrimary,
-                                                                fontWeight = FontWeight.Medium,
-                                                                style = MaterialTheme.typography.bodySmall,
-                                                                modifier = Modifier.padding(top = 2.dp)
-                                                            )
-                                                        }
-                                                    }
-                                                }
-                                            }
                                         }
-                                    }
-                                }
-
-                                if (expandedSection == ExpandableSection.AGE_CALC) {
-                                    Surface(
-                                        shape = RoundedCornerShape(24.dp),
-                                        color = Color.Transparent,
-                                        contentColor = palette.textPrimary,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .bringIntoViewRequester(ageSectionBringIntoView)
-                                            .clip(RoundedCornerShape(24.dp))
-                                            .background(palette.liquidGlassBrush)
-                                            .border(1.3.dp, accentCompose.copy(alpha = 0.65f), RoundedCornerShape(24.dp))
-                                    ) {
-                                        Column(modifier = Modifier.padding(16.dp)) {
-                                            Text(
-                                                "Nhập ngày, tháng, năm sinh để tính số tuổi kèm số tháng tính đến hiện tại.",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = palette.textSecondary
+                                        val exitSpec = fadeOut(tween(130)) +
+                                            slideOutVertically(
+                                                animationSpec = tween(130),
+                                                targetOffsetY = { -it / 12 }
                                             )
-                                            Spacer(modifier = Modifier.height(10.dp))
-
-                                            Row(
-                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                                modifier = Modifier.fillMaxWidth()
-                                            ) {
-                                                ModernTextField(
-                                                    value = ageDayInput,
-                                                    onValueChange = {
-                                                        ageDayInput = it.filter { ch -> ch.isDigit() }.take(2)
-                                                        ageError = null
-                                                    },
-                                                    label = "Ngày sinh",
-                                                    accentColor = accentCompose,
-                                                    palette = palette,
-                                                    modifier = Modifier
-                                                        .weight(1f)
-                                                        .onFocusChanged { focusState ->
-                                                            if (focusState.isFocused) {
-                                                                scope.launch {
-                                                                    delay(180)
-                                                                    ageSectionBringIntoView.bringIntoView()
-                                                                }
-                                                            }
-                                                        }
-                                                )
-                                                ModernTextField(
-                                                    value = ageMonthInput,
-                                                    onValueChange = {
-                                                        ageMonthInput = it.filter { ch -> ch.isDigit() }.take(2)
-                                                        ageError = null
-                                                    },
-                                                    label = "Tháng sinh",
-                                                    accentColor = accentCompose,
-                                                    palette = palette,
-                                                    modifier = Modifier
-                                                        .weight(1f)
-                                                        .onFocusChanged { focusState ->
-                                                            if (focusState.isFocused) {
-                                                                scope.launch {
-                                                                    delay(180)
-                                                                    ageSectionBringIntoView.bringIntoView()
-                                                                }
-                                                            }
-                                                        }
-                                                )
-                                                ModernTextField(
-                                                    value = ageYearInput,
-                                                    onValueChange = {
-                                                        ageYearInput = it.filter { ch -> ch.isDigit() }.take(4)
-                                                        ageError = null
-                                                    },
-                                                    label = "Năm sinh",
-                                                    accentColor = accentCompose,
-                                                    palette = palette,
-                                                    modifier = Modifier
-                                                        .weight(1.35f)
-                                                        .onFocusChanged { focusState ->
-                                                            if (focusState.isFocused) {
-                                                                scope.launch {
-                                                                    delay(180)
-                                                                    ageSectionBringIntoView.bringIntoView()
-                                                                }
-                                                            }
-                                                        }
-                                                )
-                                            }
-
-                                            if (ageError != null) {
-                                                Text(
-                                                    ageError!!,
-                                                    color = MaterialTheme.colorScheme.error,
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    modifier = Modifier.padding(top = 6.dp)
-                                                )
-                                            }
-
-                                            Spacer(modifier = Modifier.height(10.dp))
-
-                                            Button(
-                                                onClick = {
-                                                    val d = ageDayInput.toIntOrNull() ?: 0
-                                                    val m = ageMonthInput.toIntOrNull() ?: 0
-                                                    val y = ageYearInput.toIntOrNull() ?: 0
-                                                    val currentYear = Calendar.getInstance(TimeZone.getTimeZone("Asia/Ho_Chi_Minh"))
-                                                        .get(Calendar.YEAR)
-                                                    if (y !in 1900..currentYear || m !in 1..12 || d !in 1..31) {
-                                                        ageError = "Vui lòng nhập ngày (1–31), tháng (1–12), năm sinh (1900–$currentYear) hợp lệ."
-                                                        return@Button
-                                                    }
-                                                    try {
-                                                        performAgeCalculation(d, m, y)
-                                                        ageError = null
-                                                    } catch (_: IllegalArgumentException) {
-                                                        ageError = "Ngày sinh không được lớn hơn ngày hiện tại."
-                                                    } catch (_: Exception) {
-                                                        ageError = "Ngày sinh không tồn tại trên lịch dương."
-                                                    }
-                                                },
-                                                shape = RoundedCornerShape(16.dp),
-                                                colors = ButtonDefaults.buttonColors(
-                                                    containerColor = accentCompose,
-                                                    contentColor = palette.onAccentText
-                                                ),
+                                        enterSpec togetherWith exitSpec
+                                    },
+                                    label = "lunar_age_panel_switch"
+                                ) { currentPanel ->
+                                    when (currentPanel) {
+                                        ExpandableSection.LUNAR_LOOKUP -> {
+                                            Surface(
+                                                shape = RoundedCornerShape(24.dp),
+                                                color = Color.Transparent,
+                                                contentColor = palette.textPrimary,
                                                 modifier = Modifier
                                                     .fillMaxWidth()
-                                                    .height(46.dp)
+                                                    .bringIntoViewRequester(lookupSectionBringIntoView)
+                                                    .clip(RoundedCornerShape(24.dp))
+                                                    .background(palette.liquidGlassBrush)
+                                                    .border(1.3.dp, accentCompose.copy(alpha = 0.65f), RoundedCornerShape(24.dp))
                                             ) {
-                                                Icon(Icons.Default.PersonSearch, contentDescription = null)
-                                                Spacer(modifier = Modifier.width(6.dp))
-                                                Text("Tính tuổi", fontWeight = FontWeight.Bold)
-                                            }
-
-                                            Spacer(modifier = Modifier.height(14.dp))
-
-                                            Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                modifier = Modifier.fillMaxWidth()
-                                            ) {
-                                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    Icon(
-                                                        Icons.Default.History,
-                                                        contentDescription = null,
-                                                        tint = accentCompose,
-                                                        modifier = Modifier.size(18.dp)
-                                                    )
-                                                    Spacer(modifier = Modifier.width(6.dp))
+                                                Column(modifier = Modifier.padding(16.dp)) {
                                                     Text(
-                                                        "Lịch sử tính tuổi (${ageHistory.size})",
-                                                        color = palette.textPrimary,
-                                                        fontWeight = FontWeight.SemiBold
+                                                        "Nhập ngày, tháng, năm dương lịch và bấm Tìm kiếm để xem thông báo lịch âm.",
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = palette.textSecondary
                                                     )
-                                                }
+                                                    Spacer(modifier = Modifier.height(10.dp))
 
-                                                if (ageHistory.isNotEmpty()) {
-                                                    OutlinedButton(
-                                                        onClick = {
-                                                            AppPrefs.clearAgeHistory(context)
-                                                            ageHistory = emptyList()
-                                                            showAgeHistoryClearedPopup = true
-                                                        },
-                                                        shape = RoundedCornerShape(12.dp),
-                                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                                                    Row(
+                                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                        modifier = Modifier.fillMaxWidth()
                                                     ) {
-                                                        Icon(
-                                                            Icons.Default.DeleteSweep,
-                                                            contentDescription = null,
-                                                            tint = palette.textPrimary,
-                                                            modifier = Modifier.size(18.dp)
-                                                        )
-                                                        Spacer(modifier = Modifier.width(4.dp))
-                                                        Text("Xóa lịch sử", color = palette.textPrimary, fontSize = 12.sp)
-                                                    }
-                                                }
-                                            }
-
-                                            if (ageHistory.isEmpty()) {
-                                                Text(
-                                                    "Chưa có lịch sử tính tuổi nào.",
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = palette.textSecondary,
-                                                    modifier = Modifier.padding(top = 6.dp)
-                                                )
-                                            } else {
-                                                Spacer(modifier = Modifier.height(8.dp))
-                                                Column {
-                                                    ageHistory.forEachIndexed { idx, item ->
-                                                        if (idx > 0) SectionHairline(palette)
-                                                        val birthStr = remember(item.id) {
-                                                            "${item.birthDay.toString().padStart(2, '0')}/${item.birthMonth.toString().padStart(2, '0')}/${item.birthYear}"
-                                                        }
-                                                        val liveCalc = remember(item.id) {
-                                                            try {
-                                                                calculateAgeFromNow(item.birthDay, item.birthMonth, item.birthYear)
-                                                            } catch (_: Exception) {
-                                                                null
-                                                            }
-                                                        }
-                                                        val displayAge = liveCalc?.summary ?: item.ageSummary
-                                                        Column(
+                                                        ModernTextField(
+                                                            value = lookupDayInput,
+                                                            onValueChange = {
+                                                                lookupDayInput = it.filter { ch -> ch.isDigit() }.take(2)
+                                                                lookupError = null
+                                                            },
+                                                            label = "Ngày",
+                                                            accentColor = accentCompose,
+                                                            palette = palette,
                                                             modifier = Modifier
-                                                                .fillMaxWidth()
-                                                                .clickable {
-                                                                    ageDayInput = item.birthDay.toString()
-                                                                    ageMonthInput = item.birthMonth.toString()
-                                                                    ageYearInput = item.birthYear.toString()
-                                                                    val curStr = liveCalc?.currentLabel ?: run {
-                                                                        val c = Calendar.getInstance(TimeZone.getTimeZone("Asia/Ho_Chi_Minh"))
-                                                                        "${c.get(Calendar.DAY_OF_MONTH).toString().padStart(2, '0')}/${(c.get(Calendar.MONTH) + 1).toString().padStart(2, '0')}/${c.get(Calendar.YEAR)}"
+                                                                .weight(1f)
+                                                                .onFocusChanged { focusState ->
+                                                                    if (focusState.isFocused) {
+                                                                        scope.launch {
+                                                                            delay(180)
+                                                                            lookupSectionBringIntoView.bringIntoView()
+                                                                        }
                                                                     }
-                                                                    ageResultPopup = AgeResultPopupData(
-                                                                        birthLabel = "Ngày sinh: $birthStr",
-                                                                        currentLabel = "Tính đến ngày: $curStr",
-                                                                        ageSummary = displayAge
+                                                                }
+                                                        )
+                                                        ModernTextField(
+                                                            value = lookupMonthInput,
+                                                            onValueChange = {
+                                                                lookupMonthInput = it.filter { ch -> ch.isDigit() }.take(2)
+                                                                lookupError = null
+                                                            },
+                                                            label = "Tháng",
+                                                            accentColor = accentCompose,
+                                                            palette = palette,
+                                                            modifier = Modifier
+                                                                .weight(1f)
+                                                                .onFocusChanged { focusState ->
+                                                                    if (focusState.isFocused) {
+                                                                        scope.launch {
+                                                                            delay(180)
+                                                                            lookupSectionBringIntoView.bringIntoView()
+                                                                        }
+                                                                    }
+                                                                }
+                                                        )
+                                                        ModernTextField(
+                                                            value = lookupYearInput,
+                                                            onValueChange = {
+                                                                lookupYearInput = it.filter { ch -> ch.isDigit() }.take(4)
+                                                                lookupError = null
+                                                            },
+                                                            label = "Năm",
+                                                            accentColor = accentCompose,
+                                                            palette = palette,
+                                                            modifier = Modifier
+                                                                .weight(1.35f)
+                                                                .onFocusChanged { focusState ->
+                                                                    if (focusState.isFocused) {
+                                                                        scope.launch {
+                                                                            delay(180)
+                                                                            lookupSectionBringIntoView.bringIntoView()
+                                                                        }
+                                                                    }
+                                                                }
+                                                        )
+                                                    }
+
+                                                    if (lookupError != null) {
+                                                        Text(
+                                                            lookupError!!,
+                                                            color = MaterialTheme.colorScheme.error,
+                                                            style = MaterialTheme.typography.bodySmall,
+                                                            modifier = Modifier.padding(top = 6.dp)
+                                                        )
+                                                    }
+
+                                                    Spacer(modifier = Modifier.height(10.dp))
+
+                                                    Button(
+                                                        onClick = {
+                                                            val d = lookupDayInput.toIntOrNull() ?: 0
+                                                            val m = lookupMonthInput.toIntOrNull() ?: 0
+                                                            val y = lookupYearInput.toIntOrNull() ?: 0
+                                                            if (y !in 1900..2100 || m !in 1..12 || d !in 1..31) {
+                                                                lookupError = "Vui lòng nhập ngày (1–31), tháng (1–12), năm (1900–2100) hợp lệ."
+                                                                return@Button
+                                                            }
+                                                            try {
+                                                                performLunarLookup(d, m, y)
+                                                                lookupError = null
+                                                            } catch (_: Exception) {
+                                                                lookupError = "Ngày dương lịch không tồn tại (ví dụ 30/02 hoặc 31/04)."
+                                                            }
+                                                        },
+                                                        shape = RoundedCornerShape(16.dp),
+                                                        colors = ButtonDefaults.buttonColors(
+                                                            containerColor = accentCompose,
+                                                            contentColor = palette.onAccentText
+                                                        ),
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .height(46.dp)
+                                                    ) {
+                                                        Icon(Icons.Default.Search, contentDescription = null)
+                                                        Spacer(modifier = Modifier.width(6.dp))
+                                                        Text("Tìm kiếm", fontWeight = FontWeight.Bold)
+                                                    }
+
+                                                    Spacer(modifier = Modifier.height(14.dp))
+
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                                        modifier = Modifier.fillMaxWidth()
+                                                    ) {
+                                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                                            Icon(
+                                                                Icons.Default.History,
+                                                                contentDescription = null,
+                                                                tint = accentCompose,
+                                                                modifier = Modifier.size(18.dp)
+                                                            )
+                                                            Spacer(modifier = Modifier.width(6.dp))
+                                                            Text(
+                                                                "Lịch sử tìm kiếm (${lunarHistory.size})",
+                                                                color = palette.textPrimary,
+                                                                fontWeight = FontWeight.SemiBold
+                                                            )
+                                                        }
+
+                                                        if (lunarHistory.isNotEmpty()) {
+                                                            OutlinedButton(
+                                                                onClick = {
+                                                                    AppPrefs.clearLunarHistory(context)
+                                                                    lunarHistory = emptyList()
+                                                                    showHistoryClearedPopup = true
+                                                                },
+                                                                shape = RoundedCornerShape(12.dp),
+                                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                                                            ) {
+                                                                Icon(
+                                                                    Icons.Default.DeleteSweep,
+                                                                    contentDescription = null,
+                                                                    tint = palette.textPrimary,
+                                                                    modifier = Modifier.size(18.dp)
+                                                                )
+                                                                Spacer(modifier = Modifier.width(4.dp))
+                                                                Text("Xóa lịch sử", color = palette.textPrimary, fontSize = 12.sp)
+                                                            }
+                                                        }
+                                                    }
+
+                                                    if (lunarHistory.isEmpty()) {
+                                                        Text(
+                                                            "Chưa có lịch sử tra cứu nào.",
+                                                            style = MaterialTheme.typography.bodySmall,
+                                                            color = palette.textSecondary,
+                                                            modifier = Modifier.padding(top = 6.dp)
+                                                        )
+                                                    } else {
+                                                        Spacer(modifier = Modifier.height(8.dp))
+                                                        Column {
+                                                            lunarHistory.forEachIndexed { idx, item ->
+                                                                if (idx > 0) SectionHairline(palette)
+                                                                val solarStr = remember(item.id) {
+                                                                    "${item.solarDay.toString().padStart(2, '0')}/${item.solarMonth.toString().padStart(2, '0')}/${item.solarYear}"
+                                                                }
+                                                                val freshSummary = remember(item.id) {
+                                                                    try {
+                                                                        convertSolarToLunarSummary(
+                                                                            item.solarDay,
+                                                                            item.solarMonth,
+                                                                            item.solarYear
+                                                                        )
+                                                                    } catch (_: Exception) {
+                                                                        item.lunarSummary
+                                                                    }
+                                                                }
+                                                                Column(
+                                                                    modifier = Modifier
+                                                                        .fillMaxWidth()
+                                                                        .clickable {
+                                                                            lookupDayInput = item.solarDay.toString()
+                                                                            lookupMonthInput = item.solarMonth.toString()
+                                                                            lookupYearInput = item.solarYear.toString()
+                                                                            lunarResultPopup = LunarResultPopupData(
+                                                                                solarLabel = "Dương lịch: $solarStr",
+                                                                                lunarSummary = freshSummary
+                                                                            )
+                                                                        }
+                                                                        .padding(vertical = 10.dp)
+                                                                ) {
+                                                                    Text(
+                                                                        "📅 Dương: $solarStr",
+                                                                        color = accentCompose,
+                                                                        fontWeight = FontWeight.Bold,
+                                                                        style = MaterialTheme.typography.bodyMedium
+                                                                    )
+                                                                    Text(
+                                                                        freshSummary,
+                                                                        color = palette.textPrimary,
+                                                                        fontWeight = FontWeight.Medium,
+                                                                        style = MaterialTheme.typography.bodySmall,
+                                                                        modifier = Modifier.padding(top = 2.dp)
                                                                     )
                                                                 }
-                                                                .padding(vertical = 10.dp)
-                                                        ) {
-                                                            Text(
-                                                                "🎂 Sinh: $birthStr",
-                                                                color = palette.textPrimary,
-                                                                fontWeight = FontWeight.SemiBold,
-                                                                style = MaterialTheme.typography.bodyMedium
-                                                            )
-                                                            Text(
-                                                                displayAge,
-                                                                color = accentCompose,
-                                                                fontWeight = FontWeight.Bold,
-                                                                style = MaterialTheme.typography.bodySmall,
-                                                                modifier = Modifier.padding(top = 2.dp)
-                                                            )
+                                                            }
                                                         }
                                                     }
                                                 }
                                             }
                                         }
+
+                                        ExpandableSection.AGE_CALC -> {
+                                            Surface(
+                                                shape = RoundedCornerShape(24.dp),
+                                                color = Color.Transparent,
+                                                contentColor = palette.textPrimary,
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .bringIntoViewRequester(ageSectionBringIntoView)
+                                                    .clip(RoundedCornerShape(24.dp))
+                                                    .background(palette.liquidGlassBrush)
+                                                    .border(1.3.dp, accentCompose.copy(alpha = 0.65f), RoundedCornerShape(24.dp))
+                                            ) {
+                                                Column(modifier = Modifier.padding(16.dp)) {
+                                                    Text(
+                                                        "Nhập ngày, tháng, năm sinh để tính số tuổi kèm số tháng tính đến hiện tại.",
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = palette.textSecondary
+                                                    )
+                                                    Spacer(modifier = Modifier.height(10.dp))
+
+                                                    Row(
+                                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                        modifier = Modifier.fillMaxWidth()
+                                                    ) {
+                                                        ModernTextField(
+                                                            value = ageDayInput,
+                                                            onValueChange = {
+                                                                ageDayInput = it.filter { ch -> ch.isDigit() }.take(2)
+                                                                ageError = null
+                                                            },
+                                                            label = "Ngày sinh",
+                                                            accentColor = accentCompose,
+                                                            palette = palette,
+                                                            modifier = Modifier
+                                                                .weight(1f)
+                                                                .onFocusChanged { focusState ->
+                                                                    if (focusState.isFocused) {
+                                                                        scope.launch {
+                                                                            delay(180)
+                                                                            ageSectionBringIntoView.bringIntoView()
+                                                                        }
+                                                                    }
+                                                                }
+                                                        )
+                                                        ModernTextField(
+                                                            value = ageMonthInput,
+                                                            onValueChange = {
+                                                                ageMonthInput = it.filter { ch -> ch.isDigit() }.take(2)
+                                                                ageError = null
+                                                            },
+                                                            label = "Tháng sinh",
+                                                            accentColor = accentCompose,
+                                                            palette = palette,
+                                                            modifier = Modifier
+                                                                .weight(1f)
+                                                                .onFocusChanged { focusState ->
+                                                                    if (focusState.isFocused) {
+                                                                        scope.launch {
+                                                                            delay(180)
+                                                                            ageSectionBringIntoView.bringIntoView()
+                                                                        }
+                                                                    }
+                                                                }
+                                                        )
+                                                        ModernTextField(
+                                                            value = ageYearInput,
+                                                            onValueChange = {
+                                                                ageYearInput = it.filter { ch -> ch.isDigit() }.take(4)
+                                                                ageError = null
+                                                            },
+                                                            label = "Năm sinh",
+                                                            accentColor = accentCompose,
+                                                            palette = palette,
+                                                            modifier = Modifier
+                                                                .weight(1.35f)
+                                                                .onFocusChanged { focusState ->
+                                                                    if (focusState.isFocused) {
+                                                                        scope.launch {
+                                                                            delay(180)
+                                                                            ageSectionBringIntoView.bringIntoView()
+                                                                        }
+                                                                    }
+                                                                }
+                                                        )
+                                                    }
+
+                                                    if (ageError != null) {
+                                                        Text(
+                                                            ageError!!,
+                                                            color = MaterialTheme.colorScheme.error,
+                                                            style = MaterialTheme.typography.bodySmall,
+                                                            modifier = Modifier.padding(top = 6.dp)
+                                                        )
+                                                    }
+
+                                                    Spacer(modifier = Modifier.height(10.dp))
+
+                                                    Button(
+                                                        onClick = {
+                                                            val d = ageDayInput.toIntOrNull() ?: 0
+                                                            val m = ageMonthInput.toIntOrNull() ?: 0
+                                                            val y = ageYearInput.toIntOrNull() ?: 0
+                                                            val currentYear = Calendar.getInstance(TimeZone.getTimeZone("Asia/Ho_Chi_Minh"))
+                                                                .get(Calendar.YEAR)
+                                                            if (y !in 1900..currentYear || m !in 1..12 || d !in 1..31) {
+                                                                ageError = "Vui lòng nhập ngày (1–31), tháng (1–12), năm sinh (1900–$currentYear) hợp lệ."
+                                                                return@Button
+                                                            }
+                                                            try {
+                                                                performAgeCalculation(d, m, y)
+                                                                ageError = null
+                                                            } catch (_: IllegalArgumentException) {
+                                                                ageError = "Ngày sinh không được lớn hơn ngày hiện tại."
+                                                            } catch (_: Exception) {
+                                                                ageError = "Ngày sinh không tồn tại trên lịch dương."
+                                                            }
+                                                        },
+                                                        shape = RoundedCornerShape(16.dp),
+                                                        colors = ButtonDefaults.buttonColors(
+                                                            containerColor = accentCompose,
+                                                            contentColor = palette.onAccentText
+                                                        ),
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .height(46.dp)
+                                                    ) {
+                                                        Icon(Icons.Default.PersonSearch, contentDescription = null)
+                                                        Spacer(modifier = Modifier.width(6.dp))
+                                                        Text("Tính tuổi", fontWeight = FontWeight.Bold)
+                                                    }
+
+                                                    Spacer(modifier = Modifier.height(14.dp))
+
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                                        modifier = Modifier.fillMaxWidth()
+                                                    ) {
+                                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                                            Icon(
+                                                                Icons.Default.History,
+                                                                contentDescription = null,
+                                                                tint = accentCompose,
+                                                                modifier = Modifier.size(18.dp)
+                                                            )
+                                                            Spacer(modifier = Modifier.width(6.dp))
+                                                            Text(
+                                                                "Lịch sử tính tuổi (${ageHistory.size})",
+                                                                color = palette.textPrimary,
+                                                                fontWeight = FontWeight.SemiBold
+                                                            )
+                                                        }
+
+                                                        if (ageHistory.isNotEmpty()) {
+                                                            OutlinedButton(
+                                                                onClick = {
+                                                                    AppPrefs.clearAgeHistory(context)
+                                                                    ageHistory = emptyList()
+                                                                    showAgeHistoryClearedPopup = true
+                                                                },
+                                                                shape = RoundedCornerShape(12.dp),
+                                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                                                            ) {
+                                                                Icon(
+                                                                    Icons.Default.DeleteSweep,
+                                                                    contentDescription = null,
+                                                                    tint = palette.textPrimary,
+                                                                    modifier = Modifier.size(18.dp)
+                                                                )
+                                                                Spacer(modifier = Modifier.width(4.dp))
+                                                                Text("Xóa lịch sử", color = palette.textPrimary, fontSize = 12.sp)
+                                                            }
+                                                        }
+                                                    }
+
+                                                    if (ageHistory.isEmpty()) {
+                                                        Text(
+                                                            "Chưa có lịch sử tính tuổi nào.",
+                                                            style = MaterialTheme.typography.bodySmall,
+                                                            color = palette.textSecondary,
+                                                            modifier = Modifier.padding(top = 6.dp)
+                                                        )
+                                                    } else {
+                                                        Spacer(modifier = Modifier.height(8.dp))
+                                                        Column {
+                                                            ageHistory.forEachIndexed { idx, item ->
+                                                                if (idx > 0) SectionHairline(palette)
+                                                                val birthStr = remember(item.id) {
+                                                                    "${item.birthDay.toString().padStart(2, '0')}/${item.birthMonth.toString().padStart(2, '0')}/${item.birthYear}"
+                                                                }
+                                                                val liveCalc = remember(item.id) {
+                                                                    try {
+                                                                        calculateAgeFromNow(item.birthDay, item.birthMonth, item.birthYear)
+                                                                    } catch (_: Exception) {
+                                                                        null
+                                                                    }
+                                                                }
+                                                                val displayAge = liveCalc?.summary ?: item.ageSummary
+                                                                Column(
+                                                                    modifier = Modifier
+                                                                        .fillMaxWidth()
+                                                                        .clickable {
+                                                                            ageDayInput = item.birthDay.toString()
+                                                                            ageMonthInput = item.birthMonth.toString()
+                                                                            ageYearInput = item.birthYear.toString()
+                                                                            val curStr = liveCalc?.currentLabel ?: run {
+                                                                                val c = Calendar.getInstance(TimeZone.getTimeZone("Asia/Ho_Chi_Minh"))
+                                                                                "${c.get(Calendar.DAY_OF_MONTH).toString().padStart(2, '0')}/${(c.get(Calendar.MONTH) + 1).toString().padStart(2, '0')}/${c.get(Calendar.YEAR)}"
+                                                                            }
+                                                                            ageResultPopup = AgeResultPopupData(
+                                                                                birthLabel = "Ngày sinh: $birthStr",
+                                                                                currentLabel = "Tính đến ngày: $curStr",
+                                                                                ageSummary = displayAge
+                                                                            )
+                                                                        }
+                                                                        .padding(vertical = 10.dp)
+                                                                ) {
+                                                                    Text(
+                                                                        "🎂 Sinh: $birthStr",
+                                                                        color = palette.textPrimary,
+                                                                        fontWeight = FontWeight.SemiBold,
+                                                                        style = MaterialTheme.typography.bodyMedium
+                                                                    )
+                                                                    Text(
+                                                                        displayAge,
+                                                                        color = accentCompose,
+                                                                        fontWeight = FontWeight.Bold,
+                                                                        style = MaterialTheme.typography.bodySmall,
+                                                                        modifier = Modifier.padding(top = 2.dp)
+                                                                    )
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        null -> Unit
+                                        else -> Unit
                                     }
                                 }
                             }
@@ -3667,6 +3778,7 @@ fun ThoiTietAmLichApp() {
                                     badgeText = lunarInsight.auspiciousStatus,
                                     accentColor = accentCompose,
                                     palette = palette,
+                                    bounceEnabled = cardBounceEnabled,
                                     expanded = expandedSection == ExpandableSection.LUNAR_USEFUL_INFO,
                                     onToggle = { toggleSection(ExpandableSection.LUNAR_USEFUL_INFO) }
                                 ) {
@@ -3791,11 +3903,17 @@ fun ThoiTietAmLichApp() {
 
                         item(key = "birthday_and_holiday_row_section") {
                             val activeHolidayCount = if (holidayReminderEnabled) enabledHolidayIds.size else 0
+                            val activeBdayHolidaySection = when (expandedSection) {
+                                ExpandableSection.BIRTHDAY,
+                                ExpandableSection.HOLIDAY -> expandedSection
+                                else -> null
+                            }
+
                             Column(
                                 verticalArrangement = Arrangement.spacedBy(10.dp),
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .animateContentSize(animationSpec = SMOOTH_EXPAND_SPEC)
+                                    .animateContentSize(animationSpec = expandAnimSpec(cardBounceEnabled))
                             ) {
                                 Row(
                                     horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -3807,6 +3925,7 @@ fun ThoiTietAmLichApp() {
                                         badgeText = "${birthdays.size}/10",
                                         accentColor = accentCompose,
                                         palette = palette,
+                                        bounceEnabled = cardBounceEnabled,
                                         expanded = expandedSection == ExpandableSection.BIRTHDAY,
                                         onToggle = { toggleSection(ExpandableSection.BIRTHDAY) },
                                         modifier = Modifier.weight(1f)
@@ -3817,173 +3936,310 @@ fun ThoiTietAmLichApp() {
                                         badgeText = if (holidayReminderEnabled) "$activeHolidayCount bật" else "Tắt",
                                         accentColor = accentCompose,
                                         palette = palette,
+                                        bounceEnabled = cardBounceEnabled,
                                         expanded = expandedSection == ExpandableSection.HOLIDAY,
                                         onToggle = { toggleSection(ExpandableSection.HOLIDAY) },
                                         modifier = Modifier.weight(1f)
                                     )
                                 }
 
-                                if (expandedSection == ExpandableSection.BIRTHDAY) {
-                                    Surface(
-                                        shape = RoundedCornerShape(24.dp),
-                                        color = Color.Transparent,
-                                        contentColor = palette.textPrimary,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .bringIntoViewRequester(bdaySectionBringIntoView)
-                                            .clip(RoundedCornerShape(24.dp))
-                                            .background(palette.liquidGlassBrush)
-                                            .border(1.3.dp, accentCompose.copy(alpha = 0.65f), RoundedCornerShape(24.dp))
-                                    ) {
-                                        Column(modifier = Modifier.padding(16.dp)) {
-                                            Text(
-                                                "Tự động hiện Pop-up khi mở app và gửi thông báo 1 lần/ngày vào đúng ngày sinh nhật.",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = palette.textSecondary
+                                AnimatedContent(
+                                    targetState = activeBdayHolidaySection,
+                                    transitionSpec = {
+                                        val enterSpec = if (cardBounceEnabled) {
+                                            fadeIn(tween(180)) +
+                                                slideInVertically(
+                                                    animationSpec = spring(
+                                                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                                                        stiffness = Spring.StiffnessMediumLow
+                                                    ),
+                                                    initialOffsetY = { it / 8 }
+                                                ) +
+                                                scaleIn(
+                                                    animationSpec = spring(
+                                                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                                                        stiffness = Spring.StiffnessMediumLow
+                                                    ),
+                                                    initialScale = 0.97f
+                                                )
+                                        } else {
+                                            fadeIn(tween(160)) +
+                                                slideInVertically(
+                                                    animationSpec = tween(180),
+                                                    initialOffsetY = { it / 10 }
+                                                )
+                                        }
+                                        val exitSpec = fadeOut(tween(130)) +
+                                            slideOutVertically(
+                                                animationSpec = tween(130),
+                                                targetOffsetY = { -it / 12 }
                                             )
-                                            Spacer(modifier = Modifier.height(10.dp))
-
-                                            ModernTextField(
-                                                value = bdayNameInput,
-                                                onValueChange = {
-                                                    bdayNameInput = it
-                                                    bdayError = null
-                                                },
-                                                label = "Tên người sinh nhật",
-                                                accentColor = accentCompose,
-                                                palette = palette,
+                                        enterSpec togetherWith exitSpec
+                                    },
+                                    label = "birthday_holiday_panel_switch"
+                                ) { currentPanel ->
+                                    when (currentPanel) {
+                                        ExpandableSection.BIRTHDAY -> {
+                                            Surface(
+                                                shape = RoundedCornerShape(24.dp),
+                                                color = Color.Transparent,
+                                                contentColor = palette.textPrimary,
                                                 modifier = Modifier
                                                     .fillMaxWidth()
-                                                    .onFocusChanged { focusState ->
-                                                        if (focusState.isFocused) {
-                                                            scope.launch {
-                                                                delay(180)
-                                                                bdaySectionBringIntoView.bringIntoView()
-                                                            }
-                                                        }
-                                                    }
-                                            )
-                                            Spacer(modifier = Modifier.height(8.dp))
-
-                                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                                ModernTextField(
-                                                    value = bdayDayInput,
-                                                    onValueChange = {
-                                                        bdayDayInput = it.filter { ch -> ch.isDigit() }.take(2)
-                                                        bdayError = null
-                                                    },
-                                                    label = "Ngày (1-31)",
-                                                    accentColor = accentCompose,
-                                                    palette = palette,
-                                                    modifier = Modifier
-                                                        .weight(1f)
-                                                        .onFocusChanged { focusState ->
-                                                            if (focusState.isFocused) {
-                                                                scope.launch {
-                                                                    delay(180)
-                                                                    bdaySectionBringIntoView.bringIntoView()
-                                                                }
-                                                            }
-                                                        }
-                                                )
-                                                ModernTextField(
-                                                    value = bdayMonthInput,
-                                                    onValueChange = {
-                                                        bdayMonthInput = it.filter { ch -> ch.isDigit() }.take(2)
-                                                        bdayError = null
-                                                    },
-                                                    label = "Tháng (1-12)",
-                                                    accentColor = accentCompose,
-                                                    palette = palette,
-                                                    modifier = Modifier
-                                                        .weight(1f)
-                                                        .onFocusChanged { focusState ->
-                                                            if (focusState.isFocused) {
-                                                                scope.launch {
-                                                                    delay(180)
-                                                                    bdaySectionBringIntoView.bringIntoView()
-                                                                }
-                                                            }
-                                                        }
-                                                )
-                                            }
-
-                                            if (bdayError != null) {
-                                                Text(
-                                                    bdayError!!,
-                                                    color = MaterialTheme.colorScheme.error,
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    modifier = Modifier.padding(top = 6.dp)
-                                                )
-                                            }
-
-                                            Spacer(modifier = Modifier.height(10.dp))
-
-                                            OutlinedButton(
-                                                onClick = {
-                                                    if (birthdays.size >= 10) {
-                                                        bdayError = "Đã đạt giới hạn tối đa 10 ngày sinh nhật."
-                                                        return@OutlinedButton
-                                                    }
-                                                    val nameTrim = bdayNameInput.trim()
-                                                    val d = bdayDayInput.toIntOrNull() ?: 0
-                                                    val m = bdayMonthInput.toIntOrNull() ?: 0
-                                                    if (nameTrim.isEmpty()) {
-                                                        bdayError = "Vui lòng nhập tên."
-                                                        return@OutlinedButton
-                                                    }
-                                                    if (d !in 1..31 || m !in 1..12) {
-                                                        bdayError = "Ngày phải từ 1–31 và tháng từ 1–12."
-                                                        return@OutlinedButton
-                                                    }
-                                                    val updated = birthdays + BirthdayItem(
-                                                        id = UUID.randomUUID().toString(),
-                                                        name = nameTrim,
-                                                        day = d,
-                                                        month = m
-                                                    )
-                                                    birthdays = updated
-                                                    AppPrefs.saveBirthdays(context, updated)
-                                                    bdayNameInput = ""
-                                                    bdayError = null
-                                                    BirthdayHelper.notifyTodayBirthdaysOncePerDay(context)
-                                                },
-                                                shape = RoundedCornerShape(16.dp),
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .height(46.dp)
+                                                    .bringIntoViewRequester(bdaySectionBringIntoView)
+                                                    .clip(RoundedCornerShape(24.dp))
+                                                    .background(palette.liquidGlassBrush)
+                                                    .border(1.3.dp, accentCompose.copy(alpha = 0.65f), RoundedCornerShape(24.dp))
                                             ) {
-                                                Text("Thêm ngày sinh nhật", color = palette.textPrimary, fontWeight = FontWeight.SemiBold)
-                                            }
+                                                Column(modifier = Modifier.padding(16.dp)) {
+                                                    Text(
+                                                        "Tự động hiện Pop-up khi mở app và gửi thông báo 1 lần/ngày vào đúng ngày sinh nhật.",
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = palette.textSecondary
+                                                    )
+                                                    Spacer(modifier = Modifier.height(10.dp))
 
-                                            if (birthdays.isNotEmpty()) {
-                                                Spacer(modifier = Modifier.height(10.dp))
-                                                Column {
-                                                    birthdays.forEachIndexed { idx, item ->
-                                                        if (idx > 0) SectionHairline(palette)
-                                                        Row(
-                                                            verticalAlignment = Alignment.CenterVertically,
-                                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                                            modifier = Modifier
-                                                                .fillMaxWidth()
-                                                                .padding(vertical = 4.dp)
-                                                        ) {
-                                                            Text(
-                                                                "🎂 ${item.name} — ${item.day.toString().padStart(2, '0')}/${item.month.toString().padStart(2, '0')}",
-                                                                color = palette.textPrimary,
-                                                                fontWeight = FontWeight.Medium
-                                                            )
-                                                            IconButton(
-                                                                onClick = {
-                                                                    val updated = birthdays.filterNot { it.id == item.id }
-                                                                    birthdays = updated
-                                                                    AppPrefs.saveBirthdays(context, updated)
+                                                    ModernTextField(
+                                                        value = bdayNameInput,
+                                                        onValueChange = {
+                                                            bdayNameInput = it
+                                                            bdayError = null
+                                                        },
+                                                        label = "Tên người sinh nhật",
+                                                        accentColor = accentCompose,
+                                                        palette = palette,
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .onFocusChanged { focusState ->
+                                                                if (focusState.isFocused) {
+                                                                    scope.launch {
+                                                                        delay(180)
+                                                                        bdaySectionBringIntoView.bringIntoView()
+                                                                    }
                                                                 }
+                                                            }
+                                                    )
+                                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                        ModernTextField(
+                                                            value = bdayDayInput,
+                                                            onValueChange = {
+                                                                bdayDayInput = it.filter { ch -> ch.isDigit() }.take(2)
+                                                                bdayError = null
+                                                            },
+                                                            label = "Ngày (1-31)",
+                                                            accentColor = accentCompose,
+                                                            palette = palette,
+                                                            modifier = Modifier
+                                                                .weight(1f)
+                                                                .onFocusChanged { focusState ->
+                                                                    if (focusState.isFocused) {
+                                                                        scope.launch {
+                                                                            delay(180)
+                                                                            bdaySectionBringIntoView.bringIntoView()
+                                                                        }
+                                                                    }
+                                                                }
+                                                        )
+                                                        ModernTextField(
+                                                            value = bdayMonthInput,
+                                                            onValueChange = {
+                                                                bdayMonthInput = it.filter { ch -> ch.isDigit() }.take(2)
+                                                                bdayError = null
+                                                            },
+                                                            label = "Tháng (1-12)",
+                                                            accentColor = accentCompose,
+                                                            palette = palette,
+                                                            modifier = Modifier
+                                                                .weight(1f)
+                                                                .onFocusChanged { focusState ->
+                                                                    if (focusState.isFocused) {
+                                                                        scope.launch {
+                                                                            delay(180)
+                                                                            bdaySectionBringIntoView.bringIntoView()
+                                                                        }
+                                                                    }
+                                                                }
+                                                        )
+                                                    }
+
+                                                    if (bdayError != null) {
+                                                        Text(
+                                                            bdayError!!,
+                                                            color = MaterialTheme.colorScheme.error,
+                                                            style = MaterialTheme.typography.bodySmall,
+                                                            modifier = Modifier.padding(top = 6.dp)
+                                                        )
+                                                    }
+
+                                                    Spacer(modifier = Modifier.height(10.dp))
+
+                                                    OutlinedButton(
+                                                        onClick = {
+                                                            if (birthdays.size >= 10) {
+                                                                bdayError = "Đã đạt giới hạn tối đa 10 ngày sinh nhật."
+                                                                return@OutlinedButton
+                                                            }
+                                                            val nameTrim = bdayNameInput.trim()
+                                                            val d = bdayDayInput.toIntOrNull() ?: 0
+                                                            val m = bdayMonthInput.toIntOrNull() ?: 0
+                                                            if (nameTrim.isEmpty()) {
+                                                                bdayError = "Vui lòng nhập tên."
+                                                                return@OutlinedButton
+                                                            }
+                                                            if (d !in 1..31 || m !in 1..12) {
+                                                                bdayError = "Ngày phải từ 1–31 và tháng từ 1–12."
+                                                                return@OutlinedButton
+                                                            }
+                                                            val updated = birthdays + BirthdayItem(
+                                                                id = UUID.randomUUID().toString(),
+                                                                name = nameTrim,
+                                                                day = d,
+                                                                month = m
+                                                            )
+                                                            birthdays = updated
+                                                            AppPrefs.saveBirthdays(context, updated)
+                                                            bdayNameInput = ""
+                                                            bdayError = null
+                                                            BirthdayHelper.notifyTodayBirthdaysOncePerDay(context)
+                                                        },
+                                                        shape = RoundedCornerShape(16.dp),
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .height(46.dp)
+                                                    ) {
+                                                        Text("Thêm ngày sinh nhật", color = palette.textPrimary, fontWeight = FontWeight.SemiBold)
+                                                    }
+
+                                                    if (birthdays.isNotEmpty()) {
+                                                        Spacer(modifier = Modifier.height(10.dp))
+                                                        Column {
+                                                            birthdays.forEachIndexed { idx, item ->
+                                                                if (idx > 0) SectionHairline(palette)
+                                                                Row(
+                                                                    verticalAlignment = Alignment.CenterVertically,
+                                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                                    modifier = Modifier
+                                                                        .fillMaxWidth()
+                                                                        .padding(vertical = 4.dp)
+                                                                ) {
+                                                                    Text(
+                                                                        "🎂 ${item.name} — ${item.day.toString().padStart(2, '0')}/${item.month.toString().padStart(2, '0')}",
+                                                                        color = palette.textPrimary,
+                                                                        fontWeight = FontWeight.Medium
+                                                                    )
+                                                                    IconButton(
+                                                                        onClick = {
+                                                                            val updated = birthdays.filterNot { it.id == item.id }
+                                                                            birthdays = updated
+                                                                            AppPrefs.saveBirthdays(context, updated)
+                                                                        }
+                                                                    ) {
+                                                                        Icon(
+                                                                            Icons.Default.Delete,
+                                                                            contentDescription = "Xóa sinh nhật",
+                                                                            tint = MaterialTheme.colorScheme.error
+                                                                        )
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        ExpandableSection.HOLIDAY -> {
+                                            Surface(
+                                                shape = RoundedCornerShape(24.dp),
+                                                color = Color.Transparent,
+                                                contentColor = palette.textPrimary,
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clip(RoundedCornerShape(24.dp))
+                                                    .background(palette.liquidGlassBrush)
+                                                    .border(1.3.dp, accentCompose.copy(alpha = 0.65f), RoundedCornerShape(24.dp))
+                                            ) {
+                                                Column(modifier = Modifier.padding(16.dp)) {
+                                                    FlatSwitchRow(
+                                                        title = "Bật nhắc tất cả ngày lễ / kỷ niệm",
+                                                        subtitle = if (holidayReminderEnabled)
+                                                            "Đang bật nhắc toàn bộ ${enabledHolidayIds.size} ngày lễ đã lưu (trước 1 ngày & đúng ngày)"
+                                                        else
+                                                            "Gạt bật để bật nhắc hết tất cả các ngày lễ đã lưu",
+                                                        checked = holidayReminderEnabled,
+                                                        accentColor = accentCompose,
+                                                        palette = palette,
+                                                        onCheckedChange = { checked ->
+                                                            holidayReminderEnabled = checked
+                                                            AppPrefs.setHolidayReminderEnabled(context, checked)
+                                                            if (checked) {
+                                                                val allIds = BirthdayHelper.DEFAULT_VIETNAM_AND_INTERNATIONAL_HOLIDAYS
+                                                                    .map { it.id }
+                                                                    .toSet()
+                                                                enabledHolidayIds = allIds
+                                                                AppPrefs.setEnabledHolidayIds(context, allIds)
+                                                                BirthdayHelper.notifyTodayHolidaysOncePerDay(context)
+                                                            }
+                                                            activeHolidayAlerts = BirthdayHelper.getActiveHolidaysForToday(context)
+                                                        }
+                                                    )
+
+                                                    SectionHairline(palette)
+                                                    Spacer(modifier = Modifier.height(10.dp))
+
+                                                    Text(
+                                                        "Danh sách ngày lễ sẽ được nhắc (tính theo năm $currentSolarYear):",
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = palette.textSecondary
+                                                    )
+
+                                                    Spacer(modifier = Modifier.height(6.dp))
+
+                                                    Column {
+                                                        BirthdayHelper.DEFAULT_VIETNAM_AND_INTERNATIONAL_HOLIDAYS.forEachIndexed { idx, holiday ->
+                                                            if (idx > 0) SectionHairline(palette)
+                                                            val isReminded = holidayReminderEnabled && (holiday.id in enabledHolidayIds)
+                                                            val resolvedSolar = remember(holiday.id, currentSolarYear) {
+                                                                BirthdayHelper.resolveSolarDateForHoliday(holiday, currentSolarYear)
+                                                            }
+                                                            val typeTag = if (holiday.calendarType == HolidayCalendarType.LUNAR) {
+                                                                "Âm ${holiday.day}/${holiday.month}"
+                                                            } else {
+                                                                "Dương ${holiday.day.toString().padStart(2, '0')}/${holiday.month.toString().padStart(2, '0')}"
+                                                            }
+                                                            val solarNote = resolvedSolar?.let { (sd, sm, sy) ->
+                                                                "Dương: ${sd.toString().padStart(2, '0')}/${sm.toString().padStart(2, '0')}/$sy"
+                                                            } ?: ""
+
+                                                            Row(
+                                                                verticalAlignment = Alignment.CenterVertically,
+                                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                                modifier = Modifier
+                                                                    .fillMaxWidth()
+                                                                    .padding(vertical = 8.dp)
                                                             ) {
-                                                                Icon(
-                                                                    Icons.Default.Delete,
-                                                                    contentDescription = "Xóa sinh nhật",
-                                                                    tint = MaterialTheme.colorScheme.error
+                                                                Column(modifier = Modifier.weight(1f)) {
+                                                                    Text(
+                                                                        holiday.title,
+                                                                        color = if (isReminded) palette.textPrimary else palette.textSecondary,
+                                                                        fontWeight = FontWeight.SemiBold,
+                                                                        style = MaterialTheme.typography.bodyMedium
+                                                                    )
+                                                                    Text(
+                                                                        if (solarNote.isNotEmpty()) "$typeTag • $solarNote" else typeTag,
+                                                                        color = if (isReminded) accentCompose else palette.textSecondary,
+                                                                        style = MaterialTheme.typography.bodySmall,
+                                                                        modifier = Modifier.padding(top = 2.dp)
+                                                                    )
+                                                                }
+                                                                Spacer(modifier = Modifier.width(8.dp))
+                                                                Text(
+                                                                    if (isReminded) "Đang nhắc" else "Tắt",
+                                                                    style = MaterialTheme.typography.labelMedium,
+                                                                    color = if (isReminded) accentCompose else palette.textSecondary,
+                                                                    fontWeight = FontWeight.Bold
                                                                 )
                                                             }
                                                         }
@@ -3991,104 +4247,9 @@ fun ThoiTietAmLichApp() {
                                                 }
                                             }
                                         }
-                                    }
-                                }
 
-                                if (expandedSection == ExpandableSection.HOLIDAY) {
-                                    Surface(
-                                        shape = RoundedCornerShape(24.dp),
-                                        color = Color.Transparent,
-                                        contentColor = palette.textPrimary,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clip(RoundedCornerShape(24.dp))
-                                            .background(palette.liquidGlassBrush)
-                                            .border(1.3.dp, accentCompose.copy(alpha = 0.65f), RoundedCornerShape(24.dp))
-                                    ) {
-                                        Column(modifier = Modifier.padding(16.dp)) {
-                                            FlatSwitchRow(
-                                                title = "Bật nhắc tất cả ngày lễ / kỷ niệm",
-                                                subtitle = if (holidayReminderEnabled)
-                                                    "Đang bật nhắc toàn bộ ${enabledHolidayIds.size} ngày lễ đã lưu (trước 1 ngày & đúng ngày)"
-                                                else
-                                                    "Gạt bật để bật nhắc hết tất cả các ngày lễ đã lưu",
-                                                checked = holidayReminderEnabled,
-                                                accentColor = accentCompose,
-                                                palette = palette,
-                                                onCheckedChange = { checked ->
-                                                    holidayReminderEnabled = checked
-                                                    AppPrefs.setHolidayReminderEnabled(context, checked)
-                                                    if (checked) {
-                                                        val allIds = BirthdayHelper.DEFAULT_VIETNAM_AND_INTERNATIONAL_HOLIDAYS
-                                                            .map { it.id }
-                                                            .toSet()
-                                                        enabledHolidayIds = allIds
-                                                        AppPrefs.setEnabledHolidayIds(context, allIds)
-                                                        BirthdayHelper.notifyTodayHolidaysOncePerDay(context)
-                                                    }
-                                                    activeHolidayAlerts = BirthdayHelper.getActiveHolidaysForToday(context)
-                                                }
-                                            )
-
-                                            SectionHairline(palette)
-                                            Spacer(modifier = Modifier.height(10.dp))
-
-                                            Text(
-                                                "Danh sách ngày lễ sẽ được nhắc (tính theo năm $currentSolarYear):",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = palette.textSecondary
-                                            )
-
-                                            Spacer(modifier = Modifier.height(6.dp))
-
-                                            Column {
-                                                BirthdayHelper.DEFAULT_VIETNAM_AND_INTERNATIONAL_HOLIDAYS.forEachIndexed { idx, holiday ->
-                                                    if (idx > 0) SectionHairline(palette)
-                                                    val isReminded = holidayReminderEnabled && (holiday.id in enabledHolidayIds)
-                                                    val resolvedSolar = remember(holiday.id, currentSolarYear) {
-                                                        BirthdayHelper.resolveSolarDateForHoliday(holiday, currentSolarYear)
-                                                    }
-                                                    val typeTag = if (holiday.calendarType == HolidayCalendarType.LUNAR) {
-                                                        "Âm ${holiday.day}/${holiday.month}"
-                                                    } else {
-                                                        "Dương ${holiday.day.toString().padStart(2, '0')}/${holiday.month.toString().padStart(2, '0')}"
-                                                    }
-                                                    val solarNote = resolvedSolar?.let { (sd, sm, sy) ->
-                                                        "Dương: ${sd.toString().padStart(2, '0')}/${sm.toString().padStart(2, '0')}/$sy"
-                                                    } ?: ""
-
-                                                    Row(
-                                                        verticalAlignment = Alignment.CenterVertically,
-                                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                                        modifier = Modifier
-                                                            .fillMaxWidth()
-                                                            .padding(vertical = 8.dp)
-                                                    ) {
-                                                        Column(modifier = Modifier.weight(1f)) {
-                                                            Text(
-                                                                holiday.title,
-                                                                color = if (isReminded) palette.textPrimary else palette.textSecondary,
-                                                                fontWeight = FontWeight.SemiBold,
-                                                                style = MaterialTheme.typography.bodyMedium
-                                                            )
-                                                            Text(
-                                                                if (solarNote.isNotEmpty()) "$typeTag • $solarNote" else typeTag,
-                                                                color = if (isReminded) accentCompose else palette.textSecondary,
-                                                                style = MaterialTheme.typography.bodySmall,
-                                                                modifier = Modifier.padding(top = 2.dp)
-                                                            )
-                                                        }
-                                                        Spacer(modifier = Modifier.width(8.dp))
-                                                        Text(
-                                                            if (isReminded) "Đang nhắc" else "Tắt",
-                                                            style = MaterialTheme.typography.labelMedium,
-                                                            color = if (isReminded) accentCompose else palette.textSecondary,
-                                                            fontWeight = FontWeight.Bold
-                                                        )
-                                                    }
-                                                }
-                                            }
-                                        }
+                                        null -> Unit
+                                        else -> Unit
                                     }
                                 }
                             }
@@ -4105,6 +4266,7 @@ fun ThoiTietAmLichApp() {
                                     badgeText = "Email",
                                     accentColor = accentCompose,
                                     palette = palette,
+                                    bounceEnabled = cardBounceEnabled,
                                     expanded = expandedSection == ExpandableSection.BUG_REPORT,
                                     onToggle = { toggleSection(ExpandableSection.BUG_REPORT) }
                                 ) {
@@ -5045,6 +5207,10 @@ fun ThoiTietAmLichApp() {
                                                     bgMusicEnabled = true
                                                     AppPrefs.setBgMusicEnabled(context, true)
                                                 }
+                                                pendingBatteryWarningTarget == BatteryWarningTarget.CARD_BOUNCE -> {
+                                                    cardBounceEnabled = true
+                                                    AppPrefs.setCardBounceEnabled(context, true)
+                                                }
                                             }
                                             closeBatteryWarningPopup()
                                         },
@@ -5241,6 +5407,41 @@ fun ThoiTietAmLichApp() {
     }
 }
 
+@Composable
+private fun rememberCardBounceScale(
+    bounceEnabled: Boolean,
+    pulseKey: Any?,
+    label: String
+): Float {
+    var pulseToken by remember { mutableIntStateOf(0) }
+    var firstRender by remember { mutableStateOf(true) }
+
+    LaunchedEffect(pulseKey, bounceEnabled) {
+        if (firstRender) {
+            firstRender = false
+            return@LaunchedEffect
+        }
+        if (bounceEnabled) {
+            pulseToken += 1
+            delay(95L)
+            pulseToken = 0
+        } else {
+            pulseToken = 0
+        }
+    }
+
+    val targetScale = if (bounceEnabled && pulseToken > 0) 0.975f else 1f
+    val animatedScale by animateFloatAsState(
+        targetValue = targetScale,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMediumLow
+        ),
+        label = label
+    )
+    return if (bounceEnabled) animatedScale else 1f
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun CompactDualCard(
@@ -5248,10 +5449,16 @@ private fun CompactDualCard(
     badgeText: String,
     accentColor: Color,
     palette: AdaptivePalette,
+    bounceEnabled: Boolean,
     expanded: Boolean,
     onToggle: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val cardScale = rememberCardBounceScale(
+        bounceEnabled = bounceEnabled,
+        pulseKey = expanded,
+        label = "dual_card_bounce_scale"
+    )
     val arrowRotation by animateFloatAsState(
         targetValue = if (expanded) 180f else 0f,
         animationSpec = tween(durationMillis = 160),
@@ -5277,6 +5484,10 @@ private fun CompactDualCard(
         contentColor = palette.textPrimary,
         modifier = modifier
             .height(52.dp)
+            .graphicsLayer {
+                scaleX = cardScale
+                scaleY = cardScale
+            }
             .clip(RoundedCornerShape(24.dp))
             .background(palette.liquidGlassBrush)
             .border(
@@ -5404,10 +5615,16 @@ private fun CollapsibleSectionCard(
     badgeText: String? = null,
     accentColor: Color,
     palette: AdaptivePalette,
+    bounceEnabled: Boolean,
     expanded: Boolean,
     onToggle: () -> Unit,
     content: @Composable () -> Unit
 ) {
+    val cardScale = rememberCardBounceScale(
+        bounceEnabled = bounceEnabled,
+        pulseKey = expanded,
+        label = "section_card_bounce_scale"
+    )
     val arrowRotation by animateFloatAsState(
         targetValue = if (expanded) 180f else 0f,
         animationSpec = tween(durationMillis = 160),
@@ -5434,6 +5651,10 @@ private fun CollapsibleSectionCard(
         contentColor = palette.textPrimary,
         modifier = Modifier
             .fillMaxWidth()
+            .graphicsLayer {
+                scaleX = cardScale
+                scaleY = cardScale
+            }
             .clip(RoundedCornerShape(24.dp))
             .background(palette.liquidGlassBrush)
             .border(
@@ -5445,7 +5666,7 @@ private fun CollapsibleSectionCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .animateContentSize(animationSpec = SMOOTH_EXPAND_SPEC)
+                .animateContentSize(animationSpec = expandAnimSpec(bounceEnabled))
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
