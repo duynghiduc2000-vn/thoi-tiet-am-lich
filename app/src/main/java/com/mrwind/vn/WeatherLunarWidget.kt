@@ -21,6 +21,12 @@ import java.util.TimeZone
 
 class WeatherLunarWidget : AppWidgetProvider() {
 
+    private data class FourDayCardData(
+        val dayLabel: String,
+        val icon: String,
+        val maxTemp: String
+    )
+
     override fun onUpdate(
         context: Context,
         appWidgetManager: AppWidgetManager,
@@ -153,18 +159,55 @@ class WeatherLunarWidget : AppWidgetProvider() {
             else -> ""
         }
 
-        private fun buildFallbackFourDayLabels(baseCal: Calendar, fallbackCode: Int): List<String> {
+        private fun buildFallbackFourDayCards(baseCal: Calendar, fallbackCode: Int): List<FourDayCardData> {
             val icon = weatherEmojiForCode(fallbackCode)
             return (1..4).map { offset ->
                 val c = (baseCal.clone() as Calendar).apply {
                     add(Calendar.DAY_OF_MONTH, offset)
                 }
-                "${shortWeekdayLabel(c)} $icon"
+                FourDayCardData(
+                    dayLabel = shortWeekdayLabel(c),
+                    icon = icon,
+                    maxTemp = "--°"
+                )
             }
         }
 
-        private fun resolveFourDayForecastTexts(context: Context, weather: WeatherCache, baseCal: Calendar): List<String> {
-            val fallback = buildFallbackFourDayLabels(baseCal, weather.weatherCode)
+        private fun parsePackedString(raw: String, fallback: FourDayCardData): FourDayCardData {
+            val trimmed = raw.trim()
+            if (trimmed.isEmpty()) return fallback
+            val parts = trimmed.split("|")
+            if (parts.size >= 3) {
+                return FourDayCardData(
+                    dayLabel = parts[0].trim().ifEmpty { fallback.dayLabel },
+                    icon = parts[1].trim().ifEmpty { fallback.icon },
+                    maxTemp = parts[2].trim().ifEmpty { fallback.maxTemp }
+                )
+            }
+            val tokens = trimmed.split(" ").filter { it.isNotBlank() }
+            if (tokens.size >= 3) {
+                return FourDayCardData(
+                    dayLabel = tokens[0],
+                    icon = tokens[1],
+                    maxTemp = tokens[2]
+                )
+            }
+            if (tokens.size == 2) {
+                return FourDayCardData(
+                    dayLabel = tokens[0],
+                    icon = tokens[1],
+                    maxTemp = fallback.maxTemp
+                )
+            }
+            return fallback
+        }
+
+        private fun resolveFourDayForecastCards(
+            context: Context,
+            weather: WeatherCache,
+            baseCal: Calendar
+        ): List<FourDayCardData> {
+            val fallback = buildFallbackFourDayCards(baseCal, weather.weatherCode)
             return try {
                 val method = AppPrefs::class.java.getMethod("getNextFourDaysForecast", Context::class.java)
                 @Suppress("UNCHECKED_CAST")
@@ -175,7 +218,7 @@ class WeatherLunarWidget : AppWidgetProvider() {
                     (0..3).map { idx ->
                         val item = rawList.getOrNull(idx) ?: return@map fallback[idx]
                         when (item) {
-                            is String -> if (item.isNotBlank()) item else fallback[idx]
+                            is String -> parsePackedString(item, fallback[idx])
                             else -> {
                                 val dayText = item.javaClass.methods
                                     .firstOrNull { it.name == "getDayLabel" || it.name == "getShortDay" || it.name == "getLabel" }
@@ -186,12 +229,19 @@ class WeatherLunarWidget : AppWidgetProvider() {
                                 val emojiText = item.javaClass.methods
                                     .firstOrNull { it.name == "getEmoji" || it.name == "getIcon" }
                                     ?.invoke(item) as? String
-                                val icon = when {
+                                val tempText = item.javaClass.methods
+                                    .firstOrNull { it.name == "getMaxTemp" || it.name == "getTemp" }
+                                    ?.invoke(item) as? String
+                                val resolvedIcon = when {
                                     !emojiText.isNullOrBlank() -> emojiText
                                     codeVal != null -> weatherEmojiForCode(codeVal)
-                                    else -> weatherEmojiForCode(weather.weatherCode)
+                                    else -> fallback[idx].icon
                                 }
-                                if (!dayText.isNullOrBlank()) "$dayText $icon" else fallback[idx]
+                                FourDayCardData(
+                                    dayLabel = dayText?.trim()?.ifEmpty { fallback[idx].dayLabel } ?: fallback[idx].dayLabel,
+                                    icon = resolvedIcon,
+                                    maxTemp = tempText?.trim()?.ifEmpty { fallback[idx].maxTemp } ?: fallback[idx].maxTemp
+                                )
                             }
                         }
                     }
@@ -266,16 +316,32 @@ class WeatherLunarWidget : AppWidgetProvider() {
             views.setTextViewText(R.id.tv_min_max_temp, "▲ ${weather.maxTemp}  ▼ ${weather.minTemp}")
             views.setTextColor(R.id.tv_min_max_temp, accentColor)
 
-            val fourDayTexts = resolveFourDayForecastTexts(context, weather, cal)
-            val forecastViewIds = listOf(
-                R.id.tv_forecast_day_1,
-                R.id.tv_forecast_day_2,
-                R.id.tv_forecast_day_3,
-                R.id.tv_forecast_day_4
+            val fourDayCards = resolveFourDayForecastCards(context, weather, cal)
+            val labelIds = listOf(
+                R.id.tv_forecast_day_1_label,
+                R.id.tv_forecast_day_2_label,
+                R.id.tv_forecast_day_3_label,
+                R.id.tv_forecast_day_4_label
             )
-            forecastViewIds.forEachIndexed { index, id ->
-                views.setTextViewText(id, fourDayTexts[index])
-                views.setTextColor(id, secondaryTextColor)
+            val iconIds = listOf(
+                R.id.tv_forecast_day_1_icon,
+                R.id.tv_forecast_day_2_icon,
+                R.id.tv_forecast_day_3_icon,
+                R.id.tv_forecast_day_4_icon
+            )
+            val tempIds = listOf(
+                R.id.tv_forecast_day_1_temp,
+                R.id.tv_forecast_day_2_temp,
+                R.id.tv_forecast_day_3_temp,
+                R.id.tv_forecast_day_4_temp
+            )
+            for (i in 0..3) {
+                val card = fourDayCards[i]
+                views.setTextViewText(labelIds[i], card.dayLabel)
+                views.setTextColor(labelIds[i], secondaryTextColor)
+                views.setTextViewText(iconIds[i], card.icon)
+                views.setTextViewText(tempIds[i], card.maxTemp)
+                views.setTextColor(tempIds[i], accentColor)
             }
 
             views.setTextViewText(R.id.tv_weather_emoji, weatherEmojiForCode(weather.weatherCode))
