@@ -197,42 +197,11 @@ class WeatherLunarWidget : AppWidgetProvider() {
             baseCal: Calendar
         ): List<DayChipData> {
             val fallback = buildFallbackSevenDayChips(baseCal, weather.weatherCode)
-            return try {
-                val method = AppPrefs::class.java.getMethod("getNextSevenDaysForecast", Context::class.java)
-                @Suppress("UNCHECKED_CAST")
-                val rawList = method.invoke(null, context) as? List<*>
-                if (rawList == null || rawList.isEmpty()) {
-                    fallback
-                } else {
-                    (0..6).map { idx ->
-                        val item = rawList.getOrNull(idx) ?: return@map fallback[idx]
-                        when (item) {
-                            is String -> parseChipString(item, fallback[idx])
-                            else -> {
-                                val dayText = item.javaClass.methods
-                                    .firstOrNull { it.name == "getDayLabel" || it.name == "getShortDay" || it.name == "getLabel" }
-                                    ?.invoke(item) as? String
-                                val codeVal = item.javaClass.methods
-                                    .firstOrNull { it.name == "getWeatherCode" || it.name == "getCode" }
-                                    ?.invoke(item) as? Int
-                                val emojiText = item.javaClass.methods
-                                    .firstOrNull { it.name == "getEmoji" || it.name == "getIcon" }
-                                    ?.invoke(item) as? String
-                                val resolvedIcon = when {
-                                    !emojiText.isNullOrBlank() -> emojiText
-                                    codeVal != null -> weatherEmojiForCode(codeVal)
-                                    else -> fallback[idx].icon
-                                }
-                                DayChipData(
-                                    dayLabel = dayText?.trim()?.ifEmpty { fallback[idx].dayLabel } ?: fallback[idx].dayLabel,
-                                    icon = resolvedIcon
-                                )
-                            }
-                        }
-                    }
-                }
-            } catch (_: Exception) {
-                fallback
+            val rawList = AppPrefs.getNextSevenDaysForecast(context)
+            if (rawList.isEmpty()) return fallback
+            return (0..6).map { idx ->
+                val raw = rawList.getOrNull(idx) ?: return@map fallback[idx]
+                parseChipString(raw, fallback[idx])
             }
         }
 
@@ -259,6 +228,7 @@ class WeatherLunarWidget : AppWidgetProvider() {
             val accentColor = AppPrefs.getAccentColor(context)
             val showSeconds = AppPrefs.isShowSeconds(context)
             val showWeatherEffect = AppPrefs.isShowWeatherEffect(context)
+            val showSevenDayForecast = AppPrefs.isShowSevenDayForecast(context)
             val showSignature = AppPrefs.isShowSignature(context)
 
             val clockSp = AppPrefs.clockSp(AppPrefs.getClockScale(context), showSeconds)
@@ -301,7 +271,6 @@ class WeatherLunarWidget : AppWidgetProvider() {
             views.setTextViewText(R.id.tv_min_max_temp, "▲ ${weather.maxTemp}  ▼ ${weather.minTemp}")
             views.setTextColor(R.id.tv_min_max_temp, accentColor)
 
-            val sevenDayChips = resolveSevenDayForecastChips(context, weather, cal)
             val labelIds = listOf(
                 R.id.tv_forecast_day_1_label,
                 R.id.tv_forecast_day_2_label,
@@ -320,11 +289,22 @@ class WeatherLunarWidget : AppWidgetProvider() {
                 R.id.tv_forecast_day_6_icon,
                 R.id.tv_forecast_day_7_icon
             )
-            for (i in 0..6) {
-                val chip = sevenDayChips[i]
-                views.setTextViewText(labelIds[i], chip.dayLabel)
-                views.setTextColor(labelIds[i], secondaryTextColor)
-                views.setTextViewText(iconIds[i], chip.icon)
+            val sevenDayVisibility = if (showSevenDayForecast) View.VISIBLE else View.GONE
+            if (showSevenDayForecast) {
+                val sevenDayChips = resolveSevenDayForecastChips(context, weather, cal)
+                for (i in 0..6) {
+                    val chip = sevenDayChips[i]
+                    views.setViewVisibility(labelIds[i], sevenDayVisibility)
+                    views.setViewVisibility(iconIds[i], sevenDayVisibility)
+                    views.setTextViewText(labelIds[i], chip.dayLabel)
+                    views.setTextColor(labelIds[i], secondaryTextColor)
+                    views.setTextViewText(iconIds[i], chip.icon)
+                }
+            } else {
+                for (i in 0..6) {
+                    views.setViewVisibility(labelIds[i], sevenDayVisibility)
+                    views.setViewVisibility(iconIds[i], sevenDayVisibility)
+                }
             }
 
             views.setTextViewText(R.id.tv_weather_emoji, weatherEmojiForCode(weather.weatherCode))
