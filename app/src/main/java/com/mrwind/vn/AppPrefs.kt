@@ -417,6 +417,28 @@ object AppPrefs {
         prefs(context).edit().putString("last_holiday_alert_key", key).apply()
     }
 
+    // Thông tin hữu ích theo ngày Âm lịch: thông báo 1 lần/ngày & ghi chú nhanh theo ngày Âm lịch
+    fun isLunarUsefulNotifyEnabled(context: Context): Boolean =
+        prefs(context).getBoolean("lunar_useful_notify_enabled", true)
+
+    fun setLunarUsefulNotifyEnabled(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean("lunar_useful_notify_enabled", enabled).apply()
+    }
+
+    fun getLastLunarUsefulNotifyDate(context: Context): String =
+        prefs(context).getString("last_lunar_useful_notify_date", "") ?: ""
+
+    fun setLastLunarUsefulNotifyDate(context: Context, dateStr: String) {
+        prefs(context).edit().putString("last_lunar_useful_notify_date", dateStr).apply()
+    }
+
+    fun getLunarDayNote(context: Context, lunarDateKey: String): String =
+        prefs(context).getString("lunar_day_note_$lunarDateKey", "") ?: ""
+
+    fun setLunarDayNote(context: Context, lunarDateKey: String, note: String) {
+        prefs(context).edit().putString("lunar_day_note_$lunarDateKey", note).apply()
+    }
+
     private fun prefs(context: Context) =
         context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
 }
