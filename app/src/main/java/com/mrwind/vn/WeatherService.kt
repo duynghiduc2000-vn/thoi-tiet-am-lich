@@ -18,12 +18,12 @@ import com.google.android.gms.tasks.CancellationTokenSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 import java.text.SimpleDateFormat
-import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
@@ -48,17 +48,6 @@ object WeatherService {
         val lon: Double
     )
 
-    private fun shortWeekdayLabel(calendar: Calendar): String = when (calendar.get(Calendar.DAY_OF_WEEK)) {
-        Calendar.MONDAY -> "T2"
-        Calendar.TUESDAY -> "T3"
-        Calendar.WEDNESDAY -> "T4"
-        Calendar.THURSDAY -> "T5"
-        Calendar.FRIDAY -> "T6"
-        Calendar.SATURDAY -> "T7"
-        Calendar.SUNDAY -> "CN"
-        else -> ""
-    }
-
     private fun weatherEmojiForWidgetCode(code: Int): String = when (code) {
         0 -> "☀️"
         1, 2 -> "⛅"
@@ -69,25 +58,6 @@ object WeatherService {
         71, 73, 75, 77, 85, 86 -> "❄️"
         95, 96, 99 -> "⛈️"
         else -> "🌤️"
-    }
-
-    private fun normalizeShortDayLabel(rawLabel: String, offsetDays: Int): String {
-        val cleaned = rawLabel
-            .replace("Thứ Hai", "T2", ignoreCase = true)
-            .replace("Thứ Ba", "T3", ignoreCase = true)
-            .replace("Thứ Tư", "T4", ignoreCase = true)
-            .replace("Thứ Năm", "T5", ignoreCase = true)
-            .replace("Thứ Sáu", "T6", ignoreCase = true)
-            .replace("Thứ Bảy", "T7", ignoreCase = true)
-            .replace("Chủ Nhật", "CN", ignoreCase = true)
-            .trim()
-        if (cleaned.isNotEmpty() && !cleaned.equals("Hôm nay", ignoreCase = true)) {
-            return cleaned.take(3).trim()
-        }
-        val cal = Calendar.getInstance(TimeZone.getTimeZone("Asia/Ho_Chi_Minh")).apply {
-            add(Calendar.DAY_OF_MONTH, offsetDays)
-        }
-        return shortWeekdayLabel(cal)
     }
 
     private fun saveSevenDaysToPrefs(context: Context, items: List<String>) {
@@ -160,7 +130,8 @@ object WeatherService {
             if (deviceLoc != null) {
                 lat = deviceLoc.latitude
                 lon = deviceLoc.longitude
-                locName = resolveLocationName(context, lat, lon) ?: locName.ifBlank { "Vị trí hiện tại" }
+                locName = resolveLocationName(context, lat, lon)
+                    ?: "%.2f, %.2f".format(Locale.US, lat, lon)
             }
         }
 
@@ -174,10 +145,10 @@ object WeatherService {
             AppPrefs.saveWeather(context, fetched)
             val dailyList = fetchForecastDays(context, days = 8)
             if (dailyList.size > 1) {
-                val sevenNext = dailyList.drop(1).take(7).mapIndexed { index, day ->
-                    val shortDay = normalizeShortDayLabel(day.dayLabel, index + 1)
+                val sevenNext = dailyList.drop(1).take(7).map { day ->
+                    val dateLbl = day.dateLabel
                     val icon = weatherEmojiForWidgetCode(day.weatherCode)
-                    "$shortDay|$icon"
+                    "$dateLbl|$icon"
                 }
                 saveSevenDaysToPrefs(context, sevenNext)
             }
@@ -275,17 +246,19 @@ object WeatherService {
 
         val client = LocationServices.getFusedLocationProviderClient(context)
 
-        val lastLoc = suspendCancellableCoroutine<Location?> { cont ->
-            client.lastLocation
-                .addOnSuccessListener { loc -> if (cont.isActive) cont.resume(loc) }
-                .addOnFailureListener { if (cont.isActive) cont.resume(null) }
+        val currentLoc = withTimeoutOrNull(8000L) {
+            val cts = CancellationTokenSource()
+            suspendCancellableCoroutine<Location?> { cont ->
+                cont.invokeOnCancellation { cts.cancel() }
+                client.getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, cts.token)
+                    .addOnSuccessListener { loc -> if (cont.isActive) cont.resume(loc) }
+                    .addOnFailureListener { if (cont.isActive) cont.resume(null) }
+            }
         }
-        if (lastLoc != null) return lastLoc
+        if (currentLoc != null) return currentLoc
 
-        val cts = CancellationTokenSource()
-        return suspendCancellableCoroutine { cont ->
-            cont.invokeOnCancellation { cts.cancel() }
-            client.getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, cts.token)
+        return suspendCancellableCoroutine<Location?> { cont ->
+            client.lastLocation
                 .addOnSuccessListener { loc -> if (cont.isActive) cont.resume(loc) }
                 .addOnFailureListener { if (cont.isActive) cont.resume(null) }
         }
