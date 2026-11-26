@@ -1,9 +1,13 @@
 package com.mrwind.vn
 
 import android.Manifest
+import android.content.ActivityNotFoundException
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
@@ -64,6 +68,7 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.PersonSearch
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -126,6 +131,7 @@ import kotlin.math.roundToInt
 import kotlin.random.Random
 
 private const val APP_VERSION_NAME = "31.12-HPBD"
+private const val FEEDBACK_EMAIL = "duynghiduc12@gmail.com"
 
 private val DAILY_WARM_MESSAGES = listOf(
     "Chúc bạn hôm nay thật nhẹ nhàng, bình yên và gặp nhiều điều dễ thương",
@@ -208,7 +214,13 @@ private enum class ExpandableSection {
     LUNAR_USEFUL_INFO,
     AGE_CALC,
     BIRTHDAY,
-    HOLIDAY
+    HOLIDAY,
+    BUG_REPORT
+}
+
+private enum class FeedbackCategory(val label: String) {
+    BUG("Báo cáo lỗi"),
+    SUGGESTION("Đề xuất")
 }
 
 private data class AdaptivePalette(
@@ -668,6 +680,43 @@ private fun convertSolarToLunarSummary(day: Int, month: Int, year: Int): String 
     val yCanChi = canChiYear(lunarYear)
 
     return "Âm lịch: Ngày $lunarDay/$lunarMonth/$lunarYear$leapText • Ngày $dCanChi • Tháng $mCanChi • Năm $yCanChi"
+}
+
+private fun sendFeedbackViaMail(
+    context: Context,
+    category: FeedbackCategory,
+    message: String,
+    locationName: String,
+    isDark: Boolean
+) {
+    val subject = "[Thời tiết & Âm lịch] ${category.label} (v$APP_VERSION_NAME)"
+    val body = buildString {
+        appendLine("Loại phản hồi: ${category.label}")
+        appendLine("Phiên bản app: $APP_VERSION_NAME")
+        appendLine("Địa điểm hiện tại: $locationName")
+        appendLine("Chế độ nền: ${if (isDark) "Tối" else "Sáng"}")
+        appendLine("Thiết bị: ${Build.MANUFACTURER} ${Build.MODEL} (Android ${Build.VERSION.RELEASE})")
+        appendLine("----------------------------------------")
+        appendLine(message.trim())
+    }
+
+    val mailUri = Uri.parse(
+        "mailto:${Uri.encode(FEEDBACK_EMAIL)}" +
+            "?subject=${Uri.encode(subject)}" +
+            "&body=${Uri.encode(body)}"
+    )
+    val intent = Intent(Intent.ACTION_SENDTO, mailUri)
+    try {
+        context.startActivity(Intent.createChooser(intent, "Gửi qua ứng dụng Email"))
+    } catch (_: ActivityNotFoundException) {
+        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+        clipboard?.setPrimaryClip(ClipData.newPlainText("Phản hồi Thời tiết & Âm lịch", "To: $FEEDBACK_EMAIL\nSubject: $subject\n\n$body"))
+        Toast.makeText(
+            context,
+            "Không tìm thấy app Mail. Đã sao chép nội dung tới $FEEDBACK_EMAIL vào bộ nhớ tạm.",
+            Toast.LENGTH_LONG
+        ).show()
+    }
 }
 
 @Composable
@@ -1139,6 +1188,10 @@ fun ThoiTietAmLichApp() {
     }
     var showHolidayPopup by remember { mutableStateOf(false) }
 
+    var feedbackCategory by remember { mutableStateOf(FeedbackCategory.BUG) }
+    var feedbackMessageInput by remember { mutableStateOf("") }
+    var feedbackError by remember { mutableStateOf<String?>(null) }
+
     var expandedSection by remember { mutableStateOf<ExpandableSection?>(null) }
     fun toggleSection(section: ExpandableSection) {
         expandedSection = if (expandedSection == section) null else section
@@ -1149,6 +1202,7 @@ fun ThoiTietAmLichApp() {
     val ageSectionBringIntoView = remember { BringIntoViewRequester() }
     val todoSectionBringIntoView = remember { BringIntoViewRequester() }
     val bdaySectionBringIntoView = remember { BringIntoViewRequester() }
+    val feedbackSectionBringIntoView = remember { BringIntoViewRequester() }
 
     val todayBirthdays = remember(birthdays) { BirthdayHelper.getTodayBirthdays(context) }
     val showAdminBirthdayToday = remember { BirthdayHelper.isAdminBirthdayToday() }
@@ -3096,6 +3150,141 @@ fun ThoiTietAmLichApp() {
                                                 }
                                             )
                                         }
+                                    }
+                                }
+                            }
+                        }
+
+                        // 10. Báo cáo lỗi và đề xuất
+                        item(key = "bug_report_section") {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .bringIntoViewRequester(feedbackSectionBringIntoView)
+                            ) {
+                                CollapsibleSectionCard(
+                                    title = "Báo cáo lỗi và đề xuất",
+                                    badgeText = "Email",
+                                    accentColor = accentCompose,
+                                    palette = palette,
+                                    expanded = expandedSection == ExpandableSection.BUG_REPORT,
+                                    onToggle = { toggleSection(ExpandableSection.BUG_REPORT) }
+                                ) {
+                                    Text(
+                                        "Chọn loại phản hồi và nhập nội dung để mở trình gửi mail tới $FEEDBACK_EMAIL (kèm thông tin phiên bản & thiết bị).",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = palette.textSecondary
+                                    )
+
+                                    Spacer(modifier = Modifier.height(10.dp))
+
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        FeedbackCategory.entries.forEach { category ->
+                                            val selected = feedbackCategory == category
+                                            FilterChip(
+                                                selected = selected,
+                                                shape = RoundedCornerShape(12.dp),
+                                                colors = FilterChipDefaults.filterChipColors(
+                                                    containerColor = palette.subtleBg,
+                                                    labelColor = palette.textPrimary,
+                                                    selectedContainerColor = accentCompose,
+                                                    selectedLabelColor = palette.onAccentText
+                                                ),
+                                                onClick = {
+                                                    feedbackCategory = category
+                                                    feedbackError = null
+                                                },
+                                                label = {
+                                                    Text(
+                                                        category.label,
+                                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
+                                                    )
+                                                }
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(10.dp))
+
+                                    OutlinedTextField(
+                                        value = feedbackMessageInput,
+                                        onValueChange = {
+                                            feedbackMessageInput = it
+                                            feedbackError = null
+                                        },
+                                        label = {
+                                            Text(
+                                                if (feedbackCategory == FeedbackCategory.BUG)
+                                                    "Mô tả lỗi bạn gặp phải..."
+                                                else
+                                                    "Chia sẻ ý tưởng hoặc tính năng bạn mong muốn...",
+                                                color = palette.textSecondary
+                                            )
+                                        },
+                                        minLines = 3,
+                                        maxLines = 6,
+                                        shape = RoundedCornerShape(14.dp),
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedTextColor = palette.textPrimary,
+                                            unfocusedTextColor = palette.textPrimary,
+                                            focusedBorderColor = accentCompose,
+                                            unfocusedBorderColor = palette.border,
+                                            focusedLabelColor = accentCompose,
+                                            unfocusedLabelColor = palette.textSecondary,
+                                            unfocusedContainerColor = palette.subtleBg,
+                                            focusedContainerColor = palette.subtleBg
+                                        ),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .onFocusChanged { focusState ->
+                                                if (focusState.isFocused) {
+                                                    scope.launch {
+                                                        delay(180)
+                                                        feedbackSectionBringIntoView.bringIntoView()
+                                                    }
+                                                }
+                                            }
+                                    )
+
+                                    if (feedbackError != null) {
+                                        Text(
+                                            feedbackError!!,
+                                            color = MaterialTheme.colorScheme.error,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            modifier = Modifier.padding(top = 6.dp)
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.height(10.dp))
+
+                                    Button(
+                                        onClick = {
+                                            val trimmed = feedbackMessageInput.trim()
+                                            if (trimmed.isEmpty()) {
+                                                feedbackError = "Vui lòng nhập nội dung trước khi gửi."
+                                                return@Button
+                                            }
+                                            feedbackError = null
+                                            sendFeedbackViaMail(
+                                                context = context,
+                                                category = feedbackCategory,
+                                                message = trimmed,
+                                                locationName = weather.locationName,
+                                                isDark = palette.isDark
+                                            )
+                                        },
+                                        shape = RoundedCornerShape(16.dp),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = accentCompose,
+                                            contentColor = palette.onAccentText
+                                        ),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(46.dp)
+                                    ) {
+                                        Icon(Icons.Default.Send, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Gửi qua Email", fontWeight = FontWeight.Bold)
                                     }
                                 }
                             }
