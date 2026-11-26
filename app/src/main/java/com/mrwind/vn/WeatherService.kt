@@ -412,6 +412,7 @@ class WeatherSyncWorker(
 ) : CoroutineWorker(appContext, workerParams) {
     override suspend fun doWork(): Result {
         WeatherService.syncWeather(applicationContext)
+        BirthdayHelper.runDailyBackgroundReminders(applicationContext)
         return Result.success()
     }
 }
