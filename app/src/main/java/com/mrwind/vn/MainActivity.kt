@@ -117,6 +117,7 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -756,7 +757,9 @@ private fun WidgetClockText(
         fontWeight = FontWeight.ExtraBold,
         letterSpacing = (-0.5).sp,
         color = color,
-        maxLines = 1
+        maxLines = 1,
+        softWrap = false,
+        overflow = TextOverflow.Clip
     )
 }
 
@@ -873,7 +876,6 @@ private fun WidgetPreviewBox(
             .padding(14.dp)
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            // Hàng 1: Âm lịch bên trái + Khung bo Icon & Nhiệt độ hiện tại bên phải
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -937,7 +939,6 @@ private fun WidgetPreviewBox(
             if (showSolarDate || showLocationName) {
                 Spacer(modifier = Modifier.height(6.dp))
 
-                // Hàng 2: Dương lịch bên trái + Địa danh bên phải
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -971,7 +972,6 @@ private fun WidgetPreviewBox(
 
             Spacer(modifier = Modifier.height(6.dp))
 
-            // Hàng 3: Đồng hồ bên trái + Trạng thái, Độ ẩm/Gió, Cao/Thấp bên phải
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -1021,7 +1021,6 @@ private fun WidgetPreviewBox(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Hàng 4: 7 ô vuông dự báo 7 ngày bên trái + Chữ ký thẳng hàng bên phải
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -1461,7 +1460,6 @@ fun ThoiTietAmLichApp() {
                         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 120.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        // TẦNG 1: Editorial Header + Bento Hero (Xem trước Widget + 2 ô thao tác nhanh)
                         item(key = "top_bento_editorial") {
                             Column(
                                 verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -1624,7 +1622,6 @@ fun ThoiTietAmLichApp() {
                             }
                         }
 
-                        // Mục Nền ứng dụng nằm ngoài các thẻ, ngay dưới cụm Bento đầu trang
                         item(key = "app_theme_outside_bar") {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -1637,7 +1634,9 @@ fun ThoiTietAmLichApp() {
                                     "Nền ứng dụng",
                                     style = MaterialTheme.typography.titleSmall,
                                     color = palette.textPrimary,
-                                    fontWeight = FontWeight.Bold
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    softWrap = false
                                 )
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     val themeLabels = listOf("Hệ thống", "Sáng", "Tối")
@@ -1659,6 +1658,8 @@ fun ThoiTietAmLichApp() {
                                             label = {
                                                 Text(
                                                     label,
+                                                    maxLines = 1,
+                                                    softWrap = false,
                                                     fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
                                                 )
                                             }
@@ -2297,7 +2298,7 @@ fun ThoiTietAmLichApp() {
                             ) {
                                 Row(
                                     horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                    verticalAlignment = Alignment.Top,
+                                    verticalAlignment = Alignment.CenterVertically,
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     CompactDualCard(
@@ -2938,7 +2939,7 @@ fun ThoiTietAmLichApp() {
                             ) {
                                 Row(
                                     horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                    verticalAlignment = Alignment.Top,
+                                    verticalAlignment = Alignment.CenterVertically,
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     CompactDualCard(
@@ -4375,6 +4376,7 @@ fun ThoiTietAmLichApp() {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun CompactDualCard(
     title: String,
@@ -4409,7 +4411,7 @@ private fun CompactDualCard(
         color = Color.Transparent,
         contentColor = palette.textPrimary,
         modifier = modifier
-            .height(50.dp)
+            .height(52.dp)
             .clip(RoundedCornerShape(24.dp))
             .background(palette.liquidGlassBrush)
             .border(
@@ -4428,7 +4430,7 @@ private fun CompactDualCard(
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f, fill = true)
             ) {
                 Box(
                     modifier = Modifier
@@ -4439,23 +4441,32 @@ private fun CompactDualCard(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    title,
+                    text = title,
                     fontSize = 13.5.sp,
                     color = palette.textPrimary,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
-                    modifier = Modifier.basicMarquee(iterations = Int.MAX_VALUE)
+                    softWrap = false,
+                    overflow = TextOverflow.Clip,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .basicMarquee(
+                            iterations = Int.MAX_VALUE,
+                            repeatDelayMillis = 900,
+                            velocity = 28.dp
+                        )
                 )
             }
 
             Spacer(modifier = Modifier.width(6.dp))
 
             Text(
-                badgeText,
+                text = badgeText,
                 fontSize = 11.sp,
                 color = accentColor,
                 fontWeight = FontWeight.Bold,
-                maxLines = 1
+                maxLines = 1,
+                softWrap = false
             )
 
             Icon(
@@ -4521,6 +4532,7 @@ private fun FlatSwitchRow(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun CollapsibleSectionCard(
     title: String,
@@ -4575,13 +4587,14 @@ private fun CollapsibleSectionCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier
                     .fillMaxWidth()
+                    .height(52.dp)
                     .clip(RoundedCornerShape(24.dp))
                     .clickable(onClick = onToggle)
-                    .padding(horizontal = 16.dp, vertical = 14.dp)
+                    .padding(horizontal = 16.dp)
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f, fill = true)
                 ) {
                     Box(
                         modifier = Modifier
@@ -4592,10 +4605,20 @@ private fun CollapsibleSectionCard(
                     )
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        title,
+                        text = title,
                         style = MaterialTheme.typography.titleMedium,
                         color = palette.textPrimary,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Clip,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .basicMarquee(
+                                iterations = Int.MAX_VALUE,
+                                repeatDelayMillis = 900,
+                                velocity = 30.dp
+                            )
                     )
                 }
 
@@ -4603,10 +4626,12 @@ private fun CollapsibleSectionCard(
 
                 if (badgeText != null) {
                     Text(
-                        badgeText,
+                        text = badgeText,
                         style = MaterialTheme.typography.labelMedium,
                         color = accentColor,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        softWrap = false
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                 }
