@@ -145,7 +145,7 @@ private data class AdaptivePalette(
     val screenBrush: Brush,
     val cardBg: Color,
     val liquidGlassBrush: Brush,
-    val liquidGlassBorder: Color,
+    val liquidGlassBorder: Brush,
     val subtleBg: Color,
     val textPrimary: Color,
     val textSecondary: Color,
@@ -4059,6 +4059,20 @@ private fun CollapsibleSectionCard(
         label = "section_arrow_rotation"
     )
 
+    val activeBorderBrush = remember(expanded, accentColor, palette) {
+        if (expanded) {
+            Brush.linearGradient(
+                listOf(
+                    accentColor.copy(alpha = 0.80f),
+                    Color.White.copy(alpha = if (palette.isDark) 0.25f else 0.75f),
+                    accentColor.copy(alpha = 0.20f)
+                )
+            )
+        } else {
+            palette.liquidGlassBorder
+        }
+    }
+
     Surface(
         shape = RoundedCornerShape(24.dp),
         color = Color.Transparent,
@@ -4069,16 +4083,7 @@ private fun CollapsibleSectionCard(
             .background(palette.liquidGlassBrush)
             .border(
                 width = if (expanded) 1.4.dp else 1.dp,
-                brush = if (expanded) {
-                    Brush.linearGradient(
-                        listOf(
-                            accentColor.copy(alpha = 0.75f),
-                            palette.liquidGlassBorder.toString().let { palette.liquidGlassBorder }
-                        )
-                    )
-                } else {
-                    palette.liquidGlassBorder
-                },
+                brush = activeBorderBrush,
                 shape = RoundedCornerShape(24.dp)
             )
     ) {
