@@ -146,6 +146,11 @@ private data class AdaptivePalette(
     val cardBg: Color,
     val liquidGlassBrush: Brush,
     val liquidGlassBorder: Brush,
+    val popupBrush: Brush,
+    val popupBorder: Brush,
+    val popupBoxBg: Color,
+    val popupTextPrimary: Color,
+    val popupTextSecondary: Color,
     val subtleBg: Color,
     val textPrimary: Color,
     val textSecondary: Color,
@@ -182,6 +187,23 @@ private fun buildAdaptivePalette(isDark: Boolean, accentColor: Color): AdaptiveP
                     Color.White.copy(alpha = 0.08f)
                 )
             ),
+            popupBrush = Brush.verticalGradient(
+                listOf(
+                    Color(0xFF1B1D24).copy(alpha = 0.97f),
+                    Color(0xFF131419).copy(alpha = 0.98f),
+                    accentColor.copy(alpha = 0.10f)
+                )
+            ),
+            popupBorder = Brush.linearGradient(
+                listOf(
+                    Color.White.copy(alpha = 0.30f),
+                    accentColor.copy(alpha = 0.45f),
+                    Color.White.copy(alpha = 0.12f)
+                )
+            ),
+            popupBoxBg = Color(0xFF22242D).copy(alpha = 0.96f),
+            popupTextPrimary = Color(0xFFFAFAFA),
+            popupTextSecondary = Color(0xFFD4D4D8),
             subtleBg = Color(0xFF1B1B20),
             textPrimary = Color(0xFFFAFAFA),
             textSecondary = Color(0xFFA1A1AA),
@@ -215,6 +237,23 @@ private fun buildAdaptivePalette(isDark: Boolean, accentColor: Color): AdaptiveP
                     Color.Black.copy(alpha = 0.08f)
                 )
             ),
+            popupBrush = Brush.verticalGradient(
+                listOf(
+                    Color(0xFFFFFFFF).copy(alpha = 0.98f),
+                    Color(0xFFF8F9FB).copy(alpha = 0.99f),
+                    accentColor.copy(alpha = 0.07f)
+                )
+            ),
+            popupBorder = Brush.linearGradient(
+                listOf(
+                    accentColor.copy(alpha = 0.45f),
+                    Color.Black.copy(alpha = 0.14f),
+                    Color.White.copy(alpha = 0.95f)
+                )
+            ),
+            popupBoxBg = Color(0xFFECEEF3).copy(alpha = 0.96f),
+            popupTextPrimary = Color(0xFF09090B),
+            popupTextSecondary = Color(0xFF3F3F46),
             subtleBg = Color(0xFFF1F3F6),
             textPrimary = Color(0xFF09090B),
             textSecondary = Color(0xFF52525B),
@@ -917,16 +956,19 @@ private fun LiquidGlassPopupSurface(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
+    val baseFill = if (palette.isDark) Color(0xFF14151B) else Color(0xFFFCFDFF)
     Surface(
         shape = RoundedCornerShape(28.dp),
-        tonalElevation = 0.dp,
-        color = Color.Transparent,
-        contentColor = palette.textPrimary,
+        tonalElevation = 8.dp,
+        shadowElevation = 18.dp,
+        color = baseFill,
+        contentColor = palette.popupTextPrimary,
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(28.dp))
-            .background(palette.liquidGlassBrush)
-            .border(1.2.dp, palette.liquidGlassBorder, RoundedCornerShape(28.dp))
+            .background(baseFill)
+            .background(palette.popupBrush)
+            .border(1.3.dp, palette.popupBorder, RoundedCornerShape(28.dp))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
@@ -3017,7 +3059,7 @@ fun ThoiTietAmLichApp() {
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.65f))
+                            .background(Color.Black.copy(alpha = 0.72f))
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null
@@ -3046,7 +3088,7 @@ fun ThoiTietAmLichApp() {
                                         Icon(
                                             Icons.Default.Close,
                                             contentDescription = "Đóng",
-                                            tint = palette.textSecondary
+                                            tint = palette.popupTextSecondary
                                         )
                                     }
                                 }
@@ -3072,7 +3114,7 @@ fun ThoiTietAmLichApp() {
                                 Text(
                                     "Nhắc ngày lễ & kỷ niệm",
                                     style = MaterialTheme.typography.headlineSmall,
-                                    color = palette.textPrimary,
+                                    color = palette.popupTextPrimary,
                                     fontWeight = FontWeight.Bold,
                                     textAlign = TextAlign.Center
                                 )
@@ -3101,14 +3143,14 @@ fun ThoiTietAmLichApp() {
                                     activeHolidayAlerts.forEach { alert ->
                                         Surface(
                                             shape = RoundedCornerShape(16.dp),
-                                            color = palette.subtleBg,
+                                            color = palette.popupBoxBg,
                                             modifier = Modifier.fillMaxWidth()
                                         ) {
                                             Text(
                                                 alert.message,
                                                 style = MaterialTheme.typography.titleMedium,
                                                 fontWeight = FontWeight.SemiBold,
-                                                color = palette.textPrimary,
+                                                color = palette.popupTextPrimary,
                                                 textAlign = TextAlign.Center,
                                                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)
                                             )
@@ -3154,7 +3196,7 @@ fun ThoiTietAmLichApp() {
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.65f))
+                            .background(Color.Black.copy(alpha = 0.72f))
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null
@@ -3187,7 +3229,7 @@ fun ThoiTietAmLichApp() {
                                 Text(
                                     "Đến giờ làm việc!",
                                     style = MaterialTheme.typography.headlineSmall,
-                                    color = palette.textPrimary,
+                                    color = palette.popupTextPrimary,
                                     fontWeight = FontWeight.Bold,
                                     textAlign = TextAlign.Center
                                 )
@@ -3212,13 +3254,13 @@ fun ThoiTietAmLichApp() {
 
                                     Surface(
                                         shape = RoundedCornerShape(16.dp),
-                                        color = palette.subtleBg,
+                                        color = palette.popupBoxBg,
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
                                         Text(
                                             todoData.title,
                                             style = MaterialTheme.typography.titleMedium,
-                                            color = palette.textPrimary,
+                                            color = palette.popupTextPrimary,
                                             fontWeight = FontWeight.Bold,
                                             textAlign = TextAlign.Center,
                                             modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp)
@@ -3243,7 +3285,7 @@ fun ThoiTietAmLichApp() {
                                         ) {
                                             Text(
                                                 "Tạm bỏ qua",
-                                                color = palette.textPrimary,
+                                                color = palette.popupTextPrimary,
                                                 fontWeight = FontWeight.SemiBold,
                                                 maxLines = 1
                                             )
@@ -3294,7 +3336,7 @@ fun ThoiTietAmLichApp() {
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.65f))
+                            .background(Color.Black.copy(alpha = 0.72f))
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null
@@ -3317,7 +3359,7 @@ fun ThoiTietAmLichApp() {
                                         Icon(
                                             Icons.Default.Close,
                                             contentDescription = "Đóng",
-                                            tint = palette.textSecondary
+                                            tint = palette.popupTextSecondary
                                         )
                                     }
                                 }
@@ -3343,7 +3385,7 @@ fun ThoiTietAmLichApp() {
                                 Text(
                                     "Kết quả tính tuổi",
                                     style = MaterialTheme.typography.headlineSmall,
-                                    color = palette.textPrimary,
+                                    color = palette.popupTextPrimary,
                                     fontWeight = FontWeight.Bold,
                                     textAlign = TextAlign.Center
                                 )
@@ -3369,14 +3411,14 @@ fun ThoiTietAmLichApp() {
                                     Text(
                                         ageData.currentLabel,
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = palette.textSecondary
+                                        color = palette.popupTextSecondary
                                     )
 
                                     Spacer(modifier = Modifier.height(14.dp))
 
                                     Surface(
                                         shape = RoundedCornerShape(16.dp),
-                                        color = palette.subtleBg,
+                                        color = palette.popupBoxBg,
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
                                         Text(
@@ -3424,7 +3466,7 @@ fun ThoiTietAmLichApp() {
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.65f))
+                            .background(Color.Black.copy(alpha = 0.72f))
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null
@@ -3457,7 +3499,7 @@ fun ThoiTietAmLichApp() {
                                 Text(
                                     "Đã xóa lịch sử tính tuổi",
                                     style = MaterialTheme.typography.headlineSmall,
-                                    color = palette.textPrimary,
+                                    color = palette.popupTextPrimary,
                                     fontWeight = FontWeight.Bold,
                                     textAlign = TextAlign.Center
                                 )
@@ -3467,7 +3509,7 @@ fun ThoiTietAmLichApp() {
                                 Text(
                                     "Toàn bộ lịch sử tính tuổi đã được xóa thành công.",
                                     style = MaterialTheme.typography.bodyLarge,
-                                    color = palette.textSecondary,
+                                    color = palette.popupTextSecondary,
                                     textAlign = TextAlign.Center
                                 )
 
@@ -3506,7 +3548,7 @@ fun ThoiTietAmLichApp() {
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.65f))
+                            .background(Color.Black.copy(alpha = 0.72f))
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null
@@ -3529,7 +3571,7 @@ fun ThoiTietAmLichApp() {
                                         Icon(
                                             Icons.Default.Close,
                                             contentDescription = "Đóng",
-                                            tint = palette.textSecondary
+                                            tint = palette.popupTextSecondary
                                         )
                                     }
                                 }
@@ -3555,7 +3597,7 @@ fun ThoiTietAmLichApp() {
                                 Text(
                                     "Thông báo lịch âm",
                                     style = MaterialTheme.typography.headlineSmall,
-                                    color = palette.textPrimary,
+                                    color = palette.popupTextPrimary,
                                     fontWeight = FontWeight.Bold,
                                     textAlign = TextAlign.Center
                                 )
@@ -3580,13 +3622,13 @@ fun ThoiTietAmLichApp() {
 
                                     Surface(
                                         shape = RoundedCornerShape(16.dp),
-                                        color = palette.subtleBg,
+                                        color = palette.popupBoxBg,
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
                                         Text(
                                             data.lunarSummary,
                                             style = MaterialTheme.typography.titleMedium,
-                                            color = palette.textPrimary,
+                                            color = palette.popupTextPrimary,
                                             fontWeight = FontWeight.Bold,
                                             textAlign = TextAlign.Center,
                                             modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp)
@@ -3628,7 +3670,7 @@ fun ThoiTietAmLichApp() {
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.65f))
+                            .background(Color.Black.copy(alpha = 0.72f))
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null
@@ -3661,7 +3703,7 @@ fun ThoiTietAmLichApp() {
                                 Text(
                                     "Đã xóa lịch sử",
                                     style = MaterialTheme.typography.headlineSmall,
-                                    color = palette.textPrimary,
+                                    color = palette.popupTextPrimary,
                                     fontWeight = FontWeight.Bold,
                                     textAlign = TextAlign.Center
                                 )
@@ -3671,7 +3713,7 @@ fun ThoiTietAmLichApp() {
                                 Text(
                                     "Toàn bộ lịch sử tra cứu lịch âm đã được xóa thành công.",
                                     style = MaterialTheme.typography.bodyLarge,
-                                    color = palette.textSecondary,
+                                    color = palette.popupTextSecondary,
                                     textAlign = TextAlign.Center
                                 )
 
@@ -3709,7 +3751,7 @@ fun ThoiTietAmLichApp() {
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.65f))
+                            .background(Color.Black.copy(alpha = 0.72f))
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null
@@ -3732,7 +3774,7 @@ fun ThoiTietAmLichApp() {
                                         Icon(
                                             Icons.Default.Close,
                                             contentDescription = "Đóng",
-                                            tint = palette.textSecondary
+                                            tint = palette.popupTextSecondary
                                         )
                                     }
                                 }
@@ -3758,7 +3800,7 @@ fun ThoiTietAmLichApp() {
                                 Text(
                                     "Lưu ý mức tiêu thụ pin",
                                     style = MaterialTheme.typography.headlineSmall,
-                                    color = palette.textPrimary,
+                                    color = palette.popupTextPrimary,
                                     fontWeight = FontWeight.Bold,
                                     textAlign = TextAlign.Center
                                 )
@@ -3768,7 +3810,7 @@ fun ThoiTietAmLichApp() {
                                 Text(
                                     "Bật tính năng này sẽ làm cho thiết bị của bạn hao pin hơn.",
                                     style = MaterialTheme.typography.bodyLarge,
-                                    color = palette.textSecondary,
+                                    color = palette.popupTextSecondary,
                                     textAlign = TextAlign.Center
                                 )
 
@@ -3787,7 +3829,7 @@ fun ThoiTietAmLichApp() {
                                     ) {
                                         Text(
                                             "Hủy",
-                                            color = palette.textPrimary,
+                                            color = palette.popupTextPrimary,
                                             fontWeight = FontWeight.SemiBold
                                         )
                                     }
@@ -3830,7 +3872,7 @@ fun ThoiTietAmLichApp() {
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.65f))
+                            .background(Color.Black.copy(alpha = 0.72f))
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null
@@ -3853,7 +3895,7 @@ fun ThoiTietAmLichApp() {
                                         Icon(
                                             Icons.Default.Close,
                                             contentDescription = "Đóng",
-                                            tint = palette.textSecondary
+                                            tint = palette.popupTextSecondary
                                         )
                                     }
                                 }
@@ -3882,7 +3924,7 @@ fun ThoiTietAmLichApp() {
                                     else
                                         "Sinh nhật hôm nay",
                                     style = MaterialTheme.typography.headlineSmall,
-                                    color = palette.textPrimary,
+                                    color = palette.popupTextPrimary,
                                     fontWeight = FontWeight.Bold,
                                     textAlign = TextAlign.Center
                                 )
@@ -3907,7 +3949,7 @@ fun ThoiTietAmLichApp() {
                                 if (showAdminBirthdayToday) {
                                     Surface(
                                         shape = RoundedCornerShape(16.dp),
-                                        color = palette.subtleBg,
+                                        color = palette.popupBoxBg,
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .padding(bottom = if (todayBirthdays.isNotEmpty()) 8.dp else 0.dp)
@@ -3916,7 +3958,7 @@ fun ThoiTietAmLichApp() {
                                             BirthdayHelper.ADMIN_BIRTHDAY_MESSAGE,
                                             style = MaterialTheme.typography.titleMedium,
                                             fontWeight = FontWeight.SemiBold,
-                                            color = palette.textPrimary,
+                                            color = palette.popupTextPrimary,
                                             textAlign = TextAlign.Center,
                                             modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)
                                         )
@@ -3931,7 +3973,7 @@ fun ThoiTietAmLichApp() {
                                         todayBirthdays.forEach { person ->
                                             Surface(
                                                 shape = RoundedCornerShape(16.dp),
-                                                color = palette.subtleBg,
+                                                color = palette.popupBoxBg,
                                                 modifier = Modifier.fillMaxWidth()
                                             ) {
                                                 Row(
@@ -3942,7 +3984,7 @@ fun ThoiTietAmLichApp() {
                                                     Text(
                                                         "🎉 ${person.name}",
                                                         style = MaterialTheme.typography.titleMedium,
-                                                        color = palette.textPrimary,
+                                                        color = palette.popupTextPrimary,
                                                         fontWeight = FontWeight.Bold
                                                     )
                                                     Text(
@@ -3962,7 +4004,7 @@ fun ThoiTietAmLichApp() {
                                 Text(
                                     "Đừng quên gửi lời chúc mừng sinh nhật thật ấm áp nhé!",
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = palette.textSecondary,
+                                    color = palette.popupTextSecondary,
                                     textAlign = TextAlign.Center
                                 )
 
