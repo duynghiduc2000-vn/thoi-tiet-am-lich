@@ -240,7 +240,6 @@ class WeatherLunarWidget : AppWidgetProvider() {
             val showSeconds = AppPrefs.isShowSeconds(context)
             val showWeatherEffect = AppPrefs.isShowWeatherEffect(context)
             val showLunarDate = AppPrefs.isShowLunarDate(context)
-            val showWeatherInfo = AppPrefs.isShowWeatherInfo(context)
             val showSolarDate = AppPrefs.isShowSolarDate(context)
             val showLocationName = AppPrefs.isShowLocationName(context)
             val showSevenDayForecast = AppPrefs.isShowSevenDayForecast(context)
@@ -287,7 +286,7 @@ class WeatherLunarWidget : AppWidgetProvider() {
             views.setTextColor(R.id.tv_clock, primaryTextColor)
             views.setTextViewTextSize(R.id.tv_clock, TypedValue.COMPLEX_UNIT_PX, clockPx)
 
-            views.setTextViewText(R.id.tv_min_max_temp, "▲ ${weather.maxTemp}  ▼ ${weather.minTemp}")
+            views.setTextViewText(R.id.tv_min_max_temp, "▲ ${weather.maxTemp}  ▼${weather.minTemp}")
             views.setTextColor(R.id.tv_min_max_temp, accentColor)
 
             val sevenDayVisibility = if (showSevenDayForecast) View.VISIBLE else View.GONE
@@ -340,9 +339,8 @@ class WeatherLunarWidget : AppWidgetProvider() {
                 }
             }
 
-            val weatherVisibility = if (showWeatherInfo) View.VISIBLE else View.GONE
-            views.setViewVisibility(R.id.btn_refresh_weather, weatherVisibility)
-            views.setViewVisibility(R.id.right_column, weatherVisibility)
+            views.setViewVisibility(R.id.btn_refresh_weather, View.VISIBLE)
+            views.setViewVisibility(R.id.right_column, View.VISIBLE)
             views.setTextViewText(R.id.tv_weather_emoji, weatherEmojiForCode(weather.weatherCode))
             views.setTextViewText(R.id.tv_current_temp, weather.currentTemp)
             views.setTextColor(R.id.tv_current_temp, accentColor)
