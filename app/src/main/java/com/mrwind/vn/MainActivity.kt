@@ -122,6 +122,11 @@ import kotlin.math.roundToInt
 
 private const val APP_VERSION_NAME = "31.12-HPBD"
 
+private val CardSurfaceLight = Color(0xFFFFFFFF)
+private val CardSubtleLight = Color(0xFFF1F5F9)
+private val TextPrimaryLight = Color(0xFF0F172A)
+private val TextSecondaryLight = Color(0xFF475569)
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -463,46 +468,46 @@ private fun WidgetPreviewBox(
         when (widgetBgMode) {
             0 -> Brush.linearGradient(
                 listOf(
-                    Color(0xE61A1D29),
-                    accentColor.copy(alpha = 0.14f),
-                    Color(0xE610131C)
+                    Color(0xFF1E2436),
+                    accentColor.copy(alpha = 0.16f),
+                    Color(0xFF141824)
                 )
             )
             1 -> Brush.linearGradient(
                 listOf(
-                    Color(0xF2FFFFFF),
-                    accentColor.copy(alpha = 0.08f),
-                    Color(0xE6EEF2FA)
+                    Color(0xFFFFFFFF),
+                    accentColor.copy(alpha = 0.10f),
+                    Color(0xFFEEF2FA)
                 )
             )
             2 -> Brush.verticalGradient(listOf(Color.Transparent, Color.Transparent))
             else -> if (isDarkApp) {
                 Brush.linearGradient(
                     listOf(
-                        Color(0xD9202433),
-                        accentColor.copy(alpha = 0.12f),
-                        Color(0xD9141722)
+                        Color(0xFF23293B),
+                        accentColor.copy(alpha = 0.14f),
+                        Color(0xFF171B28)
                     )
                 )
             } else {
                 Brush.linearGradient(
                     listOf(
-                        Color(0xE6FFFFFF),
-                        accentColor.copy(alpha = 0.08f),
-                        Color(0xE6F4F7FC)
+                        Color(0xFFFFFFFF),
+                        accentColor.copy(alpha = 0.10f),
+                        Color(0xFFF4F7FC)
                     )
                 )
             }
         }
     }
 
-    val primaryText = if (effectiveDarkBg) Color(0xFFF8FAFC) else Color(0xFF0F172A)
-    val secondaryText = if (effectiveDarkBg) Color(0xFFCBD5E1) else Color(0xFF475569)
+    val primaryText = if (effectiveDarkBg) Color(0xFFF8FAFC) else TextPrimaryLight
+    val secondaryText = if (effectiveDarkBg) Color(0xFFCBD5E1) else TextSecondaryLight
     val borderColor = remember(widgetBgMode, effectiveDarkBg, accentColor) {
         when {
-            widgetBgMode == 2 -> accentColor.copy(alpha = 0.5f)
-            effectiveDarkBg -> Color.White.copy(alpha = 0.16f)
-            else -> accentColor.copy(alpha = 0.22f)
+            widgetBgMode == 2 -> accentColor.copy(alpha = 0.55f)
+            effectiveDarkBg -> Color.White.copy(alpha = 0.18f)
+            else -> accentColor.copy(alpha = 0.25f)
         }
     }
 
@@ -722,7 +727,6 @@ fun ThoiTietAmLichApp() {
     var bdayMonthInput by remember { mutableStateOf("1") }
     var bdayError by remember { mutableStateOf<String?>(null) }
 
-    // Trạng thái thu gọn mặc định cho các mục phụ (chỉ giữ Xem trước Widget & Dự báo 5 ngày mở sẵn)
     var clockThemeExpanded by remember { mutableStateOf(false) }
     var accentExpanded by remember { mutableStateOf(false) }
     var locationSigExpanded by remember { mutableStateOf(false) }
@@ -831,23 +835,23 @@ fun ThoiTietAmLichApp() {
             darkColorScheme(
                 primary = accentCompose,
                 secondary = accentCompose,
-                background = Color(0xFF0B0E17),
-                surface = Color(0xFF131826),
-                surfaceVariant = Color(0xFF1A2033),
+                background = Color(0xFF0E1320),
+                surface = CardSurfaceLight,
+                surfaceVariant = CardSubtleLight,
                 onBackground = Color(0xFFF8FAFC),
-                onSurface = Color(0xFFF8FAFC),
-                onSurfaceVariant = Color(0xFF94A3B8)
+                onSurface = TextPrimaryLight,
+                onSurfaceVariant = TextSecondaryLight
             )
         } else {
             lightColorScheme(
                 primary = accentCompose,
                 secondary = accentCompose,
-                background = Color(0xFFF4F6FB),
-                surface = Color(0xFFFFFFFF),
-                surfaceVariant = Color(0xFFEDF1F8),
-                onBackground = Color(0xFF0F172A),
-                onSurface = Color(0xFF0F172A),
-                onSurfaceVariant = Color(0xFF64748B)
+                background = Color(0xFFF1F5F9),
+                surface = CardSurfaceLight,
+                surfaceVariant = CardSubtleLight,
+                onBackground = TextPrimaryLight,
+                onSurface = TextPrimaryLight,
+                onSurfaceVariant = TextSecondaryLight
             )
         }
     }
@@ -856,17 +860,17 @@ fun ThoiTietAmLichApp() {
         if (isDark) {
             Brush.verticalGradient(
                 listOf(
-                    accentCompose.copy(alpha = 0.11f),
-                    Color(0xFF0B0E17),
-                    Color(0xFF090C14)
+                    accentCompose.copy(alpha = 0.14f),
+                    Color(0xFF0E1320),
+                    Color(0xFF090D16)
                 )
             )
         } else {
             Brush.verticalGradient(
                 listOf(
-                    accentCompose.copy(alpha = 0.09f),
-                    Color(0xFFF4F6FB),
-                    Color(0xFFEEF2F8)
+                    accentCompose.copy(alpha = 0.10f),
+                    Color(0xFFF1F5F9),
+                    Color(0xFFE8EEF5)
                 )
             )
         }
@@ -931,8 +935,8 @@ fun ThoiTietAmLichApp() {
                     TopAppBar(
                         colors = TopAppBarDefaults.topAppBarColors(
                             containerColor = Color.Transparent,
-                            titleContentColor = MaterialTheme.colorScheme.onBackground,
-                            actionIconContentColor = MaterialTheme.colorScheme.onBackground
+                            titleContentColor = Color(0xFFF8FAFC),
+                            actionIconContentColor = Color(0xFFF8FAFC)
                         ),
                         title = {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -945,6 +949,7 @@ fun ThoiTietAmLichApp() {
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Text(
                                     "Thời tiết & Âm lịch",
+                                    color = Color(0xFFF8FAFC),
                                     fontWeight = FontWeight.ExtraBold,
                                     letterSpacing = (-0.3).sp
                                 )
@@ -953,14 +958,10 @@ fun ThoiTietAmLichApp() {
                         actions = {
                             Surface(
                                 shape = CircleShape,
-                                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+                                color = Color(0xFF1E2638),
                                 modifier = Modifier
                                     .padding(end = 8.dp)
-                                    .border(
-                                        1.dp,
-                                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
-                                        CircleShape
-                                    )
+                                    .border(1.dp, Color.White.copy(alpha = 0.14f), CircleShape)
                             ) {
                                 IconButton(
                                     onClick = {
@@ -969,7 +970,11 @@ fun ThoiTietAmLichApp() {
                                         }
                                     }
                                 ) {
-                                    Icon(Icons.Default.Refresh, contentDescription = "Đồng bộ thời tiết")
+                                    Icon(
+                                        Icons.Default.Refresh,
+                                        contentDescription = "Đồng bộ thời tiết",
+                                        tint = Color(0xFFF8FAFC)
+                                    )
                                 }
                             }
                         }
@@ -984,18 +989,19 @@ fun ThoiTietAmLichApp() {
                     contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 120.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // 1. Xem trước widget / Dự báo 5 ngày (luôn mở sẵn, giữ nút Cập nhật)
+                    // 1. Xem trước widget / Dự báo 5 ngày (luôn mở sẵn)
                     item(key = "top_widget_forecast") {
                         Card(
                             shape = RoundedCornerShape(24.dp),
                             colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)
+                                containerColor = CardSurfaceLight,
+                                contentColor = TextPrimaryLight
                             ),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .border(
                                     width = 1.dp,
-                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f),
+                                    color = accentCompose.copy(alpha = 0.25f),
                                     shape = RoundedCornerShape(24.dp)
                                 )
                         ) {
@@ -1022,6 +1028,7 @@ fun ThoiTietAmLichApp() {
                                         Text(
                                             "Xem trước Widget",
                                             style = MaterialTheme.typography.titleMedium,
+                                            color = TextPrimaryLight,
                                             fontWeight = FontWeight.Bold
                                         )
                                     }
@@ -1034,10 +1041,14 @@ fun ThoiTietAmLichApp() {
                                         },
                                         enabled = !isSyncing,
                                         shape = RoundedCornerShape(14.dp),
-                                        colors = ButtonDefaults.buttonColors(containerColor = accentCompose)
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = accentCompose,
+                                            contentColor = TextPrimaryLight
+                                        )
                                     ) {
                                         Text(
                                             if (isSyncing) "Đang tải..." else "Cập nhật",
+                                            color = TextPrimaryLight,
                                             fontWeight = FontWeight.Bold
                                         )
                                     }
@@ -1070,16 +1081,17 @@ fun ThoiTietAmLichApp() {
                                         Text(
                                             "Dự báo 5 ngày tới",
                                             style = MaterialTheme.typography.titleSmall,
+                                            color = TextPrimaryLight,
                                             fontWeight = FontWeight.Bold
                                         )
                                         Surface(
                                             shape = RoundedCornerShape(999.dp),
-                                            color = accentCompose.copy(alpha = 0.14f)
+                                            color = accentCompose.copy(alpha = 0.16f)
                                         ) {
                                             Text(
                                                 "5 ngày",
                                                 style = MaterialTheme.typography.labelSmall,
-                                                color = accentCompose,
+                                                color = TextPrimaryLight,
                                                 fontWeight = FontWeight.Bold,
                                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                                             )
@@ -1093,12 +1105,12 @@ fun ThoiTietAmLichApp() {
                                         items(fiveDayForecast, key = { "${it.dayLabel}_${it.dateLabel}" }) { dayItem ->
                                             Surface(
                                                 shape = RoundedCornerShape(18.dp),
-                                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
+                                                color = CardSubtleLight,
                                                 modifier = Modifier
                                                     .width(106.dp)
                                                     .border(
                                                         1.dp,
-                                                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f),
+                                                        TextPrimaryLight.copy(alpha = 0.08f),
                                                         RoundedCornerShape(18.dp)
                                                     )
                                             ) {
@@ -1109,13 +1121,14 @@ fun ThoiTietAmLichApp() {
                                                     Text(
                                                         dayItem.dayLabel,
                                                         style = MaterialTheme.typography.labelLarge,
+                                                        color = TextPrimaryLight,
                                                         fontWeight = FontWeight.Bold,
                                                         maxLines = 1
                                                     )
                                                     Text(
                                                         dayItem.dateLabel,
                                                         style = MaterialTheme.typography.labelSmall,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        color = TextSecondaryLight,
                                                         maxLines = 1
                                                     )
                                                     Text(
@@ -1127,13 +1140,13 @@ fun ThoiTietAmLichApp() {
                                                         "▲ ${dayItem.maxTemp} ▼ ${dayItem.minTemp}",
                                                         style = MaterialTheme.typography.labelMedium,
                                                         fontWeight = FontWeight.Bold,
-                                                        color = accentCompose,
+                                                        color = TextPrimaryLight,
                                                         maxLines = 1
                                                     )
                                                     Text(
                                                         dayItem.description,
                                                         style = MaterialTheme.typography.labelSmall,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        color = TextSecondaryLight,
                                                         textAlign = TextAlign.Center,
                                                         maxLines = 1,
                                                         modifier = Modifier.padding(top = 3.dp)
@@ -1161,9 +1174,17 @@ fun ThoiTietAmLichApp() {
                                         .fillMaxWidth()
                                         .height(46.dp)
                                 ) {
-                                    Icon(Icons.Default.AddToHomeScreen, contentDescription = null)
+                                    Icon(
+                                        Icons.Default.AddToHomeScreen,
+                                        contentDescription = null,
+                                        tint = TextPrimaryLight
+                                    )
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    Text("Ghim Widget ra màn hình chính", fontWeight = FontWeight.SemiBold)
+                                    Text(
+                                        "Ghim Widget ra màn hình chính",
+                                        color = TextPrimaryLight,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
                                 }
                             }
                         }
@@ -1180,7 +1201,7 @@ fun ThoiTietAmLichApp() {
                         ) {
                             Surface(
                                 shape = RoundedCornerShape(16.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                                color = CardSubtleLight,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(bottom = 10.dp)
@@ -1193,11 +1214,15 @@ fun ThoiTietAmLichApp() {
                                         .padding(horizontal = 14.dp, vertical = 10.dp)
                                 ) {
                                     Column(modifier = Modifier.weight(1f)) {
-                                        Text("Hiển thị giây (chạy liên tục)", fontWeight = FontWeight.SemiBold)
+                                        Text(
+                                            "Hiển thị giây (chạy liên tục)",
+                                            color = TextPrimaryLight,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
                                         Text(
                                             "Định dạng HH:mm:ss trên đồng hồ Widget",
                                             style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            color = TextSecondaryLight
                                         )
                                     }
                                     Spacer(modifier = Modifier.width(8.dp))
@@ -1219,7 +1244,7 @@ fun ThoiTietAmLichApp() {
 
                             Surface(
                                 shape = RoundedCornerShape(16.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                                color = CardSubtleLight,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(bottom = 14.dp)
@@ -1232,11 +1257,15 @@ fun ThoiTietAmLichApp() {
                                         .padding(horizontal = 14.dp, vertical = 10.dp)
                                 ) {
                                     Column(modifier = Modifier.weight(1f)) {
-                                        Text("Hiệu ứng thời tiết trên Widget", fontWeight = FontWeight.SemiBold)
+                                        Text(
+                                            "Hiệu ứng thời tiết trên Widget",
+                                            color = TextPrimaryLight,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
                                         Text(
                                             "Bật/tắt lớp hiệu ứng nắng, mây, sương mù, mưa theo thời tiết",
                                             style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            color = TextSecondaryLight
                                         )
                                     }
                                     Spacer(modifier = Modifier.width(8.dp))
@@ -1252,7 +1281,11 @@ fun ThoiTietAmLichApp() {
                                 }
                             }
 
-                            Text("Chế độ giao diện ứng dụng", fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "Chế độ giao diện ứng dụng",
+                                color = TextPrimaryLight,
+                                fontWeight = FontWeight.SemiBold
+                            )
                             Row(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 modifier = Modifier.padding(top = 6.dp, bottom = 14.dp)
@@ -1263,8 +1296,10 @@ fun ThoiTietAmLichApp() {
                                         selected = appThemeMode == idx,
                                         shape = RoundedCornerShape(12.dp),
                                         colors = FilterChipDefaults.filterChipColors(
-                                            selectedContainerColor = accentCompose.copy(alpha = 0.2f),
-                                            selectedLabelColor = accentCompose
+                                            containerColor = CardSubtleLight,
+                                            labelColor = TextPrimaryLight,
+                                            selectedContainerColor = accentCompose.copy(alpha = 0.22f),
+                                            selectedLabelColor = TextPrimaryLight
                                         ),
                                         onClick = {
                                             appThemeMode = idx
@@ -1275,7 +1310,11 @@ fun ThoiTietAmLichApp() {
                                 }
                             }
 
-                            Text("Kiểu nền Widget trên màn hình chính", fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "Kiểu nền Widget trên màn hình chính",
+                                color = TextPrimaryLight,
+                                fontWeight = FontWeight.SemiBold
+                            )
                             val bgLabels = listOf("Kính lỏng tối", "Kính lỏng sáng", "Trong suốt", "Theo chủ đề app")
                             LazyRow(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -1286,8 +1325,10 @@ fun ThoiTietAmLichApp() {
                                         selected = widgetBgMode == idx,
                                         shape = RoundedCornerShape(12.dp),
                                         colors = FilterChipDefaults.filterChipColors(
-                                            selectedContainerColor = accentCompose.copy(alpha = 0.2f),
-                                            selectedLabelColor = accentCompose
+                                            containerColor = CardSubtleLight,
+                                            labelColor = TextPrimaryLight,
+                                            selectedContainerColor = accentCompose.copy(alpha = 0.22f),
+                                            selectedLabelColor = TextPrimaryLight
                                         ),
                                         onClick = {
                                             widgetBgMode = idx
@@ -1316,15 +1357,15 @@ fun ThoiTietAmLichApp() {
                                     Surface(
                                         shape = RoundedCornerShape(16.dp),
                                         color = if (selected) {
-                                            Color(opt.colorInt).copy(alpha = 0.16f)
+                                            Color(opt.colorInt).copy(alpha = 0.20f)
                                         } else {
-                                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                                            CardSubtleLight
                                         },
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(16.dp))
                                             .border(
-                                                width = if (selected) 1.5.dp else 0.dp,
-                                                color = if (selected) Color(opt.colorInt) else Color.Transparent,
+                                                width = if (selected) 1.5.dp else 1.dp,
+                                                color = if (selected) Color(opt.colorInt) else TextPrimaryLight.copy(alpha = 0.08f),
                                                 shape = RoundedCornerShape(16.dp)
                                             )
                                             .clickable {
@@ -1344,13 +1385,14 @@ fun ThoiTietAmLichApp() {
                                                     .background(Color(opt.colorInt))
                                                     .border(
                                                         width = if (selected) 3.dp else 1.5.dp,
-                                                        color = if (selected) MaterialTheme.colorScheme.onSurface else Color.White.copy(alpha = 0.4f),
+                                                        color = if (selected) TextPrimaryLight else Color.White.copy(alpha = 0.6f),
                                                         shape = CircleShape
                                                     )
                                             )
                                             Text(
                                                 opt.name,
                                                 style = MaterialTheme.typography.labelSmall,
+                                                color = TextPrimaryLight,
                                                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                                                 modifier = Modifier.padding(top = 6.dp)
                                             )
@@ -1372,7 +1414,7 @@ fun ThoiTietAmLichApp() {
                         ) {
                             Surface(
                                 shape = RoundedCornerShape(16.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                                color = CardSubtleLight,
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Row(
@@ -1383,11 +1425,15 @@ fun ThoiTietAmLichApp() {
                                         .padding(horizontal = 14.dp, vertical = 10.dp)
                                 ) {
                                     Column(modifier = Modifier.weight(1f)) {
-                                        Text("Tự động theo vị trí hiện tại (GPS)", fontWeight = FontWeight.SemiBold)
+                                        Text(
+                                            "Tự động theo vị trí hiện tại (GPS)",
+                                            color = TextPrimaryLight,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
                                         Text(
                                             "Tắt để nhập tên tìm địa điểm bất kỳ",
                                             style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            color = TextSecondaryLight
                                         )
                                     }
                                     Spacer(modifier = Modifier.width(8.dp))
@@ -1437,7 +1483,10 @@ fun ThoiTietAmLichApp() {
                                         },
                                         enabled = !isSearchingLocation,
                                         shape = RoundedCornerShape(14.dp),
-                                        colors = ButtonDefaults.buttonColors(containerColor = accentCompose)
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = accentCompose,
+                                            contentColor = TextPrimaryLight
+                                        )
                                     ) {
                                         Icon(Icons.Default.Search, contentDescription = null)
                                         Spacer(modifier = Modifier.width(4.dp))
@@ -1449,7 +1498,7 @@ fun ThoiTietAmLichApp() {
                                     Text(
                                         locationSearchMsg!!,
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        color = TextSecondaryLight,
                                         modifier = Modifier.padding(top = 6.dp)
                                     )
                                 }
@@ -1459,9 +1508,9 @@ fun ThoiTietAmLichApp() {
                                     Surface(
                                         shape = RoundedCornerShape(14.dp),
                                         color = if (isCurrent) {
-                                            accentCompose.copy(alpha = 0.14f)
+                                            accentCompose.copy(alpha = 0.16f)
                                         } else {
-                                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                            CardSubtleLight
                                         },
                                         modifier = Modifier
                                             .fillMaxWidth()
@@ -1488,13 +1537,13 @@ fun ThoiTietAmLichApp() {
                                             Icon(
                                                 Icons.Default.LocationOn,
                                                 contentDescription = null,
-                                                tint = if (isCurrent) accentCompose else MaterialTheme.colorScheme.onSurfaceVariant
+                                                tint = if (isCurrent) TextPrimaryLight else TextSecondaryLight
                                             )
                                             Spacer(modifier = Modifier.width(8.dp))
                                             Text(
                                                 item.displayName,
                                                 fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
-                                                color = if (isCurrent) accentCompose else MaterialTheme.colorScheme.onSurface
+                                                color = TextPrimaryLight
                                             )
                                         }
                                     }
@@ -1505,7 +1554,7 @@ fun ThoiTietAmLichApp() {
 
                             Surface(
                                 shape = RoundedCornerShape(16.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                                color = CardSubtleLight,
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Row(
@@ -1516,11 +1565,15 @@ fun ThoiTietAmLichApp() {
                                         .padding(horizontal = 14.dp, vertical = 10.dp)
                                 ) {
                                     Column(modifier = Modifier.weight(1f)) {
-                                        Text("Hiển thị chữ ký", fontWeight = FontWeight.SemiBold)
+                                        Text(
+                                            "Hiển thị chữ ký",
+                                            color = TextPrimaryLight,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
                                         Text(
                                             "Tắt nếu không muốn hiện chữ ký dưới Widget",
                                             style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            color = TextSecondaryLight
                                         )
                                     }
                                     Spacer(modifier = Modifier.width(8.dp))
@@ -1553,7 +1606,11 @@ fun ThoiTietAmLichApp() {
 
                             Spacer(modifier = Modifier.height(14.dp))
 
-                            Text("Kích cỡ chữ trên Widget (Mức 1 – 20)", fontWeight = FontWeight.Bold)
+                            Text(
+                                "Kích cỡ chữ trên Widget (Mức 1 – 20)",
+                                color = TextPrimaryLight,
+                                fontWeight = FontWeight.Bold
+                            )
                             Spacer(modifier = Modifier.height(8.dp))
                             ScaleSliderRow(
                                 label = "Đồng hồ",
@@ -1615,7 +1672,7 @@ fun ThoiTietAmLichApp() {
                                 Text(
                                     "Tối đa 10 việc/ngày. Đúng giờ đặt sẽ hiện pop-up; tự động xóa hết lúc 00:00 ngày hôm sau.",
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = TextSecondaryLight
                                 )
                                 Spacer(modifier = Modifier.height(10.dp))
 
@@ -1730,7 +1787,10 @@ fun ThoiTietAmLichApp() {
                                         todoError = null
                                     },
                                     shape = RoundedCornerShape(16.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = accentCompose),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = accentCompose,
+                                        contentColor = TextPrimaryLight
+                                    ),
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .height(46.dp)
@@ -1746,14 +1806,14 @@ fun ThoiTietAmLichApp() {
                                     Text(
                                         "Hôm nay chưa có việc cần làm nào.",
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = TextSecondaryLight
                                     )
                                 } else {
                                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                         todoTasks.forEach { task ->
                                             Surface(
                                                 shape = RoundedCornerShape(16.dp),
-                                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f),
+                                                color = CardSubtleLight,
                                                 modifier = Modifier.fillMaxWidth()
                                             ) {
                                                 Row(
@@ -1767,11 +1827,11 @@ fun ThoiTietAmLichApp() {
                                                     ) {
                                                         Surface(
                                                             shape = RoundedCornerShape(10.dp),
-                                                            color = accentCompose.copy(alpha = 0.16f)
+                                                            color = accentCompose.copy(alpha = 0.20f)
                                                         ) {
                                                             Text(
                                                                 task.timeFormatted,
-                                                                color = accentCompose,
+                                                                color = TextPrimaryLight,
                                                                 fontWeight = FontWeight.Bold,
                                                                 style = MaterialTheme.typography.labelLarge,
                                                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
@@ -1781,7 +1841,7 @@ fun ThoiTietAmLichApp() {
                                                         Text(
                                                             task.title,
                                                             textDecoration = if (task.isDone) TextDecoration.LineThrough else TextDecoration.None,
-                                                            color = if (task.isDone) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+                                                            color = if (task.isDone) TextSecondaryLight else TextPrimaryLight,
                                                             style = MaterialTheme.typography.bodyMedium,
                                                             fontWeight = FontWeight.Medium
                                                         )
@@ -1826,7 +1886,7 @@ fun ThoiTietAmLichApp() {
                                 Text(
                                     "Nhập ngày, tháng, năm dương lịch và bấm Tìm kiếm để xem thông báo lịch âm.",
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = TextSecondaryLight
                                 )
                                 Spacer(modifier = Modifier.height(10.dp))
 
@@ -1921,7 +1981,10 @@ fun ThoiTietAmLichApp() {
                                         }
                                     },
                                     shape = RoundedCornerShape(16.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = accentCompose),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = accentCompose,
+                                        contentColor = TextPrimaryLight
+                                    ),
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .height(46.dp)
@@ -1942,12 +2005,13 @@ fun ThoiTietAmLichApp() {
                                         Icon(
                                             Icons.Default.History,
                                             contentDescription = null,
-                                            tint = accentCompose,
+                                            tint = TextPrimaryLight,
                                             modifier = Modifier.size(18.dp)
                                         )
                                         Spacer(modifier = Modifier.width(6.dp))
                                         Text(
                                             "Lịch sử tìm kiếm (${lunarHistory.size})",
+                                            color = TextPrimaryLight,
                                             fontWeight = FontWeight.SemiBold
                                         )
                                     }
@@ -1965,10 +2029,11 @@ fun ThoiTietAmLichApp() {
                                             Icon(
                                                 Icons.Default.DeleteSweep,
                                                 contentDescription = null,
+                                                tint = TextPrimaryLight,
                                                 modifier = Modifier.size(18.dp)
                                             )
                                             Spacer(modifier = Modifier.width(4.dp))
-                                            Text("Xóa lịch sử", fontSize = 12.sp)
+                                            Text("Xóa lịch sử", color = TextPrimaryLight, fontSize = 12.sp)
                                         }
                                     }
                                 }
@@ -1977,7 +2042,7 @@ fun ThoiTietAmLichApp() {
                                     Text(
                                         "Chưa có lịch sử tra cứu nào.",
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        color = TextSecondaryLight,
                                         modifier = Modifier.padding(top = 6.dp)
                                     )
                                 } else {
@@ -2000,7 +2065,7 @@ fun ThoiTietAmLichApp() {
                                             }
                                             Surface(
                                                 shape = RoundedCornerShape(16.dp),
-                                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f),
+                                                color = CardSubtleLight,
                                                 modifier = Modifier
                                                     .fillMaxWidth()
                                                     .clip(RoundedCornerShape(16.dp))
@@ -2017,12 +2082,13 @@ fun ThoiTietAmLichApp() {
                                                 Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
                                                     Text(
                                                         "📅 Dương: $solarStr",
+                                                        color = TextPrimaryLight,
                                                         fontWeight = FontWeight.SemiBold,
                                                         style = MaterialTheme.typography.bodyMedium
                                                     )
                                                     Text(
                                                         freshSummary,
-                                                        color = accentCompose,
+                                                        color = TextSecondaryLight,
                                                         fontWeight = FontWeight.Medium,
                                                         style = MaterialTheme.typography.bodySmall,
                                                         modifier = Modifier.padding(top = 2.dp)
@@ -2053,7 +2119,7 @@ fun ThoiTietAmLichApp() {
                                 Text(
                                     "Nhập ngày, tháng, năm sinh để tính số tuổi kèm số tháng tính đến hiện tại.",
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = TextSecondaryLight
                                 )
                                 Spacer(modifier = Modifier.height(10.dp))
 
@@ -2152,7 +2218,10 @@ fun ThoiTietAmLichApp() {
                                         }
                                     },
                                     shape = RoundedCornerShape(16.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = accentCompose),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = accentCompose,
+                                        contentColor = TextPrimaryLight
+                                    ),
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .height(46.dp)
@@ -2173,12 +2242,13 @@ fun ThoiTietAmLichApp() {
                                         Icon(
                                             Icons.Default.History,
                                             contentDescription = null,
-                                            tint = accentCompose,
+                                            tint = TextPrimaryLight,
                                             modifier = Modifier.size(18.dp)
                                         )
                                         Spacer(modifier = Modifier.width(6.dp))
                                         Text(
                                             "Lịch sử tính tuổi (${ageHistory.size})",
+                                            color = TextPrimaryLight,
                                             fontWeight = FontWeight.SemiBold
                                         )
                                     }
@@ -2196,10 +2266,11 @@ fun ThoiTietAmLichApp() {
                                             Icon(
                                                 Icons.Default.DeleteSweep,
                                                 contentDescription = null,
+                                                tint = TextPrimaryLight,
                                                 modifier = Modifier.size(18.dp)
                                             )
                                             Spacer(modifier = Modifier.width(4.dp))
-                                            Text("Xóa lịch sử", fontSize = 12.sp)
+                                            Text("Xóa lịch sử", color = TextPrimaryLight, fontSize = 12.sp)
                                         }
                                     }
                                 }
@@ -2208,7 +2279,7 @@ fun ThoiTietAmLichApp() {
                                     Text(
                                         "Chưa có lịch sử tính tuổi nào.",
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        color = TextSecondaryLight,
                                         modifier = Modifier.padding(top = 6.dp)
                                     )
                                 } else {
@@ -2228,7 +2299,7 @@ fun ThoiTietAmLichApp() {
                                             val displayAge = liveCalc?.summary ?: item.ageSummary
                                             Surface(
                                                 shape = RoundedCornerShape(16.dp),
-                                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f),
+                                                color = CardSubtleLight,
                                                 modifier = Modifier
                                                     .fillMaxWidth()
                                                     .clip(RoundedCornerShape(16.dp))
@@ -2250,12 +2321,13 @@ fun ThoiTietAmLichApp() {
                                                 Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
                                                     Text(
                                                         "🎂 Sinh: $birthStr",
+                                                        color = TextPrimaryLight,
                                                         fontWeight = FontWeight.SemiBold,
                                                         style = MaterialTheme.typography.bodyMedium
                                                     )
                                                     Text(
                                                         displayAge,
-                                                        color = accentCompose,
+                                                        color = TextSecondaryLight,
                                                         fontWeight = FontWeight.Medium,
                                                         style = MaterialTheme.typography.bodySmall,
                                                         modifier = Modifier.padding(top = 2.dp)
@@ -2286,7 +2358,7 @@ fun ThoiTietAmLichApp() {
                                 Text(
                                     "Tự động hiện Pop-up khi mở app và gửi thông báo 1 lần/ngày vào đúng ngày sinh nhật.",
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = TextSecondaryLight
                                 )
                                 Spacer(modifier = Modifier.height(10.dp))
 
@@ -2397,7 +2469,7 @@ fun ThoiTietAmLichApp() {
                                         .fillMaxWidth()
                                         .height(46.dp)
                                 ) {
-                                    Text("Thêm ngày sinh nhật", fontWeight = FontWeight.SemiBold)
+                                    Text("Thêm ngày sinh nhật", color = TextPrimaryLight, fontWeight = FontWeight.SemiBold)
                                 }
 
                                 if (birthdays.isNotEmpty()) {
@@ -2406,7 +2478,7 @@ fun ThoiTietAmLichApp() {
                                         birthdays.forEach { item ->
                                             Surface(
                                                 shape = RoundedCornerShape(16.dp),
-                                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f),
+                                                color = CardSubtleLight,
                                                 modifier = Modifier.fillMaxWidth()
                                             ) {
                                                 Row(
@@ -2418,6 +2490,7 @@ fun ThoiTietAmLichApp() {
                                                 ) {
                                                     Text(
                                                         "🎂 ${item.name} — ${item.day.toString().padStart(2, '0')}/${item.month.toString().padStart(2, '0')}",
+                                                        color = TextPrimaryLight,
                                                         fontWeight = FontWeight.Medium
                                                     )
                                                     IconButton(
@@ -2451,10 +2524,10 @@ fun ThoiTietAmLichApp() {
                                 .padding(top = 6.dp, bottom = 8.dp)
                         ) {
                             Text(
-                                "Phiên bản $APP_VERSION_NAME\nĐược tạo bởi Mr.WInd - Xiaomi Community Việt Nam\nỦng hộ anh ấy một cuốn triện gei qua MOMO: 0923032127",
+                                "Phiên bản $APP_VERSION_NAME\nĐược tạo bởi Mr.WInd - Xiaomi Community Việt Nam\nỦng hộ anh ấy một cốc cà hê qua MOMO: 0923032127",
                                 fontSize = 11.sp,
                                 lineHeight = 16.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = Color(0xFFCBD5E1),
                                 textAlign = TextAlign.Center
                             )
                         }
@@ -2484,7 +2557,8 @@ fun ThoiTietAmLichApp() {
                     Surface(
                         shape = RoundedCornerShape(28.dp),
                         tonalElevation = 6.dp,
-                        color = MaterialTheme.colorScheme.surface,
+                        color = CardSurfaceLight,
+                        contentColor = TextPrimaryLight,
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable(
@@ -2514,7 +2588,7 @@ fun ThoiTietAmLichApp() {
                                 Icon(
                                     Icons.Default.Alarm,
                                     contentDescription = null,
-                                    tint = accentCompose,
+                                    tint = TextPrimaryLight,
                                     modifier = Modifier.size(32.dp)
                                 )
                             }
@@ -2524,6 +2598,7 @@ fun ThoiTietAmLichApp() {
                             Text(
                                 "Đến giờ làm việc!",
                                 style = MaterialTheme.typography.headlineSmall,
+                                color = TextPrimaryLight,
                                 fontWeight = FontWeight.Bold,
                                 textAlign = TextAlign.Center
                             )
@@ -2533,12 +2608,12 @@ fun ThoiTietAmLichApp() {
 
                                 Surface(
                                     shape = RoundedCornerShape(999.dp),
-                                    color = accentCompose.copy(alpha = 0.16f)
+                                    color = accentCompose.copy(alpha = 0.20f)
                                 ) {
                                     Text(
                                         "Giờ đặt: ${todoData.timeFormatted}",
                                         style = MaterialTheme.typography.labelLarge,
-                                        color = accentCompose,
+                                        color = TextPrimaryLight,
                                         fontWeight = FontWeight.SemiBold,
                                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
                                     )
@@ -2548,12 +2623,13 @@ fun ThoiTietAmLichApp() {
 
                                 Surface(
                                     shape = RoundedCornerShape(16.dp),
-                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                                    color = CardSubtleLight,
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Text(
                                         todoData.title,
                                         style = MaterialTheme.typography.titleMedium,
+                                        color = TextPrimaryLight,
                                         fontWeight = FontWeight.Bold,
                                         textAlign = TextAlign.Center,
                                         modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp)
@@ -2578,6 +2654,7 @@ fun ThoiTietAmLichApp() {
                                     ) {
                                         Text(
                                             "Tạm bỏ qua",
+                                            color = TextPrimaryLight,
                                             fontWeight = FontWeight.SemiBold,
                                             maxLines = 1
                                         )
@@ -2589,7 +2666,10 @@ fun ThoiTietAmLichApp() {
                                             activeTodoPopup = null
                                         },
                                         shape = RoundedCornerShape(16.dp),
-                                        colors = ButtonDefaults.buttonColors(containerColor = accentCompose),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = accentCompose,
+                                            contentColor = TextPrimaryLight
+                                        ),
                                         modifier = Modifier
                                             .weight(1f)
                                             .height(48.dp)
@@ -2635,7 +2715,8 @@ fun ThoiTietAmLichApp() {
                     Surface(
                         shape = RoundedCornerShape(28.dp),
                         tonalElevation = 6.dp,
-                        color = MaterialTheme.colorScheme.surface,
+                        color = CardSurfaceLight,
+                        contentColor = TextPrimaryLight,
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable(
@@ -2658,7 +2739,7 @@ fun ThoiTietAmLichApp() {
                                     Icon(
                                         Icons.Default.Close,
                                         contentDescription = "Đóng",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        tint = TextSecondaryLight
                                     )
                                 }
                             }
@@ -2681,7 +2762,7 @@ fun ThoiTietAmLichApp() {
                                 Icon(
                                     Icons.Default.PersonSearch,
                                     contentDescription = null,
-                                    tint = accentCompose,
+                                    tint = TextPrimaryLight,
                                     modifier = Modifier.size(32.dp)
                                 )
                             }
@@ -2691,6 +2772,7 @@ fun ThoiTietAmLichApp() {
                             Text(
                                 "Kết quả tính tuổi",
                                 style = MaterialTheme.typography.headlineSmall,
+                                color = TextPrimaryLight,
                                 fontWeight = FontWeight.Bold,
                                 textAlign = TextAlign.Center
                             )
@@ -2700,12 +2782,12 @@ fun ThoiTietAmLichApp() {
                             if (ageData != null) {
                                 Surface(
                                     shape = RoundedCornerShape(999.dp),
-                                    color = accentCompose.copy(alpha = 0.16f)
+                                    color = accentCompose.copy(alpha = 0.20f)
                                 ) {
                                     Text(
                                         ageData.birthLabel,
                                         style = MaterialTheme.typography.labelLarge,
-                                        color = accentCompose,
+                                        color = TextPrimaryLight,
                                         fontWeight = FontWeight.SemiBold,
                                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
                                     )
@@ -2716,20 +2798,20 @@ fun ThoiTietAmLichApp() {
                                 Text(
                                     ageData.currentLabel,
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = TextSecondaryLight
                                 )
 
                                 Spacer(modifier = Modifier.height(14.dp))
 
                                 Surface(
                                     shape = RoundedCornerShape(16.dp),
-                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                                    color = CardSubtleLight,
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Text(
                                         ageData.ageSummary,
                                         style = MaterialTheme.typography.headlineSmall,
-                                        color = accentCompose,
+                                        color = TextPrimaryLight,
                                         fontWeight = FontWeight.Bold,
                                         textAlign = TextAlign.Center,
                                         modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp)
@@ -2742,7 +2824,10 @@ fun ThoiTietAmLichApp() {
                             Button(
                                 onClick = { ageResultPopup = null },
                                 shape = RoundedCornerShape(16.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = accentCompose),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = accentCompose,
+                                    contentColor = TextPrimaryLight
+                                ),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(48.dp)
@@ -2778,7 +2863,8 @@ fun ThoiTietAmLichApp() {
                     Surface(
                         shape = RoundedCornerShape(28.dp),
                         tonalElevation = 6.dp,
-                        color = MaterialTheme.colorScheme.surface,
+                        color = CardSurfaceLight,
+                        contentColor = TextPrimaryLight,
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable(
@@ -2808,7 +2894,7 @@ fun ThoiTietAmLichApp() {
                                 Icon(
                                     Icons.Default.CheckCircleOutline,
                                     contentDescription = null,
-                                    tint = accentCompose,
+                                    tint = TextPrimaryLight,
                                     modifier = Modifier.size(32.dp)
                                 )
                             }
@@ -2818,6 +2904,7 @@ fun ThoiTietAmLichApp() {
                             Text(
                                 "Đã xóa lịch sử tính tuổi",
                                 style = MaterialTheme.typography.headlineSmall,
+                                color = TextPrimaryLight,
                                 fontWeight = FontWeight.Bold,
                                 textAlign = TextAlign.Center
                             )
@@ -2827,7 +2914,7 @@ fun ThoiTietAmLichApp() {
                             Text(
                                 "Toàn bộ lịch sử tính tuổi đã được xóa thành công.",
                                 style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = TextSecondaryLight,
                                 textAlign = TextAlign.Center
                             )
 
@@ -2836,7 +2923,10 @@ fun ThoiTietAmLichApp() {
                             Button(
                                 onClick = { showAgeHistoryClearedPopup = false },
                                 shape = RoundedCornerShape(16.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = accentCompose),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = accentCompose,
+                                    contentColor = TextPrimaryLight
+                                ),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(48.dp)
@@ -2873,7 +2963,8 @@ fun ThoiTietAmLichApp() {
                     Surface(
                         shape = RoundedCornerShape(28.dp),
                         tonalElevation = 6.dp,
-                        color = MaterialTheme.colorScheme.surface,
+                        color = CardSurfaceLight,
+                        contentColor = TextPrimaryLight,
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable(
@@ -2896,7 +2987,7 @@ fun ThoiTietAmLichApp() {
                                     Icon(
                                         Icons.Default.Close,
                                         contentDescription = "Đóng",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        tint = TextSecondaryLight
                                     )
                                 }
                             }
@@ -2919,7 +3010,7 @@ fun ThoiTietAmLichApp() {
                                 Icon(
                                     Icons.Default.CalendarMonth,
                                     contentDescription = null,
-                                    tint = accentCompose,
+                                    tint = TextPrimaryLight,
                                     modifier = Modifier.size(32.dp)
                                 )
                             }
@@ -2929,6 +3020,7 @@ fun ThoiTietAmLichApp() {
                             Text(
                                 "Thông báo lịch âm",
                                 style = MaterialTheme.typography.headlineSmall,
+                                color = TextPrimaryLight,
                                 fontWeight = FontWeight.Bold,
                                 textAlign = TextAlign.Center
                             )
@@ -2938,12 +3030,12 @@ fun ThoiTietAmLichApp() {
                             if (data != null) {
                                 Surface(
                                     shape = RoundedCornerShape(999.dp),
-                                    color = accentCompose.copy(alpha = 0.16f)
+                                    color = accentCompose.copy(alpha = 0.20f)
                                 ) {
                                     Text(
                                         data.solarLabel,
                                         style = MaterialTheme.typography.labelLarge,
-                                        color = accentCompose,
+                                        color = TextPrimaryLight,
                                         fontWeight = FontWeight.SemiBold,
                                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
                                     )
@@ -2953,12 +3045,13 @@ fun ThoiTietAmLichApp() {
 
                                 Surface(
                                     shape = RoundedCornerShape(16.dp),
-                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                                    color = CardSubtleLight,
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Text(
                                         data.lunarSummary,
                                         style = MaterialTheme.typography.titleMedium,
+                                        color = TextPrimaryLight,
                                         fontWeight = FontWeight.Bold,
                                         textAlign = TextAlign.Center,
                                         modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp)
@@ -2971,7 +3064,10 @@ fun ThoiTietAmLichApp() {
                             Button(
                                 onClick = { lunarResultPopup = null },
                                 shape = RoundedCornerShape(16.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = accentCompose),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = accentCompose,
+                                    contentColor = TextPrimaryLight
+                                ),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(48.dp)
@@ -3007,7 +3103,8 @@ fun ThoiTietAmLichApp() {
                     Surface(
                         shape = RoundedCornerShape(28.dp),
                         tonalElevation = 6.dp,
-                        color = MaterialTheme.colorScheme.surface,
+                        color = CardSurfaceLight,
+                        contentColor = TextPrimaryLight,
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable(
@@ -3037,7 +3134,7 @@ fun ThoiTietAmLichApp() {
                                 Icon(
                                     Icons.Default.CheckCircleOutline,
                                     contentDescription = null,
-                                    tint = accentCompose,
+                                    tint = TextPrimaryLight,
                                     modifier = Modifier.size(32.dp)
                                 )
                             }
@@ -3047,6 +3144,7 @@ fun ThoiTietAmLichApp() {
                             Text(
                                 "Đã xóa lịch sử",
                                 style = MaterialTheme.typography.headlineSmall,
+                                color = TextPrimaryLight,
                                 fontWeight = FontWeight.Bold,
                                 textAlign = TextAlign.Center
                             )
@@ -3056,7 +3154,7 @@ fun ThoiTietAmLichApp() {
                             Text(
                                 "Toàn bộ lịch sử tra cứu lịch âm đã được xóa thành công.",
                                 style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = TextSecondaryLight,
                                 textAlign = TextAlign.Center
                             )
 
@@ -3065,7 +3163,10 @@ fun ThoiTietAmLichApp() {
                             Button(
                                 onClick = { showHistoryClearedPopup = false },
                                 shape = RoundedCornerShape(16.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = accentCompose),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = accentCompose,
+                                    contentColor = TextPrimaryLight
+                                ),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(48.dp)
@@ -3101,7 +3202,8 @@ fun ThoiTietAmLichApp() {
                     Surface(
                         shape = RoundedCornerShape(28.dp),
                         tonalElevation = 6.dp,
-                        color = MaterialTheme.colorScheme.surface,
+                        color = CardSurfaceLight,
+                        contentColor = TextPrimaryLight,
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable(
@@ -3124,7 +3226,7 @@ fun ThoiTietAmLichApp() {
                                     Icon(
                                         Icons.Default.Close,
                                         contentDescription = "Đóng",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        tint = TextSecondaryLight
                                     )
                                 }
                             }
@@ -3147,7 +3249,7 @@ fun ThoiTietAmLichApp() {
                                 Icon(
                                     Icons.Default.BatteryAlert,
                                     contentDescription = null,
-                                    tint = accentCompose,
+                                    tint = TextPrimaryLight,
                                     modifier = Modifier.size(32.dp)
                                 )
                             }
@@ -3157,6 +3259,7 @@ fun ThoiTietAmLichApp() {
                             Text(
                                 "Lưu ý mức tiêu thụ pin",
                                 style = MaterialTheme.typography.headlineSmall,
+                                color = TextPrimaryLight,
                                 fontWeight = FontWeight.Bold,
                                 textAlign = TextAlign.Center
                             )
@@ -3166,7 +3269,7 @@ fun ThoiTietAmLichApp() {
                             Text(
                                 "Bật tính năng này sẽ làm cho thiết bị của bạn hao pin hơn.",
                                 style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = TextSecondaryLight,
                                 textAlign = TextAlign.Center
                             )
 
@@ -3185,6 +3288,7 @@ fun ThoiTietAmLichApp() {
                                 ) {
                                     Text(
                                         "Hủy",
+                                        color = TextPrimaryLight,
                                         fontWeight = FontWeight.SemiBold
                                     )
                                 }
@@ -3197,7 +3301,10 @@ fun ThoiTietAmLichApp() {
                                         WeatherLunarWidget.updateAllWidgets(context)
                                     },
                                     shape = RoundedCornerShape(16.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = accentCompose),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = accentCompose,
+                                        contentColor = TextPrimaryLight
+                                    ),
                                     modifier = Modifier
                                         .weight(1f)
                                         .height(48.dp)
@@ -3234,7 +3341,8 @@ fun ThoiTietAmLichApp() {
                     Surface(
                         shape = RoundedCornerShape(28.dp),
                         tonalElevation = 6.dp,
-                        color = MaterialTheme.colorScheme.surface,
+                        color = CardSurfaceLight,
+                        contentColor = TextPrimaryLight,
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable(
@@ -3257,7 +3365,7 @@ fun ThoiTietAmLichApp() {
                                     Icon(
                                         Icons.Default.Close,
                                         contentDescription = "Đóng",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        tint = TextSecondaryLight
                                     )
                                 }
                             }
@@ -3280,7 +3388,7 @@ fun ThoiTietAmLichApp() {
                                 Icon(
                                     Icons.Default.Cake,
                                     contentDescription = null,
-                                    tint = accentCompose,
+                                    tint = TextPrimaryLight,
                                     modifier = Modifier.size(32.dp)
                                 )
                             }
@@ -3293,6 +3401,7 @@ fun ThoiTietAmLichApp() {
                                 else
                                     "Sinh nhật hôm nay",
                                 style = MaterialTheme.typography.headlineSmall,
+                                color = TextPrimaryLight,
                                 fontWeight = FontWeight.Bold,
                                 textAlign = TextAlign.Center
                             )
@@ -3301,12 +3410,12 @@ fun ThoiTietAmLichApp() {
 
                             Surface(
                                 shape = RoundedCornerShape(999.dp),
-                                color = accentCompose.copy(alpha = 0.16f)
+                                color = accentCompose.copy(alpha = 0.20f)
                             ) {
                                 Text(
                                     solarToday,
                                     style = MaterialTheme.typography.labelLarge,
-                                    color = accentCompose,
+                                    color = TextPrimaryLight,
                                     fontWeight = FontWeight.SemiBold,
                                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
                                 )
@@ -3317,7 +3426,7 @@ fun ThoiTietAmLichApp() {
                             if (showAdminBirthdayToday) {
                                 Surface(
                                     shape = RoundedCornerShape(16.dp),
-                                    color = accentCompose.copy(alpha = 0.12f),
+                                    color = accentCompose.copy(alpha = 0.14f),
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .padding(bottom = if (todayBirthdays.isNotEmpty()) 8.dp else 0.dp)
@@ -3326,7 +3435,7 @@ fun ThoiTietAmLichApp() {
                                         BirthdayHelper.ADMIN_BIRTHDAY_MESSAGE,
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.onSurface,
+                                        color = TextPrimaryLight,
                                         textAlign = TextAlign.Center,
                                         modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)
                                     )
@@ -3341,7 +3450,7 @@ fun ThoiTietAmLichApp() {
                                     todayBirthdays.forEach { person ->
                                         Surface(
                                             shape = RoundedCornerShape(16.dp),
-                                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                                            color = CardSubtleLight,
                                             modifier = Modifier.fillMaxWidth()
                                         ) {
                                             Row(
@@ -3352,12 +3461,13 @@ fun ThoiTietAmLichApp() {
                                                 Text(
                                                     "🎉 ${person.name}",
                                                     style = MaterialTheme.typography.titleMedium,
+                                                    color = TextPrimaryLight,
                                                     fontWeight = FontWeight.Bold
                                                 )
                                                 Text(
                                                     "${person.day.toString().padStart(2, '0')}/${person.month.toString().padStart(2, '0')}",
                                                     style = MaterialTheme.typography.labelLarge,
-                                                    color = accentCompose,
+                                                    color = TextPrimaryLight,
                                                     fontWeight = FontWeight.SemiBold
                                                 )
                                             }
@@ -3371,7 +3481,7 @@ fun ThoiTietAmLichApp() {
                             Text(
                                 "Đừng quên gửi lời chúc mừng sinh nhật thật ấm áp nhé!",
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = TextSecondaryLight,
                                 textAlign = TextAlign.Center
                             )
 
@@ -3380,7 +3490,10 @@ fun ThoiTietAmLichApp() {
                             Button(
                                 onClick = { showBirthdayPopup = false },
                                 shape = RoundedCornerShape(16.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = accentCompose),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = accentCompose,
+                                    contentColor = TextPrimaryLight
+                                ),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(48.dp)
@@ -3415,16 +3528,17 @@ private fun CollapsibleSectionCard(
     Card(
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)
+            containerColor = CardSurfaceLight,
+            contentColor = TextPrimaryLight
         ),
         modifier = Modifier
             .fillMaxWidth()
             .border(
                 width = 1.dp,
                 color = if (expanded) {
-                    accentColor.copy(alpha = 0.35f)
+                    accentColor.copy(alpha = 0.45f)
                 } else {
-                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f)
+                    TextPrimaryLight.copy(alpha = 0.08f)
                 },
                 shape = RoundedCornerShape(24.dp)
             )
@@ -3454,6 +3568,7 @@ private fun CollapsibleSectionCard(
                     Text(
                         title,
                         style = MaterialTheme.typography.titleMedium,
+                        color = TextPrimaryLight,
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -3463,12 +3578,12 @@ private fun CollapsibleSectionCard(
                 if (badgeText != null) {
                     Surface(
                         shape = RoundedCornerShape(999.dp),
-                        color = accentColor.copy(alpha = 0.14f)
+                        color = accentColor.copy(alpha = 0.20f)
                     ) {
                         Text(
                             badgeText,
                             style = MaterialTheme.typography.labelMedium,
-                            color = accentColor,
+                            color = TextPrimaryLight,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp)
                         )
@@ -3479,7 +3594,7 @@ private fun CollapsibleSectionCard(
                 Icon(
                     imageVector = Icons.Default.ExpandMore,
                     contentDescription = if (expanded) "Thu gọn" else "Mở rộng",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    tint = TextPrimaryLight,
                     modifier = Modifier
                         .size(22.dp)
                         .rotate(arrowRotation)
@@ -3500,7 +3615,7 @@ private fun CollapsibleSectionCard(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(1.dp)
-                            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f))
+                            .background(TextPrimaryLight.copy(alpha = 0.08f))
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     content()
@@ -3521,14 +3636,18 @@ private fun ModernTextField(
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
-        label = { Text(label, maxLines = 1) },
+        label = { Text(label, color = TextSecondaryLight, maxLines = 1) },
         singleLine = true,
         shape = RoundedCornerShape(14.dp),
         colors = OutlinedTextFieldDefaults.colors(
+            focusedTextColor = TextPrimaryLight,
+            unfocusedTextColor = TextPrimaryLight,
             focusedBorderColor = accentColor,
-            focusedLabelColor = accentColor,
-            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+            unfocusedBorderColor = TextPrimaryLight.copy(alpha = 0.16f),
+            focusedLabelColor = TextPrimaryLight,
+            unfocusedLabelColor = TextSecondaryLight,
+            unfocusedContainerColor = CardSubtleLight,
+            focusedContainerColor = CardSubtleLight
         ),
         modifier = modifier
     )
@@ -3547,15 +3666,15 @@ private fun ScaleSliderRow(
             horizontalArrangement = Arrangement.SpaceBetween,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text(label, fontWeight = FontWeight.Medium)
+            Text(label, color = TextPrimaryLight, fontWeight = FontWeight.Medium)
             Surface(
                 shape = RoundedCornerShape(999.dp),
-                color = accentColor.copy(alpha = 0.14f)
+                color = accentColor.copy(alpha = 0.20f)
             ) {
                 Text(
                     "$value / 20",
                     style = MaterialTheme.typography.labelMedium,
-                    color = accentColor,
+                    color = TextPrimaryLight,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                 )
@@ -3571,7 +3690,8 @@ private fun ScaleSliderRow(
             steps = 18,
             colors = SliderDefaults.colors(
                 thumbColor = accentColor,
-                activeTrackColor = accentColor
+                activeTrackColor = accentColor,
+                inactiveTrackColor = TextPrimaryLight.copy(alpha = 0.14f)
             )
         )
     }
