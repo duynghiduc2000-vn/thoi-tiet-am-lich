@@ -4,7 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/bg_widget_glass_dark"
-    android:padding="14dp">
+    android:padding="12dp">
 
     <!-- Lớp hiệu ứng thời tiết hiện tại phủ nền -->
     <ImageView
@@ -85,7 +85,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_below="@+id/btn_refresh_weather"
-        android:layout_marginTop="3dp">
+        android:layout_marginTop="2dp">
 
         <!-- Dòng Dương lịch -->
         <TextView
@@ -126,17 +126,15 @@
             android:textStyle="bold" />
     </RelativeLayout>
 
-    <!-- Cột trái (dưới hàng ngày dương/địa điểm): Đồng hồ tự cập nhật, giới hạn chặt trên bottom_row -->
+    <!-- Cột trái: Đồng hồ tự cập nhật -->
     <LinearLayout
         android:id="@+id/left_column"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_above="@+id/bottom_row"
         android:layout_below="@+id/date_location_row"
         android:layout_alignParentStart="true"
-        android:layout_marginTop="1dp"
+        android:layout_marginTop="2dp"
         android:layout_marginEnd="6dp"
-        android:layout_marginBottom="2dp"
         android:layout_toStartOf="@+id/right_column"
         android:gravity="center_vertical"
         android:orientation="vertical">
@@ -160,16 +158,14 @@
             android:textStyle="bold" />
     </LinearLayout>
 
-    <!-- Cột phải (dưới hàng ngày dương/địa điểm): Trạng thái, Độ ẩm & Gió, Cao/Thấp -->
+    <!-- Cột phải: Trạng thái, Độ ẩm & Gió, Cao/Thấp (không bị ép cắt đáy trên màn nhỏ) -->
     <LinearLayout
         android:id="@+id/right_column"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_above="@+id/bottom_row"
         android:layout_below="@+id/date_location_row"
         android:layout_alignParentEnd="true"
-        android:layout_marginTop="1dp"
-        android:layout_marginBottom="2dp"
+        android:layout_marginTop="2dp"
         android:gravity="end|center_vertical"
         android:orientation="vertical">
 
@@ -179,6 +175,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:ellipsize="end"
+            android:includeFontPadding="false"
             android:maxLines="1"
             android:shadowColor="#88000000"
             android:shadowDx="0"
@@ -193,7 +190,8 @@
             android:id="@+id/tv_humidity_wind"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
+            android:layout_marginTop="1.5dp"
+            android:includeFontPadding="false"
             android:maxLines="1"
             android:shadowColor="#88000000"
             android:shadowDx="0"
@@ -203,13 +201,14 @@
             android:textColor="#D4D4D8"
             android:textSize="10.5dp" />
 
-        <!-- Nhiệt độ cao / thấp trong ngày (dưới độ ẩm & gió bên phải) -->
+        <!-- Nhiệt độ cao / thấp trong ngày -->
         <TextView
             android:id="@+id/tv_min_max_temp"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="end"
-            android:layout_marginTop="2dp"
+            android:layout_marginTop="1.5dp"
+            android:includeFontPadding="false"
             android:maxLines="1"
             android:shadowColor="#88000000"
             android:shadowDx="0"
@@ -217,7 +216,7 @@
             android:shadowRadius="2"
             android:text="▲ --°  ▼ --°"
             android:textColor="#4FC3F7"
-            android:textSize="12dp"
+            android:textSize="11.5dp"
             android:textStyle="bold" />
     </LinearLayout>
 
