@@ -1749,7 +1749,6 @@ fun ThoiTietAmLichApp() {
                                         }
                                     }
 
-                                    // 1. 2 ô Cập nhật và Ghim Widget hỗ trợ Liquid Glass đồng bộ các thẻ
                                     Row(
                                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                                         modifier = Modifier.fillMaxWidth()
@@ -1835,7 +1834,6 @@ fun ThoiTietAmLichApp() {
                             }
                         }
 
-                        // 2 & 3. Khung Liquid Glass bọc chung Nền ứng dụng và Hiệu ứng thời tiết trong nền ứng dụng
                         item(key = "app_theme_and_weather_bg_card") {
                             Surface(
                                 shape = RoundedCornerShape(24.dp),
@@ -1861,12 +1859,13 @@ fun ThoiTietAmLichApp() {
                                     ) {
                                         Text(
                                             "Nền ứng dụng",
-                                            style = MaterialTheme.typography.titleMedium,
+                                            fontSize = 14.sp,
                                             color = palette.textPrimary,
                                             fontWeight = FontWeight.Bold,
                                             maxLines = 1,
                                             softWrap = false
                                         )
+                                        Spacer(modifier = Modifier.width(12.dp))
                                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                             val themeLabels = listOf("Hệ thống", "Sáng", "Tối")
                                             themeLabels.forEachIndexed { idx, label ->
@@ -1908,14 +1907,21 @@ fun ThoiTietAmLichApp() {
                                     ) {
                                         Text(
                                             "Hiệu ứng thời tiết trong nền ứng dụng",
-                                            style = MaterialTheme.typography.titleMedium,
+                                            fontSize = 14.sp,
                                             color = palette.textPrimary,
                                             fontWeight = FontWeight.Bold,
                                             maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.weight(1f)
+                                            softWrap = false,
+                                            overflow = TextOverflow.Clip,
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .basicMarquee(
+                                                    iterations = Int.MAX_VALUE,
+                                                    repeatDelayMillis = 900,
+                                                    velocity = 28.dp
+                                                )
                                         )
-                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Spacer(modifier = Modifier.width(10.dp))
                                         Switch(
                                             checked = topWeatherBgEnabled,
                                             colors = SwitchDefaults.colors(checkedTrackColor = accentCompose),
@@ -1928,7 +1934,6 @@ fun ThoiTietAmLichApp() {
                             }
                         }
 
-                        // 2. Đồng hồ, giao diện, nền widget
                         item(key = "clock_theme_bg_section") {
                             CollapsibleSectionCard(
                                 title = "Đồng hồ, Giao diện & Nền Widget",
@@ -2067,7 +2072,6 @@ fun ThoiTietAmLichApp() {
                             }
                         }
 
-                        // 3. Màu chủ đề
                         item(key = "accent_color_section") {
                             CollapsibleSectionCard(
                                 title = "Màu chủ đề (Áp dụng App & Widget)",
@@ -2115,7 +2119,6 @@ fun ThoiTietAmLichApp() {
                             }
                         }
 
-                        // 4. Vị trí cập nhật thời tiết & Chữ ký trên widget
                         item(key = "location_and_signature_section") {
                             CollapsibleSectionCard(
                                 title = "Vị trí cập nhật thời tiết & Chữ ký trên Widget",
@@ -2269,7 +2272,6 @@ fun ThoiTietAmLichApp() {
                             }
                         }
 
-                        // 4b. Điều chỉnh kích cỡ chữ trên Widget
                         item(key = "font_scale_section") {
                             CollapsibleSectionCard(
                                 title = "Kích cỡ chữ trên Widget",
@@ -2338,7 +2340,6 @@ fun ThoiTietAmLichApp() {
                             }
                         }
 
-                        // 5. Việc cần làm
                         item(key = "todo_section") {
                             Column(
                                 modifier = Modifier
@@ -2547,7 +2548,6 @@ fun ThoiTietAmLichApp() {
                             }
                         }
 
-                        // 6 & 7: Gộp "Tra cứu lịch âm" và "Tính tuổi" lên cùng 1 hàng
                         item(key = "lunar_and_age_row_section") {
                             Column(
                                 verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -3053,7 +3053,6 @@ fun ThoiTietAmLichApp() {
                             }
                         }
 
-                        // 6b. Thông tin hữu ích theo ngày Âm lịch
                         item(key = "lunar_useful_info_section") {
                             Column(
                                 modifier = Modifier
@@ -3187,7 +3186,6 @@ fun ThoiTietAmLichApp() {
                             }
                         }
 
-                        // 8 & 9: Gộp "Nhắc ngày sinh nhật" và "Nhắc ngày lễ & kỷ niệm" lên cùng 1 hàng
                         item(key = "birthday_and_holiday_row_section") {
                             val activeHolidayCount = if (holidayReminderEnabled) enabledHolidayIds.size else 0
                             Column(
@@ -3493,7 +3491,6 @@ fun ThoiTietAmLichApp() {
                             }
                         }
 
-                        // 10. Báo cáo lỗi và đề xuất
                         item(key = "bug_report_section") {
                             Column(
                                 modifier = Modifier
@@ -3628,7 +3625,6 @@ fun ThoiTietAmLichApp() {
                             }
                         }
 
-                        // Chân trang
                         item(key = "footer_section") {
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -3648,7 +3644,6 @@ fun ThoiTietAmLichApp() {
                     }
                 }
 
-                // Pop-up nhắc ngày lễ (Liquid Glass)
                 AnimatedVisibility(
                     visible = showHolidayPopup && activeHolidayAlerts.isNotEmpty(),
                     enter = fadeIn() + scaleIn(initialScale = 0.92f),
@@ -3784,7 +3779,6 @@ fun ThoiTietAmLichApp() {
                     }
                 }
 
-                // Pop-up nhắc việc cần làm ngay khi tới giờ (Liquid Glass)
                 AnimatedVisibility(
                     visible = activeTodoPopup != null,
                     enter = fadeIn() + scaleIn(initialScale = 0.92f),
@@ -3924,7 +3918,6 @@ fun ThoiTietAmLichApp() {
                     }
                 }
 
-                // Pop-up hiển thị kết quả tính tuổi (Liquid Glass)
                 AnimatedVisibility(
                     visible = ageResultPopup != null,
                     enter = fadeIn() + scaleIn(initialScale = 0.92f),
@@ -4055,7 +4048,6 @@ fun ThoiTietAmLichApp() {
                     }
                 }
 
-                // Pop-up hiển thị sau khi xóa lịch sử tính tuổi (Liquid Glass)
                 AnimatedVisibility(
                     visible = showAgeHistoryClearedPopup,
                     enter = fadeIn() + scaleIn(initialScale = 0.92f),
@@ -4136,7 +4128,6 @@ fun ThoiTietAmLichApp() {
                     }
                 }
 
-                // Pop-up thông báo kết quả tra cứu lịch âm (Liquid Glass)
                 AnimatedVisibility(
                     visible = lunarResultPopup != null,
                     enter = fadeIn() + scaleIn(initialScale = 0.92f),
@@ -4259,7 +4250,6 @@ fun ThoiTietAmLichApp() {
                     }
                 }
 
-                // Pop-up hiển thị sau khi xóa lịch sử tìm kiếm (Liquid Glass)
                 AnimatedVisibility(
                     visible = showHistoryClearedPopup,
                     enter = fadeIn() + scaleIn(initialScale = 0.92f),
@@ -4340,7 +4330,6 @@ fun ThoiTietAmLichApp() {
                     }
                 }
 
-                // Pop-up cảnh báo hao pin khi bật hiển thị giây (Liquid Glass)
                 AnimatedVisibility(
                     visible = showSecondsWarningPopup,
                     enter = fadeIn() + scaleIn(initialScale = 0.92f),
@@ -4461,7 +4450,6 @@ fun ThoiTietAmLichApp() {
                     }
                 }
 
-                // Pop-up nhắc sinh nhật hiện đại (Liquid Glass)
                 AnimatedVisibility(
                     visible = showBirthdayPopup && (todayBirthdays.isNotEmpty() || showAdminBirthdayToday),
                     enter = fadeIn() + scaleIn(initialScale = 0.92f),
