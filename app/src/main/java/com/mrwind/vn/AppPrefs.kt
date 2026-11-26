@@ -60,19 +60,21 @@ object AppPrefs {
         prefs(context).edit().putInt("app_theme_mode", mode).apply()
     }
 
-    // Nhạc nền trong ứng dụng (mặc định tắt, âm lượng nhỏ vừa phải 0.25f)
-    fun isBgMusicEnabled(context: Context): Boolean =
-        prefs(context).getBoolean("bg_music_enabled", false)
+    // Nhạc nền trong ứng dụng (mặc định tắt, âm lượng nhỏ vừa phải 0.15f)
+        fun isBgMusicEnabled(context: Context): Boolean {
+        return prefs(context).getBoolean("bg_music_enabled", false)
+    }
 
     fun setBgMusicEnabled(context: Context, enabled: Boolean) {
         prefs(context).edit().putBoolean("bg_music_enabled", enabled).apply()
     }
 
-    fun getBgMusicVolume(context: Context): Float =
-        prefs(context).getFloat("bg_music_volume", 0.25f).coerceIn(0f, 1f)
+    fun getBgMusicVolume(context: Context): Float {
+        return prefs(context).getFloat("bg_music_volume_v2", 0.15f).coerceIn(0f, 1f)
+    }
 
     fun setBgMusicVolume(context: Context, volume: Float) {
-        prefs(context).edit().putFloat("bg_music_volume", volume.coerceIn(0f, 1f)).apply()
+        prefs(context).edit().putFloat("bg_music_volume_v2", volume.coerceIn(0f, 1f)).apply()
     }
 
     // Nền Widget: 0 = Kính lỏng tối, 1 = Kính lỏng sáng, 2 = Trong suốt, 3 = Theo chủ đề app, 4 = Liquid Glass
