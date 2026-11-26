@@ -1,6 +1,7 @@
 package com.mrwind.vn
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
@@ -112,12 +113,12 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 import java.util.UUID
+import java.text.SimpleDateFormat
 import kotlin.math.floor
 import kotlin.math.roundToInt
 
@@ -127,6 +128,7 @@ private enum class ExpandableSection {
     CLOCK_THEME_BG,
     ACCENT_COLOR,
     LOCATION_SIGNATURE,
+    FONT_SCALE,
     TODO,
     LUNAR_LOOKUP,
     AGE_CALC,
@@ -259,6 +261,11 @@ private data class AgeCalculationResult(
         get() = "$years tuổi $months tháng"
 }
 
+private data class PreviewDayChip(
+    val dayLabel: String,
+    val icon: String
+)
+
 private fun forecastEmojiForCode(code: Int): String = when (code) {
     0 -> "☀️"
     1, 2 -> "⛅"
@@ -269,6 +276,75 @@ private fun forecastEmojiForCode(code: Int): String = when (code) {
     71, 73, 75, 77, 85, 86 -> "❄️"
     95, 96, 99 -> "⛈️"
     else -> "🌤️"
+}
+
+private fun shortWeekdayVi(calendar: Calendar): String = when (calendar.get(Calendar.DAY_OF_WEEK)) {
+    Calendar.MONDAY -> "T2"
+    Calendar.TUESDAY -> "T3"
+    Calendar.WEDNESDAY -> "T4"
+    Calendar.THURSDAY -> "T5"
+    Calendar.FRIDAY -> "T6"
+    Calendar.SATURDAY -> "T7"
+    Calendar.SUNDAY -> "CN"
+    else -> ""
+}
+
+private fun readShowSevenDayForecastPref(context: Context): Boolean {
+    return try {
+        val m = AppPrefs::class.java.getMethod("isShowSevenDayForecast", Context::class.java)
+        (m.invoke(null, context) as? Boolean) ?: true
+    } catch (_: Exception) {
+        true
+    }
+}
+
+private fun writeShowSevenDayForecastPref(context: Context, show: Boolean) {
+    try {
+        val m = AppPrefs::class.java.getMethod(
+            "setShowSevenDayForecast",
+            Context::class.java,
+            Boolean::class.javaPrimitiveType
+        )
+        m.invoke(null, context, show)
+    } catch (_: Exception) {
+    }
+}
+
+private fun resolvePreviewSevenDays(context: Context, fallbackCode: Int): List<PreviewDayChip> {
+    val tz = TimeZone.getTimeZone("Asia/Ho_Chi_Minh")
+    val defaultIcon = forecastEmojiForCode(fallbackCode)
+    val fallback = (1..7).map { offset ->
+        val c = Calendar.getInstance(tz).apply { add(Calendar.DAY_OF_MONTH, offset) }
+        PreviewDayChip(dayLabel = shortWeekdayVi(c), icon = defaultIcon)
+    }
+    return try {
+        val m = AppPrefs::class.java.getMethod("getNextSevenDaysForecast", Context::class.java)
+        @Suppress("UNCHECKED_CAST")
+        val raw = m.invoke(null, context) as? List<*>
+        if (raw.isNullOrEmpty()) {
+            fallback
+        } else {
+            (0..6).map { idx ->
+                val item = raw.getOrNull(idx) ?: return@map fallback[idx]
+                when (item) {
+                    is String -> {
+                        val parts = item.split("|")
+                        if (parts.size >= 2) {
+                            PreviewDayChip(
+                                dayLabel = parts[0].trim().ifEmpty { fallback[idx].dayLabel },
+                                icon = parts[1].trim().ifEmpty { fallback[idx].icon }
+                            )
+                        } else {
+                            fallback[idx]
+                        }
+                    }
+                    else -> fallback[idx]
+                }
+            }
+        }
+    } catch (_: Exception) {
+        fallback
+    }
 }
 
 private fun calculateAgeFromNow(birthDay: Int, birthMonth: Int, birthYear: Int): AgeCalculationResult {
@@ -511,6 +587,8 @@ private fun WidgetPreviewBox(
     accentColor: Color,
     showSeconds: Boolean,
     showWeatherEffect: Boolean,
+    showSevenDayForecast: Boolean,
+    sevenDayChips: List<PreviewDayChip>,
     showSignature: Boolean,
     signature: String,
     clockScale: Int,
@@ -565,18 +643,19 @@ private fun WidgetPreviewBox(
 
     val primaryText = if (effectiveDarkBg) Color(0xFFFAFAFA) else Color(0xFF09090B)
     val secondaryText = if (effectiveDarkBg) Color(0xFFA1A1AA) else Color(0xFF52525B)
+    val chipBg = if (effectiveDarkBg) Color.White.copy(alpha = 0.12f) else Color.Black.copy(alpha = 0.06f)
     val borderColor = remember(widgetBgMode, effectiveDarkBg, accentColor) {
         when {
             widgetBgMode == 2 -> accentColor.copy(alpha = 0.55f)
-            effectiveDarkBg -> Color.White.copy(alpha = 0.14f)
-            else -> Color.Black.copy(alpha = 0.10f)
+            effectiveDarkBg -> Color.White.copy(alpha = 0.16f)
+            else -> Color.Black.copy(alpha = 0.12f)
         }
     }
 
-    val clockSp = (25 + (clockScale - 10) * 0.7f).coerceIn(18f, 34f).sp
-    val lunarSp = (12.5f + (lunarScale - 10) * 0.35f).coerceIn(10f, 17f).sp
+    val clockSp = (26 + (clockScale - 10) * 0.8f).coerceIn(18f, 36f).sp
+    val lunarSp = (11.5f + (lunarScale - 10) * 0.35f).coerceIn(9.5f, 16f).sp
     val solarSp = (13f + (solarScale - 10) * 0.35f).coerceIn(10.5f, 17.5f).sp
-    val sigSp = (11.5f + (sigScale - 10) * 0.3f).coerceIn(9.5f, 15.5f).sp
+    val sigSp = (11f + (sigScale - 10) * 0.3f).coerceIn(9.5f, 15f).sp
 
     val effectBadge = remember(weather.weatherCode) {
         when (weather.weatherCode) {
@@ -595,41 +674,10 @@ private fun WidgetPreviewBox(
             .clip(RoundedCornerShape(24.dp))
             .background(bgBrush)
             .border(1.dp, borderColor, RoundedCornerShape(24.dp))
-            .padding(16.dp)
+            .padding(14.dp)
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    lunarSummary,
-                    fontSize = lunarSp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = accentColor,
-                    maxLines = 2,
-                    modifier = Modifier.weight(1f)
-                )
-                if (showWeatherEffect) {
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Surface(
-                        shape = RoundedCornerShape(999.dp),
-                        color = accentColor.copy(alpha = 0.16f)
-                    ) {
-                        Text(
-                            effectBadge,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = primaryText,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
+            // Hàng 1: Âm lịch bên trái + Khung bo Icon & Nhiệt độ hiện tại bên phải
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -637,13 +685,94 @@ private fun WidgetPreviewBox(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        solarToday,
-                        fontSize = solarSp,
-                        fontWeight = FontWeight.Medium,
-                        color = secondaryText,
+                        lunarSummary,
+                        fontSize = lunarSp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = accentColor,
+                        maxLines = 2
+                    )
+                    if (showWeatherEffect) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Surface(
+                            shape = RoundedCornerShape(999.dp),
+                            color = accentColor.copy(alpha = 0.15f)
+                        ) {
+                            Text(
+                                effectBadge,
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = primaryText,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(chipBg)
+                        .border(1.dp, borderColor, RoundedCornerShape(12.dp))
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        forecastEmojiForCode(weather.weatherCode),
+                        fontSize = 19.sp,
                         maxLines = 1
                     )
-                    Spacer(modifier = Modifier.height(2.dp))
+                    Spacer(modifier = Modifier.width(5.dp))
+                    Text(
+                        weather.currentTemp,
+                        fontSize = 21.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = accentColor,
+                        maxLines = 1
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // Hàng 2: Dương lịch bên trái + Địa danh bên phải
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    solarToday,
+                    fontSize = solarSp,
+                    fontWeight = FontWeight.Bold,
+                    color = primaryText,
+                    maxLines = 1,
+                    modifier = Modifier.weight(1f)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    weather.locationName,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = primaryText,
+                    textAlign = TextAlign.End,
+                    maxLines = 1
+                )
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // Hàng 3: Đồng hồ bên trái + Trạng thái, Độ ẩm/Gió, Cao/Thấp bên phải
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Box(
+                    contentAlignment = Alignment.CenterStart,
+                    modifier = Modifier.weight(1f)
+                ) {
                     WidgetClockText(
                         showSeconds = showSeconds,
                         fontSize = clockSp,
@@ -651,28 +780,21 @@ private fun WidgetPreviewBox(
                     )
                 }
 
+                Spacer(modifier = Modifier.width(8.dp))
+
                 Column(
-                    horizontalAlignment = Alignment.End,
-                    modifier = Modifier.weight(1f)
+                    horizontalAlignment = Alignment.End
                 ) {
                     Text(
-                        "${forecastEmojiForCode(weather.weatherCode)} ${weather.currentTemp}",
-                        fontSize = 21.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = primaryText,
-                        maxLines = 1
-                    )
-                    Text(
-                        weather.locationName,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
+                        weather.description,
+                        fontSize = 11.sp,
                         color = secondaryText,
                         textAlign = TextAlign.End,
                         maxLines = 1
                     )
                     Text(
-                        "${weather.description} • ${weather.humidity} • ${weather.windSpeed}",
-                        fontSize = 11.sp,
+                        "💧 ${weather.humidity} • 💨 ${weather.windSpeed}",
+                        fontSize = 10.5.sp,
                         color = secondaryText,
                         textAlign = TextAlign.End,
                         maxLines = 1
@@ -687,36 +809,57 @@ private fun WidgetPreviewBox(
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(1.dp)
-                    .background(borderColor.copy(alpha = 0.7f))
-            )
-
             Spacer(modifier = Modifier.height(8.dp))
 
+            // Hàng 4: 7 ô vuông dự báo 7 ngày bên trái + Chữ ký thẳng hàng bên phải
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text(
-                    "${weather.hour1}  ${weather.hour2}  ${weather.hour3}  ${weather.hour4}",
-                    fontSize = 11.sp,
-                    color = secondaryText,
-                    maxLines = 1,
-                    modifier = Modifier.weight(1f)
-                )
-                if (showSignature && signature.isNotBlank()) {
+                if (showSevenDayForecast) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(2.dp),
+                        modifier = Modifier.weight(1f, fill = false)
+                    ) {
+                        sevenDayChips.take(7).forEach { chip ->
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center,
+                                modifier = Modifier
+                                    .size(26.dp)
+                                    .clip(RoundedCornerShape(7.dp))
+                                    .background(chipBg)
+                                    .border(1.dp, borderColor, RoundedCornerShape(7.dp))
+                                    .padding(1.dp)
+                            ) {
+                                Text(
+                                    chip.dayLabel,
+                                    fontSize = 7.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = secondaryText,
+                                    maxLines = 1
+                                )
+                                Text(
+                                    chip.icon,
+                                    fontSize = 9.5.sp,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
                     Spacer(modifier = Modifier.width(8.dp))
+                } else {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+
+                if (showSignature && signature.isNotBlank()) {
                     Text(
                         signature,
                         fontSize = sigSp,
                         fontStyle = FontStyle.Italic,
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = FontWeight.Bold,
                         color = accentColor,
                         maxLines = 1
                     )
@@ -741,6 +884,7 @@ fun ThoiTietAmLichApp() {
     var showSeconds by remember { mutableStateOf(AppPrefs.isShowSeconds(context)) }
     var showSecondsWarningPopup by remember { mutableStateOf(false) }
     var showWeatherEffect by remember { mutableStateOf(AppPrefs.isShowWeatherEffect(context)) }
+    var showSevenDayForecast by remember { mutableStateOf(readShowSevenDayForecastPref(context)) }
     var showSignature by remember { mutableStateOf(AppPrefs.isShowSignature(context)) }
     var signature by remember { mutableStateOf(AppPrefs.getSignature(context)) }
 
@@ -751,7 +895,6 @@ fun ThoiTietAmLichApp() {
 
     var autoLocation by remember { mutableStateOf(AppPrefs.isAutoLocation(context)) }
     var weather by remember { mutableStateOf(AppPrefs.getWeather(context)) }
-    var fiveDayForecast by remember { mutableStateOf<List<DailyForecastItem>>(emptyList()) }
     var isSyncing by remember { mutableStateOf(false) }
 
     var locationQuery by remember { mutableStateOf("") }
@@ -814,12 +957,15 @@ fun ThoiTietAmLichApp() {
     val showAdminBirthdayToday = remember { BirthdayHelper.isAdminBirthdayToday() }
     var showBirthdayPopup by remember { mutableStateOf(false) }
 
-    suspend fun syncWeatherAndForecast() {
+    val previewSevenDays = remember(weather, showSevenDayForecast) {
+        resolvePreviewSevenDays(context, weather.weatherCode)
+    }
+
+    suspend fun syncWeatherData() {
         if (isSyncing) return
         isSyncing = true
         try {
             weather = WeatherService.syncWeather(context)
-            fiveDayForecast = WeatherService.fetchFiveDayForecast(context)
         } finally {
             isSyncing = false
         }
@@ -829,7 +975,7 @@ fun ThoiTietAmLichApp() {
         ActivityResultContracts.RequestMultiplePermissions()
     ) { _ ->
         scope.launch {
-            syncWeatherAndForecast()
+            syncWeatherData()
         }
     }
 
@@ -863,7 +1009,6 @@ fun ThoiTietAmLichApp() {
     LaunchedEffect(Unit) {
         TodoHelper.ensureChannel(context)
         refreshTodosAndCheckDueTasks()
-        fiveDayForecast = WeatherService.fetchFiveDayForecast(context)
 
         val currentAlerts = BirthdayHelper.getActiveHolidaysForToday(context)
         activeHolidayAlerts = currentAlerts
@@ -889,7 +1034,7 @@ fun ThoiTietAmLichApp() {
         if (neededPerms.isNotEmpty()) {
             permissionLauncher.launch(neededPerms.toTypedArray())
         } else {
-            syncWeatherAndForecast()
+            syncWeatherData()
         }
 
         while (true) {
@@ -939,7 +1084,7 @@ fun ThoiTietAmLichApp() {
     }
 
     val lunarToday = remember { LunarCalendar.todayLunar() }
-    val lunarTodaySummary = remember(lunarToday) { lunarToday.fullSummary() }
+    val lunarTodaySummary = remember(lunarToday) { lunarToday.shortSummary() }
     val solarToday = remember { LunarCalendar.formatVietnameseSolarDate() }
 
     fun performLunarLookup(day: Int, month: Int, year: Int) {
@@ -1028,7 +1173,7 @@ fun ThoiTietAmLichApp() {
                                 IconButton(
                                     onClick = {
                                         scope.launch {
-                                            syncWeatherAndForecast()
+                                            syncWeatherData()
                                         }
                                     }
                                 ) {
@@ -1051,8 +1196,8 @@ fun ThoiTietAmLichApp() {
                     contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 120.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // 1. Xem trước widget / Dự báo 5 ngày (luôn mở sẵn)
-                    item(key = "top_widget_forecast") {
+                    // 1. Xem trước widget đồng bộ với Widget ngoài màn hình chính
+                    item(key = "top_widget_preview") {
                         Card(
                             shape = RoundedCornerShape(24.dp),
                             colors = CardDefaults.cardColors(
@@ -1098,7 +1243,7 @@ fun ThoiTietAmLichApp() {
                                     Button(
                                         onClick = {
                                             scope.launch {
-                                                syncWeatherAndForecast()
+                                                syncWeatherData()
                                             }
                                         },
                                         enabled = !isSyncing,
@@ -1124,6 +1269,8 @@ fun ThoiTietAmLichApp() {
                                     accentColor = accentCompose,
                                     showSeconds = showSeconds,
                                     showWeatherEffect = showWeatherEffect,
+                                    showSevenDayForecast = showSevenDayForecast,
+                                    sevenDayChips = previewSevenDays,
                                     showSignature = showSignature,
                                     signature = signature,
                                     clockScale = clockScale,
@@ -1132,92 +1279,6 @@ fun ThoiTietAmLichApp() {
                                     sigScale = sigScale,
                                     isDarkApp = palette.isDark
                                 )
-
-                                if (fiveDayForecast.isNotEmpty()) {
-                                    Spacer(modifier = Modifier.height(16.dp))
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        Text(
-                                            "Dự báo 5 ngày tới",
-                                            style = MaterialTheme.typography.titleSmall,
-                                            color = palette.textPrimary,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                        Surface(
-                                            shape = RoundedCornerShape(999.dp),
-                                            color = accentCompose.copy(alpha = 0.16f)
-                                        ) {
-                                            Text(
-                                                "5 ngày",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = accentCompose,
-                                                fontWeight = FontWeight.Bold,
-                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                            )
-                                        }
-                                    }
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    LazyRow(
-                                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        items(fiveDayForecast, key = { "${it.dayLabel}_${it.dateLabel}" }) { dayItem ->
-                                            Surface(
-                                                shape = RoundedCornerShape(18.dp),
-                                                color = palette.subtleBg,
-                                                modifier = Modifier
-                                                    .width(106.dp)
-                                                    .border(
-                                                        1.dp,
-                                                        palette.border,
-                                                        RoundedCornerShape(18.dp)
-                                                    )
-                                            ) {
-                                                Column(
-                                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp)
-                                                ) {
-                                                    Text(
-                                                        dayItem.dayLabel,
-                                                        style = MaterialTheme.typography.labelLarge,
-                                                        color = palette.textPrimary,
-                                                        fontWeight = FontWeight.Bold,
-                                                        maxLines = 1
-                                                    )
-                                                    Text(
-                                                        dayItem.dateLabel,
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        color = palette.textSecondary,
-                                                        maxLines = 1
-                                                    )
-                                                    Text(
-                                                        forecastEmojiForCode(dayItem.weatherCode),
-                                                        fontSize = 24.sp,
-                                                        modifier = Modifier.padding(vertical = 6.dp)
-                                                    )
-                                                    Text(
-                                                        "▲ ${dayItem.maxTemp} ▼ ${dayItem.minTemp}",
-                                                        style = MaterialTheme.typography.labelMedium,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = accentCompose,
-                                                        maxLines = 1
-                                                    )
-                                                    Text(
-                                                        dayItem.description,
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        color = palette.textSecondary,
-                                                        textAlign = TextAlign.Center,
-                                                        maxLines = 1,
-                                                        modifier = Modifier.padding(top = 3.dp)
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
 
                                 Spacer(modifier = Modifier.height(14.dp))
                                 OutlinedButton(
@@ -1252,7 +1313,7 @@ fun ThoiTietAmLichApp() {
                         }
                     }
 
-                    // Mục Nền ứng dụng nằm ngoài các thẻ, ngay dưới Xem trước / Dự báo 5 ngày
+                    // Mục Nền ứng dụng nằm ngoài các thẻ, ngay dưới Xem trước Widget
                     item(key = "app_theme_outside_bar") {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -1296,7 +1357,7 @@ fun ThoiTietAmLichApp() {
                         }
                     }
 
-                    // 2. Đồng hồ, giao diện, nền widget
+                    // 2. Đồng hồ, giao diện, nền widget (kèm nút bật/tắt dự báo 7 ngày)
                     item(key = "clock_theme_bg_section") {
                         CollapsibleSectionCard(
                             title = "Đồng hồ, Giao diện & Nền Widget",
@@ -1354,7 +1415,7 @@ fun ThoiTietAmLichApp() {
                                 color = palette.subtleBg,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(bottom = 14.dp)
+                                    .padding(bottom = 10.dp)
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
@@ -1382,6 +1443,45 @@ fun ThoiTietAmLichApp() {
                                         onCheckedChange = { checked ->
                                             showWeatherEffect = checked
                                             AppPrefs.setShowWeatherEffect(context, checked)
+                                            WeatherLunarWidget.updateAllWidgets(context)
+                                        }
+                                    )
+                                }
+                            }
+
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = palette.subtleBg,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 14.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 14.dp, vertical = 10.dp)
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            "Hiển thị dự báo 7 ngày",
+                                            color = palette.textPrimary,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                        Text(
+                                            "Bật/tắt dãy 7 ô dự báo ngày tiếp theo trên Widget",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = palette.textSecondary
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Switch(
+                                        checked = showSevenDayForecast,
+                                        colors = SwitchDefaults.colors(checkedTrackColor = accentCompose),
+                                        onCheckedChange = { checked ->
+                                            showSevenDayForecast = checked
+                                            writeShowSevenDayForecastPref(context, checked)
                                             WeatherLunarWidget.updateAllWidgets(context)
                                         }
                                     )
@@ -1525,7 +1625,7 @@ fun ThoiTietAmLichApp() {
                                             autoLocation = checked
                                             AppPrefs.setAutoLocation(context, checked)
                                             scope.launch {
-                                                syncWeatherAndForecast()
+                                                syncWeatherData()
                                             }
                                         }
                                     )
@@ -1608,7 +1708,7 @@ fun ThoiTietAmLichApp() {
                                                 weather = updatedCache
                                                 WeatherLunarWidget.updateAllWidgets(context)
                                                 scope.launch {
-                                                    syncWeatherAndForecast()
+                                                    syncWeatherData()
                                                 }
                                             }
                                     ) {
@@ -1686,13 +1786,23 @@ fun ThoiTietAmLichApp() {
                                     modifier = Modifier.fillMaxWidth()
                                 )
                             }
+                        }
+                    }
 
-                            Spacer(modifier = Modifier.height(14.dp))
-
+                    // 4b. Thẻ riêng: Điều chỉnh kích cỡ chữ trên Widget
+                    item(key = "font_scale_section") {
+                        CollapsibleSectionCard(
+                            title = "Kích cỡ chữ trên Widget",
+                            badgeText = "1 – 20",
+                            accentColor = accentCompose,
+                            palette = palette,
+                            expanded = expandedSection == ExpandableSection.FONT_SCALE,
+                            onToggle = { toggleSection(ExpandableSection.FONT_SCALE) }
+                        ) {
                             Text(
-                                "Kích cỡ chữ trên Widget (Mức 1 – 20)",
-                                color = palette.textPrimary,
-                                fontWeight = FontWeight.Bold
+                                "Điều chỉnh mức cỡ chữ từ 1 đến 20 cho từng thành phần trên Widget.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = palette.textSecondary
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             ScaleSliderRow(
