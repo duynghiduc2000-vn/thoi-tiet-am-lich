@@ -142,6 +142,65 @@ class WeatherLunarWidget : AppWidgetProvider() {
             else -> "🌤️"
         }
 
+        private fun shortWeekdayLabel(calendar: Calendar): String = when (calendar.get(Calendar.DAY_OF_WEEK)) {
+            Calendar.MONDAY -> "T2"
+            Calendar.TUESDAY -> "T3"
+            Calendar.WEDNESDAY -> "T4"
+            Calendar.THURSDAY -> "T5"
+            Calendar.FRIDAY -> "T6"
+            Calendar.SATURDAY -> "T7"
+            Calendar.SUNDAY -> "CN"
+            else -> ""
+        }
+
+        private fun buildFallbackFourDayLabels(baseCal: Calendar, fallbackCode: Int): List<String> {
+            val icon = weatherEmojiForCode(fallbackCode)
+            return (1..4).map { offset ->
+                val c = (baseCal.clone() as Calendar).apply {
+                    add(Calendar.DAY_OF_MONTH, offset)
+                }
+                "${shortWeekdayLabel(c)} $icon"
+            }
+        }
+
+        private fun resolveFourDayForecastTexts(context: Context, weather: WeatherCache, baseCal: Calendar): List<String> {
+            val fallback = buildFallbackFourDayLabels(baseCal, weather.weatherCode)
+            return try {
+                val method = AppPrefs::class.java.getMethod("getNextFourDaysForecast", Context::class.java)
+                @Suppress("UNCHECKED_CAST")
+                val rawList = method.invoke(null, context) as? List<*>
+                if (rawList == null || rawList.isEmpty()) {
+                    fallback
+                } else {
+                    (0..3).map { idx ->
+                        val item = rawList.getOrNull(idx) ?: return@map fallback[idx]
+                        when (item) {
+                            is String -> if (item.isNotBlank()) item else fallback[idx]
+                            else -> {
+                                val dayText = item.javaClass.methods
+                                    .firstOrNull { it.name == "getDayLabel" || it.name == "getShortDay" || it.name == "getLabel" }
+                                    ?.invoke(item) as? String
+                                val codeVal = item.javaClass.methods
+                                    .firstOrNull { it.name == "getWeatherCode" || it.name == "getCode" }
+                                    ?.invoke(item) as? Int
+                                val emojiText = item.javaClass.methods
+                                    .firstOrNull { it.name == "getEmoji" || it.name == "getIcon" }
+                                    ?.invoke(item) as? String
+                                val icon = when {
+                                    !emojiText.isNullOrBlank() -> emojiText
+                                    codeVal != null -> weatherEmojiForCode(codeVal)
+                                    else -> weatherEmojiForCode(weather.weatherCode)
+                                }
+                                if (!dayText.isNullOrBlank()) "$dayText $icon" else fallback[idx]
+                            }
+                        }
+                    }
+                }
+            } catch (_: Exception) {
+                fallback
+            }
+        }
+
         private fun weatherEffectDrawableForCode(code: Int): Int = when (code) {
             0 -> R.drawable.fx_weather_clear
             1, 2 -> R.drawable.fx_weather_partly_cloudy
@@ -207,11 +266,15 @@ class WeatherLunarWidget : AppWidgetProvider() {
             views.setTextViewText(R.id.tv_min_max_temp, "▲ ${weather.maxTemp}  ▼ ${weather.minTemp}")
             views.setTextColor(R.id.tv_min_max_temp, accentColor)
 
-            views.setTextViewText(R.id.tv_hour_1, weather.hour1)
-            views.setTextViewText(R.id.tv_hour_2, weather.hour2)
-            views.setTextViewText(R.id.tv_hour_3, weather.hour3)
-            views.setTextViewText(R.id.tv_hour_4, weather.hour4)
-            listOf(R.id.tv_hour_1, R.id.tv_hour_2, R.id.tv_hour_3, R.id.tv_hour_4).forEach { id ->
+            val fourDayTexts = resolveFourDayForecastTexts(context, weather, cal)
+            val forecastViewIds = listOf(
+                R.id.tv_forecast_day_1,
+                R.id.tv_forecast_day_2,
+                R.id.tv_forecast_day_3,
+                R.id.tv_forecast_day_4
+            )
+            forecastViewIds.forEachIndexed { index, id ->
+                views.setTextViewText(id, fourDayTexts[index])
                 views.setTextColor(id, secondaryTextColor)
             }
 
