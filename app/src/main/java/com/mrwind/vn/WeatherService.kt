@@ -7,8 +7,10 @@ import android.content.pm.PackageManager
 import android.location.Geocoder
 import android.location.Location
 import androidx.core.content.ContextCompat
+import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
@@ -19,6 +21,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
@@ -42,10 +45,17 @@ data class DailyForecastItem(
 
 object WeatherService {
 
+    private const val LOCATION_REFRESH_INTERVAL_MS = 30 * 60 * 1000L
+
     data class SearchLocationResult(
         val displayName: String,
         val lat: Double,
         val lon: Double
+    )
+
+    private data class CombinedForecastPayload(
+        val cache: WeatherCache,
+        val dailyItems: List<DailyForecastItem>
     )
 
     private fun weatherEmojiForWidgetCode(code: Int): String = when (code) {
@@ -60,9 +70,15 @@ object WeatherService {
         else -> "🌤️"
     }
 
-    private fun saveSevenDaysToPrefs(context: Context, items: List<String>) {
-        if (items.isEmpty()) return
-        AppPrefs.saveNextSevenDaysForecast(context, items.take(7))
+    private fun saveSevenDaysToPrefs(context: Context, dailyItems: List<DailyForecastItem>) {
+        if (dailyItems.size <= 1) return
+        val sevenNext = dailyItems.drop(1).take(7).map { day ->
+            val icon = weatherEmojiForWidgetCode(day.weatherCode)
+            "${day.dateLabel}|$icon"
+        }
+        if (sevenNext.isNotEmpty()) {
+            AppPrefs.saveNextSevenDaysForecast(context, sevenNext)
+        }
     }
 
     suspend fun searchLocationsByName(query: String): List<SearchLocationResult> =
@@ -119,13 +135,21 @@ object WeatherService {
             }
         }
 
+    private fun shouldRefreshDeviceLocation(cache: WeatherCache, nowMillis: Long): Boolean {
+        val hasValidCoords = !(cache.latitude == 0.0 && cache.longitude == 0.0) &&
+            !cache.latitude.isNaN() && !cache.longitude.isNaN()
+        if (!hasValidCoords || cache.lastUpdated <= 0L) return true
+        return (nowMillis - cache.lastUpdated) >= LOCATION_REFRESH_INTERVAL_MS
+    }
+
     suspend fun syncWeather(context: Context): WeatherCache = withContext(Dispatchers.IO) {
         val currentCache = AppPrefs.getWeather(context)
+        val nowMillis = System.currentTimeMillis()
         var lat = currentCache.latitude
         var lon = currentCache.longitude
         var locName = currentCache.locationName
 
-        if (AppPrefs.isAutoLocation(context)) {
+        if (AppPrefs.isAutoLocation(context) && shouldRefreshDeviceLocation(currentCache, nowMillis)) {
             val deviceLoc = getBestDeviceLocation(context)
             if (deviceLoc != null) {
                 lat = deviceLoc.latitude
@@ -135,25 +159,18 @@ object WeatherService {
             }
         }
 
-        val fetched = fetchOpenMeteo(
+        val payload = fetchCombinedForecast(
             lat = lat,
             lon = lon,
-            locationName = locName
+            locationName = locName,
+            forecastDays = 8
         )
 
-        if (fetched != null) {
-            AppPrefs.saveWeather(context, fetched)
-            val dailyList = fetchForecastDays(context, days = 8)
-            if (dailyList.size > 1) {
-                val sevenNext = dailyList.drop(1).take(7).map { day ->
-                    val dateLbl = day.dateLabel
-                    val icon = weatherEmojiForWidgetCode(day.weatherCode)
-                    "$dateLbl|$icon"
-                }
-                saveSevenDaysToPrefs(context, sevenNext)
-            }
+        if (payload != null) {
+            AppPrefs.saveWeather(context, payload.cache)
+            saveSevenDaysToPrefs(context, payload.dailyItems)
             WeatherLunarWidget.updateAllWidgets(context)
-            fetched
+            payload.cache
         } else {
             currentCache
         }
@@ -162,75 +179,13 @@ object WeatherService {
     suspend fun fetchForecastDays(context: Context, days: Int = 8): List<DailyForecastItem> =
         withContext(Dispatchers.IO) {
             val cached = AppPrefs.getWeather(context)
-            val lat = cached.latitude
-            val lon = cached.longitude
             val safeDays = days.coerceIn(1, 14)
-            try {
-                val urlStr =
-                    "https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon" +
-                        "&daily=weather_code,temperature_2m_max,temperature_2m_min" +
-                        "&timezone=Asia%2FBangkok&forecast_days=$safeDays"
-                val conn = (URL(urlStr).openConnection() as HttpURLConnection).apply {
-                    requestMethod = "GET"
-                    connectTimeout = 10000
-                    readTimeout = 10000
-                }
-                if (conn.responseCode != HttpURLConnection.HTTP_OK) {
-                    conn.disconnect()
-                    return@withContext emptyList()
-                }
-                val body = conn.inputStream.bufferedReader().use { it.readText() }
-                conn.disconnect()
-
-                val root = JSONObject(body)
-                val daily = root.optJSONObject("daily") ?: return@withContext emptyList()
-                val times = daily.optJSONArray("time") ?: return@withContext emptyList()
-                val codes = daily.optJSONArray("weather_code")
-                val maxArr = daily.optJSONArray("temperature_2m_max")
-                val minArr = daily.optJSONArray("temperature_2m_min")
-
-                val vnTz = TimeZone.getTimeZone("Asia/Ho_Chi_Minh")
-                val parser = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply {
-                    timeZone = vnTz
-                }
-                val dayFmt = SimpleDateFormat("EEE", Locale("vi", "VN")).apply {
-                    timeZone = vnTz
-                }
-                val dateFmt = SimpleDateFormat("dd/MM", Locale.US).apply {
-                    timeZone = vnTz
-                }
-
-                val out = mutableListOf<DailyForecastItem>()
-                for (i in 0 until times.length()) {
-                    val dateStr = times.optString(i, "")
-                    if (dateStr.isEmpty()) continue
-                    val dateObj = parser.parse(dateStr)
-                    val code = codes?.optInt(i, 0) ?: 0
-                    val maxVal = maxArr?.optDouble(i, Double.NaN) ?: Double.NaN
-                    val minVal = minArr?.optDouble(i, Double.NaN) ?: Double.NaN
-                    val maxStr = if (maxVal.isNaN()) "--°" else "${maxVal.roundToInt()}°"
-                    val minStr = if (minVal.isNaN()) "--°" else "${minVal.roundToInt()}°"
-                    val dayLbl = if (i == 0) {
-                        "Hôm nay"
-                    } else {
-                        dateObj?.let { dayFmt.format(it) } ?: "Ngày ${i + 1}"
-                    }
-                    val dateLbl = dateObj?.let { dateFmt.format(it) } ?: dateStr
-                    out.add(
-                        DailyForecastItem(
-                            dayLabel = dayLbl,
-                            dateLabel = dateLbl,
-                            weatherCode = code,
-                            maxTemp = maxStr,
-                            minTemp = minStr,
-                            description = describeWeatherCode(code)
-                        )
-                    )
-                }
-                out
-            } catch (_: Exception) {
-                emptyList()
-            }
+            fetchCombinedForecast(
+                lat = cached.latitude,
+                lon = cached.longitude,
+                locationName = cached.locationName,
+                forecastDays = safeDays
+            )?.dailyItems ?: emptyList()
         }
 
     @SuppressLint("MissingPermission")
@@ -283,14 +238,62 @@ object WeatherService {
         }
     }
 
-    private fun fetchOpenMeteo(lat: Double, lon: Double, locationName: String): WeatherCache? {
+    private fun parseDailyForecastItems(daily: JSONObject?): List<DailyForecastItem> {
+        if (daily == null) return emptyList()
+        val times = daily.optJSONArray("time") ?: return emptyList()
+        val codes = daily.optJSONArray("weather_code")
+        val maxArr = daily.optJSONArray("temperature_2m_max")
+        val minArr = daily.optJSONArray("temperature_2m_min")
+
+        val vnTz = TimeZone.getTimeZone("Asia/Ho_Chi_Minh")
+        val parser = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply { timeZone = vnTz }
+        val dayFmt = SimpleDateFormat("EEE", Locale("vi", "VN")).apply { timeZone = vnTz }
+        val dateFmt = SimpleDateFormat("dd/MM", Locale.US).apply { timeZone = vnTz }
+
+        val out = mutableListOf<DailyForecastItem>()
+        for (i in 0 until times.length()) {
+            val dateStr = times.optString(i, "")
+            if (dateStr.isEmpty()) continue
+            val dateObj = parser.parse(dateStr)
+            val code = codes?.optInt(i, 0) ?: 0
+            val maxVal = maxArr?.optDouble(i, Double.NaN) ?: Double.NaN
+            val minVal = minArr?.optDouble(i, Double.NaN) ?: Double.NaN
+            val maxStr = if (maxVal.isNaN()) "--°" else "${maxVal.roundToInt()}°"
+            val minStr = if (minVal.isNaN()) "--°" else "${minVal.roundToInt()}°"
+            val dayLbl = if (i == 0) {
+                "Hôm nay"
+            } else {
+                dateObj?.let { dayFmt.format(it) } ?: "Ngày ${i + 1}"
+            }
+            val dateLbl = dateObj?.let { dateFmt.format(it) } ?: dateStr
+            out.add(
+                DailyForecastItem(
+                    dayLabel = dayLbl,
+                    dateLabel = dateLbl,
+                    weatherCode = code,
+                    maxTemp = maxStr,
+                    minTemp = minStr,
+                    description = describeWeatherCode(code)
+                )
+            )
+        }
+        return out
+    }
+
+    private fun fetchCombinedForecast(
+        lat: Double,
+        lon: Double,
+        locationName: String,
+        forecastDays: Int
+    ): CombinedForecastPayload? {
         return try {
+            val safeDays = forecastDays.coerceIn(2, 14)
             val urlStr =
                 "https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon" +
                     "&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m" +
                     "&hourly=temperature_2m,weather_code" +
-                    "&daily=temperature_2m_max,temperature_2m_min" +
-                    "&timezone=Asia%2FBangkok&forecast_days=2"
+                    "&daily=weather_code,temperature_2m_max,temperature_2m_min" +
+                    "&timezone=Asia%2FBangkok&forecast_days=$safeDays"
 
             val conn = (URL(urlStr).openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
@@ -298,8 +301,7 @@ object WeatherService {
                 readTimeout = 10000
             }
 
-            val code = conn.responseCode
-            if (code != HttpURLConnection.HTTP_OK) {
+            if (conn.responseCode != HttpURLConnection.HTTP_OK) {
                 conn.disconnect()
                 return null
             }
@@ -317,14 +319,13 @@ object WeatherService {
             val windNow = current.optDouble("wind_speed_10m", Double.NaN)
             val wCode = current.optInt("weather_code", 0)
 
-            val maxArr = daily?.optJSONArray("temperature_2m_max")
-            val minArr = daily?.optJSONArray("temperature_2m_min")
-            val maxToday = maxArr?.optDouble(0, Double.NaN) ?: Double.NaN
-            val minToday = minArr?.optDouble(0, Double.NaN) ?: Double.NaN
+            val dailyItems = parseDailyForecastItems(daily)
+            val maxToday = daily?.optJSONArray("temperature_2m_max")?.optDouble(0, Double.NaN) ?: Double.NaN
+            val minToday = daily?.optJSONArray("temperature_2m_min")?.optDouble(0, Double.NaN) ?: Double.NaN
 
             val slots = extractNextFourHours(hourly)
 
-            WeatherCache(
+            val cache = WeatherCache(
                 locationName = locationName,
                 latitude = lat,
                 longitude = lon,
@@ -341,6 +342,8 @@ object WeatherService {
                 hour4 = slots.getOrElse(3) { "--:-- --°" },
                 lastUpdated = System.currentTimeMillis()
             )
+
+            CombinedForecastPayload(cache = cache, dailyItems = dailyItems)
         } catch (_: Exception) {
             null
         }
@@ -348,8 +351,8 @@ object WeatherService {
 
     private fun extractNextFourHours(hourly: JSONObject?): List<String> {
         if (hourly == null) return emptyList()
-        val times = hourly.optJSONArray("time") ?: return emptyList()
-        val temps = hourly.optJSONArray("temperature_2m") ?: return emptyList()
+        val times: JSONArray = hourly.optJSONArray("time") ?: return emptyList()
+        val temps: JSONArray = hourly.optJSONArray("temperature_2m") ?: return emptyList()
 
         val fmt = SimpleDateFormat("yyyy-MM-dd'T'HH:00", Locale.US).apply {
             timeZone = TimeZone.getTimeZone("Asia/Bangkok")
@@ -397,7 +400,14 @@ object WeatherService {
     }
 
     fun scheduleTwoHourlySync(context: Context) {
-        val request = PeriodicWorkRequestBuilder<WeatherSyncWorker>(2, TimeUnit.HOURS).build()
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
+
+        val request = PeriodicWorkRequestBuilder<WeatherSyncWorker>(2, TimeUnit.HOURS)
+            .setConstraints(constraints)
+            .build()
+
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(
             "weather_two_hourly_sync",
             ExistingPeriodicWorkPolicy.UPDATE,
