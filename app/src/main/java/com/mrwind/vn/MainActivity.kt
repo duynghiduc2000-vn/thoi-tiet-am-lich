@@ -4893,7 +4893,7 @@ fun ThoiTietAmLichApp() {
                     }
                 }
 
-                // Pop-up 2: Kết quả theo bản phác thảo (Số may mắn + Màu sắc + Việc nên làm + Đồng ý)
+                // Pop-up 2: Kết quả theo bản phác thảo (Số may mắn + Màu sắc chạy chữ + Việc nên làm + Đồng ý)
                 AnimatedVisibility(
                     visible = luckyResultPopup != null,
                     enter = fadeIn(tween(180)) + scaleIn(initialScale = 0.92f),
@@ -4960,13 +4960,16 @@ fun ThoiTietAmLichApp() {
                                         ) {
                                             Row(
                                                 verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                modifier = Modifier.fillMaxWidth()
                                             ) {
                                                 Text(
                                                     text = "Màu sắc may mắn:",
                                                     style = MaterialTheme.typography.bodyLarge,
                                                     color = palette.popupTextPrimary,
-                                                    fontWeight = FontWeight.Bold
+                                                    fontWeight = FontWeight.Bold,
+                                                    maxLines = 1,
+                                                    softWrap = false
                                                 )
                                                 Box(
                                                     modifier = Modifier
@@ -4985,7 +4988,16 @@ fun ThoiTietAmLichApp() {
                                                     color = palette.popupTextPrimary,
                                                     fontWeight = FontWeight.SemiBold,
                                                     maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis
+                                                    softWrap = false,
+                                                    overflow = TextOverflow.Clip,
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .clipToBounds()
+                                                        .basicMarquee(
+                                                            iterations = Int.MAX_VALUE,
+                                                            repeatDelayMillis = 900,
+                                                            velocity = 28.dp
+                                                        )
                                                 )
                                             }
 
