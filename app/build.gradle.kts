@@ -21,7 +21,7 @@ android {
         applicationId = "com.mrwind.vn"
         minSdk = 24
         targetSdk = 35
-        versionCode = 2
+        versionCode = 3
         versionName = "31.12-HPBD"
         resValue("string", "app_name", "Thời tiết và Âm lịch")
     }
