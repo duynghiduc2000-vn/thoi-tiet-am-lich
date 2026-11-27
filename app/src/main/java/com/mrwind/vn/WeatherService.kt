@@ -45,8 +45,6 @@ data class DailyForecastItem(
 
 object WeatherService {
 
-    private const val LOCATION_REFRESH_INTERVAL_MS = 30 * 60 * 1000L
-
     data class SearchLocationResult(
         val displayName: String,
         val lat: Double,
@@ -135,21 +133,17 @@ object WeatherService {
             }
         }
 
-    private fun shouldRefreshDeviceLocation(cache: WeatherCache, nowMillis: Long): Boolean {
-        val hasValidCoords = !(cache.latitude == 0.0 && cache.longitude == 0.0) &&
-            !cache.latitude.isNaN() && !cache.longitude.isNaN()
-        if (!hasValidCoords || cache.lastUpdated <= 0L) return true
-        return (nowMillis - cache.lastUpdated) >= LOCATION_REFRESH_INTERVAL_MS
-    }
-
-    suspend fun syncWeather(context: Context): WeatherCache = withContext(Dispatchers.IO) {
+    suspend fun syncWeather(
+        context: Context,
+        refreshLocation: Boolean = false
+    ): WeatherCache = withContext(Dispatchers.IO) {
         val currentCache = AppPrefs.getWeather(context)
-        val nowMillis = System.currentTimeMillis()
         var lat = currentCache.latitude
         var lon = currentCache.longitude
         var locName = currentCache.locationName
 
-        if (AppPrefs.isAutoLocation(context) && shouldRefreshDeviceLocation(currentCache, nowMillis)) {
+        // Chỉ lấy vị trí thiết bị khi người dùng yêu cầu cập nhật vị trí (ví dụ bấm nút Cập nhật)
+        if (refreshLocation && AppPrefs.isAutoLocation(context)) {
             val deviceLoc = getBestDeviceLocation(context)
             if (deviceLoc != null) {
                 lat = deviceLoc.latitude
@@ -421,7 +415,7 @@ class WeatherSyncWorker(
     workerParams: WorkerParameters
 ) : CoroutineWorker(appContext, workerParams) {
     override suspend fun doWork(): Result {
-        WeatherService.syncWeather(applicationContext)
+        WeatherService.syncWeather(applicationContext, refreshLocation = false)
         BirthdayHelper.runDailyBackgroundReminders(applicationContext)
         return Result.success()
     }
