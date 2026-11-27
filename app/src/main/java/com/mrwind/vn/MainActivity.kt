@@ -3329,7 +3329,10 @@ fun ThoiTietAmLichApp() {
     var showSeconds by remember { mutableStateOf(AppPrefs.isShowSeconds(context)) }
     var showSecondsWarningPopup by remember { mutableStateOf(false) }
     var pendingBatteryWarningTarget by remember { mutableStateOf<BatteryWarningTarget?>(null) }
-    var showWeatherEffect by remember { mutableStateOf(AppPrefs.isShowWeatherEffect(context)) }
+    var showWeatherEffect by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        AppPrefs.setShowWeatherEffect(context, false)
+    }
     var showLunarDate by remember { mutableStateOf(AppPrefs.isShowLunarDate(context)) }
     var showSolarDate by remember { mutableStateOf(AppPrefs.isShowSolarDate(context)) }
     var showLocationName by remember { mutableStateOf(AppPrefs.isShowLocationName(context)) }
@@ -4429,20 +4432,6 @@ fun ThoiTietAmLichApp() {
                                                         AppPrefs.setShowSeconds(context, false)
                                                         WeatherLunarWidget.updateAllWidgets(context)
                                                     }
-                                                }
-                                            )
-                                            SectionHairline(palette)
-
-                                            FlatSwitchRow(
-                                                title = "Hiệu ứng thời tiết trên Widget",
-                                                subtitle = "Bật/tắt lớp hiệu ứng nắng, mây, sương mù, mưa theo thời tiết",
-                                                checked = showWeatherEffect,
-                                                accentColor = accentCompose,
-                                                palette = palette,
-                                                onCheckedChange = { checked ->
-                                                    showWeatherEffect = checked
-                                                    AppPrefs.setShowWeatherEffect(context, checked)
-                                                    WeatherLunarWidget.updateAllWidgets(context)
                                                 }
                                             )
                                             SectionHairline(palette)
