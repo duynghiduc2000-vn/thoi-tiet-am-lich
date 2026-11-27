@@ -85,10 +85,8 @@ import androidx.compose.material.icons.filled.PersonSearch
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Send
-import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -158,13 +156,8 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import org.json.JSONObject
-import java.net.HttpURLConnection
-import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -180,63 +173,6 @@ import kotlin.random.Random
 private const val APP_VERSION_NAME = "31.12-HPBD"
 private const val FEEDBACK_EMAIL = "duynghiduc12@gmail.com"
 private const val DEFAULT_BG_MUSIC_VOLUME = 0.15f
-private const val VERSION_MANIFEST_URL =
-    "https://raw.githubusercontent.com/duynghiduc2000-vn/thoi-tiet-am-lich/main/version.json"
-
-private data class AppUpdateReleaseInfo(
-    val versionCode: Int,
-    val versionName: String,
-    val apkUrl: String,
-    val notes: String
-)
-
-private sealed interface AppUpdateDialogState {
-    data object Hidden : AppUpdateDialogState
-    data object Checking : AppUpdateDialogState
-    data class UpdateAvailable(val release: AppUpdateReleaseInfo) : AppUpdateDialogState
-    data object UpToDate : AppUpdateDialogState
-    data class Error(val message: String) : AppUpdateDialogState
-}
-
-private fun getInstalledAppVersionCode(context: Context): Int {
-    return try {
-        val pkgInfo = context.packageManager.getPackageInfo(context.packageName, 0)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            pkgInfo.longVersionCode.toInt()
-        } else {
-            @Suppress("DEPRECATION")
-            pkgInfo.versionCode
-        }
-    } catch (_: Exception) {
-        1
-    }
-}
-
-private suspend fun fetchRemoteAppRelease(): AppUpdateReleaseInfo = withContext(Dispatchers.IO) {
-    val connection = (URL(VERSION_MANIFEST_URL).openConnection() as HttpURLConnection).apply {
-        requestMethod = "GET"
-        connectTimeout = 8_000
-        readTimeout = 8_000
-        useCaches = false
-        setRequestProperty("Cache-Control", "no-cache")
-    }
-    try {
-        val code = connection.responseCode
-        if (code !in 200..299) {
-            throw IllegalStateException("HTTP $code")
-        }
-        val raw = connection.inputStream.bufferedReader().use { it.readText() }
-        val json = JSONObject(raw)
-        AppUpdateReleaseInfo(
-            versionCode = json.getInt("versionCode"),
-            versionName = json.optString("versionName", "Bản mới"),
-            apkUrl = json.getString("apkUrl").trim(),
-            notes = json.optString("notes", "").trim()
-        )
-    } finally {
-        connection.disconnect()
-    }
-}
 
 private val DAILY_WARM_MESSAGES = listOf(
     "Chúc bạn hôm nay thật nhẹ nhàng, bình yên và gặp nhiều điều dễ thương",
@@ -660,41 +596,6 @@ private fun TopBarBatteryOptimizeButton(
                 tint = accentColor,
                 isAnimated = isOptimizing,
                 modifier = Modifier.size(20.dp)
-            )
-        }
-    }
-}
-
-@Composable
-private fun TopBarAppUpdateButton(
-    palette: AdaptivePalette,
-    accentColor: Color,
-    isChecking: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        shape = CircleShape,
-        color = palette.cardBg,
-        modifier = modifier
-            .size(36.dp)
-            .clip(CircleShape)
-            .border(
-                width = 1.dp,
-                color = accentColor.copy(alpha = if (isChecking) 0.80f else 0.45f),
-                shape = CircleShape
-            )
-            .clickable(enabled = !isChecking, onClick = onClick)
-    ) {
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier.fillMaxSize()
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.SystemUpdate,
-                contentDescription = "Cập nhật ứng dụng",
-                tint = accentColor,
-                modifier = Modifier.size(19.dp)
             )
         }
     }
@@ -1970,8 +1871,6 @@ fun ThoiTietAmLichApp() {
     var optimizationStepText by remember { mutableStateOf("Đang chuẩn bị tối ưu hóa...") }
     var optimizationProgress by remember { mutableFloatStateOf(0f) }
 
-    var appUpdateState by remember { mutableStateOf<AppUpdateDialogState>(AppUpdateDialogState.Hidden) }
-
     var appThemeMode by remember { mutableIntStateOf(AppPrefs.getAppThemeMode(context)) }
     var cardBounceEnabled by remember { mutableStateOf(AppPrefs.isCardBounceEnabled(context)) }
     var topWeatherBgEnabled by remember { mutableStateOf(false) }
@@ -2145,26 +2044,6 @@ fun ThoiTietAmLichApp() {
     val showAdminBirthdayToday = remember { BirthdayHelper.isAdminBirthdayToday() }
     var showBirthdayPopup by remember { mutableStateOf(false) }
 
-    fun triggerAppUpdateCheck() {
-        if (appUpdateState is AppUpdateDialogState.Checking) return
-        appUpdateState = AppUpdateDialogState.Checking
-        scope.launch {
-            try {
-                val remoteRelease = fetchRemoteAppRelease()
-                val installedCode = getInstalledAppVersionCode(appContext)
-                appUpdateState = if (remoteRelease.versionCode > installedCode) {
-                    AppUpdateDialogState.UpdateAvailable(remoteRelease)
-                } else {
-                    AppUpdateDialogState.UpToDate
-                }
-            } catch (_: Exception) {
-                appUpdateState = AppUpdateDialogState.Error(
-                    "Không thể kiểm tra bản cập nhật lúc này. Vui lòng kiểm tra kết nối mạng và thử lại."
-                )
-            }
-        }
-    }
-
     fun refreshTodosAndCheckDueTasks() {
         val currentList = TodoHelper.ensureCurrentDayOrReset(context)
         val c = Calendar.getInstance(TimeZone.getTimeZone("Asia/Ho_Chi_Minh"))
@@ -2259,7 +2138,6 @@ fun ThoiTietAmLichApp() {
 
     val hasBlockingPopup = remember(
         isOptimizingBattery,
-        appUpdateState,
         showHolidayPopup,
         activeHolidayAlerts,
         activeTodoPopup,
@@ -2274,7 +2152,6 @@ fun ThoiTietAmLichApp() {
         showAdminBirthdayToday
     ) {
         isOptimizingBattery ||
-            appUpdateState !is AppUpdateDialogState.Hidden ||
             (showHolidayPopup && activeHolidayAlerts.isNotEmpty()) ||
             activeTodoPopup != null ||
             ageResultPopup != null ||
@@ -2507,12 +2384,6 @@ fun ThoiTietAmLichApp() {
                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                                     modifier = Modifier.padding(end = 10.dp)
                                 ) {
-                                    TopBarAppUpdateButton(
-                                        palette = palette,
-                                        accentColor = accentCompose,
-                                        isChecking = appUpdateState is AppUpdateDialogState.Checking,
-                                        onClick = { triggerAppUpdateCheck() }
-                                    )
                                     TopBarBatteryOptimizeButton(
                                         palette = palette,
                                         accentColor = accentCompose,
@@ -4680,191 +4551,6 @@ fun ThoiTietAmLichApp() {
                                     color = palette.textSecondary,
                                     textAlign = TextAlign.Center
                                 )
-                            }
-                        }
-                    }
-                }
-
-                AnimatedVisibility(
-                    visible = appUpdateState !is AppUpdateDialogState.Hidden,
-                    enter = fadeIn(tween(180)) + scaleIn(initialScale = 0.92f),
-                    exit = fadeOut(tween(180)) + scaleOut(targetScale = 0.92f),
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    val currentUpdateState = appUpdateState
-                    val dismissible = currentUpdateState !is AppUpdateDialogState.Checking
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.72f))
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null
-                            ) {
-                                if (dismissible) appUpdateState = AppUpdateDialogState.Hidden
-                            }
-                            .padding(horizontal = 24.dp)
-                    ) {
-                        LiquidGlassPopupSurface(palette = palette) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier.padding(22.dp)
-                            ) {
-                                when (currentUpdateState) {
-                                    AppUpdateDialogState.Hidden -> Unit
-
-                                    AppUpdateDialogState.Checking -> {
-                                        CircularProgressIndicator(
-                                            color = accentCompose,
-                                            modifier = Modifier.size(44.dp)
-                                        )
-                                        Spacer(modifier = Modifier.height(14.dp))
-                                        Text(
-                                            "Đang cập nhật ứng dụng...",
-                                            style = MaterialTheme.typography.titleMedium,
-                                            color = palette.popupTextPrimary,
-                                            fontWeight = FontWeight.Bold,
-                                            textAlign = TextAlign.Center
-                                        )
-                                    }
-
-                                    is AppUpdateDialogState.UpdateAvailable -> {
-                                        Icon(
-                                            Icons.Rounded.SystemUpdate,
-                                            contentDescription = null,
-                                            tint = accentCompose,
-                                            modifier = Modifier.size(36.dp)
-                                        )
-                                        Spacer(modifier = Modifier.height(12.dp))
-                                        Text(
-                                            "Có phiên bản mới (${currentUpdateState.release.versionName})",
-                                            style = MaterialTheme.typography.titleLarge,
-                                            color = palette.popupTextPrimary,
-                                            fontWeight = FontWeight.Bold,
-                                            textAlign = TextAlign.Center
-                                        )
-                                        Spacer(modifier = Modifier.height(8.dp))
-                                        Text(
-                                            currentUpdateState.release.notes.ifBlank {
-                                                "Đã có phiên bản mới sẵn sàng để tải về."
-                                            },
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = palette.popupTextSecondary,
-                                            textAlign = TextAlign.Center
-                                        )
-                                        Spacer(modifier = Modifier.height(18.dp))
-                                        Row(
-                                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                            modifier = Modifier.fillMaxWidth()
-                                        ) {
-                                            OutlinedButton(
-                                                onClick = { appUpdateState = AppUpdateDialogState.Hidden },
-                                                shape = RoundedCornerShape(16.dp),
-                                                modifier = Modifier
-                                                    .weight(1f)
-                                                    .height(48.dp)
-                                            ) {
-                                                Text(
-                                                    "Để sau",
-                                                    color = palette.popupTextPrimary,
-                                                    fontWeight = FontWeight.SemiBold
-                                                )
-                                            }
-                                            Button(
-                                                onClick = {
-                                                    val url = currentUpdateState.release.apkUrl
-                                                    appUpdateState = AppUpdateDialogState.Hidden
-                                                    try {
-                                                        context.startActivity(
-                                                            Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
-                                                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                                            }
-                                                        )
-                                                    } catch (_: Exception) {
-                                                        Toast.makeText(
-                                                            context,
-                                                            "Không mở được liên kết tải bản cập nhật.",
-                                                            Toast.LENGTH_SHORT
-                                                        ).show()
-                                                    }
-                                                },
-                                                shape = RoundedCornerShape(16.dp),
-                                                colors = ButtonDefaults.buttonColors(
-                                                    containerColor = accentCompose,
-                                                    contentColor = palette.onAccentText
-                                                ),
-                                                modifier = Modifier
-                                                    .weight(1f)
-                                                    .height(48.dp)
-                                            ) {
-                                                Text("Tải về", fontWeight = FontWeight.Bold)
-                                            }
-                                        }
-                                    }
-
-                                    AppUpdateDialogState.UpToDate -> {
-                                        Icon(
-                                            Icons.Default.CheckCircleOutline,
-                                            contentDescription = null,
-                                            tint = accentCompose,
-                                            modifier = Modifier.size(36.dp)
-                                        )
-                                        Spacer(modifier = Modifier.height(12.dp))
-                                        Text(
-                                            "Hiện chưa có phiên bản mới nào cả",
-                                            style = MaterialTheme.typography.titleMedium,
-                                            color = palette.popupTextPrimary,
-                                            fontWeight = FontWeight.Bold,
-                                            textAlign = TextAlign.Center
-                                        )
-                                        Spacer(modifier = Modifier.height(18.dp))
-                                        Button(
-                                            onClick = { appUpdateState = AppUpdateDialogState.Hidden },
-                                            shape = RoundedCornerShape(16.dp),
-                                            colors = ButtonDefaults.buttonColors(
-                                                containerColor = accentCompose,
-                                                contentColor = palette.onAccentText
-                                            ),
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .height(48.dp)
-                                        ) {
-                                            Text("Ok", fontWeight = FontWeight.Bold)
-                                        }
-                                    }
-
-                                    is AppUpdateDialogState.Error -> {
-                                        Text(
-                                            "Kiểm tra cập nhật",
-                                            style = MaterialTheme.typography.titleMedium,
-                                            color = palette.popupTextPrimary,
-                                            fontWeight = FontWeight.Bold,
-                                            textAlign = TextAlign.Center
-                                        )
-                                        Spacer(modifier = Modifier.height(8.dp))
-                                        Text(
-                                            currentUpdateState.message,
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = palette.popupTextSecondary,
-                                            textAlign = TextAlign.Center
-                                        )
-                                        Spacer(modifier = Modifier.height(18.dp))
-                                        Button(
-                                            onClick = { appUpdateState = AppUpdateDialogState.Hidden },
-                                            shape = RoundedCornerShape(16.dp),
-                                            colors = ButtonDefaults.buttonColors(
-                                                containerColor = accentCompose,
-                                                contentColor = palette.onAccentText
-                                            ),
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .height(48.dp)
-                                        ) {
-                                            Text("Ok", fontWeight = FontWeight.Bold)
-                                        }
-                                    }
-                                }
                             }
                         }
                     }
