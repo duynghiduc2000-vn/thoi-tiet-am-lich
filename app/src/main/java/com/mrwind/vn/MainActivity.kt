@@ -522,7 +522,6 @@ private fun BatteryOptimizationIconGlyph(
         val h = size.height
         val strokeW = w * 0.085f
 
-        // Thân pin tối giản gọn gàng
         val bodyLeft = w * 0.24f
         val bodyTop = h * 0.26f
         val bodyWidth = w * 0.52f
@@ -535,7 +534,6 @@ private fun BatteryOptimizationIconGlyph(
             style = Stroke(width = strokeW, join = StrokeJoin.Round)
         )
 
-        // Đầu cực dương của pin
         drawRoundRect(
             color = tint,
             topLeft = Offset(w * 0.40f, h * 0.15f),
@@ -543,7 +541,6 @@ private fun BatteryOptimizationIconGlyph(
             cornerRadius = CornerRadius(w * 0.03f, w * 0.03f)
         )
 
-        // Tia sét tối ưu hóa bên trong pin
         val boltPath = Path().apply {
             moveTo(w * 0.53f, h * 0.35f)
             lineTo(w * 0.41f, h * 0.55f)
@@ -2191,21 +2188,50 @@ fun ThoiTietAmLichApp() {
         resolvePreviewSevenDays(context, weather.weatherCode)
     }
 
-    suspend fun syncWeatherData() {
+    suspend fun syncWeatherData(refreshLocation: Boolean = false) {
         if (isSyncing) return
         isSyncing = true
         try {
-            weather = WeatherService.syncWeather(context)
+            weather = WeatherService.syncWeather(
+                context = context,
+                refreshLocation = refreshLocation
+            )
         } finally {
             isSyncing = false
         }
     }
 
-    val permissionLauncher = rememberLauncherForActivityResult(
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { _ ->
         scope.launch {
-            syncWeatherData()
+            syncWeatherData(refreshLocation = true)
+        }
+    }
+
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { _ -> }
+
+    fun triggerManualWeatherSync() {
+        if (isSyncing) return
+        val needsLocationPerm = autoLocation &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) !=
+            PackageManager.PERMISSION_GRANTED &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) !=
+            PackageManager.PERMISSION_GRANTED
+
+        if (needsLocationPerm) {
+            locationPermissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        } else {
+            scope.launch {
+                syncWeatherData(refreshLocation = true)
+            }
         }
     }
 
@@ -2227,20 +2253,16 @@ fun ThoiTietAmLichApp() {
             showBirthdayPopup = true
             BirthdayHelper.markAppPopupShownToday(context)
         }
-        val neededPerms = buildList {
-            if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION)
-                != PackageManager.PERMISSION_GRANTED
-            ) add(Manifest.permission.ACCESS_FINE_LOCATION)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
-                != PackageManager.PERMISSION_GRANTED
-            ) add(Manifest.permission.POST_NOTIFICATIONS)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationPermissionLauncher.launch(arrayOf(Manifest.permission.POST_NOTIFICATIONS))
         }
-        if (neededPerms.isNotEmpty()) {
-            permissionLauncher.launch(neededPerms.toTypedArray())
-        } else {
-            syncWeatherData()
-        }
+
+        // Mở app chỉ đồng bộ dữ liệu thời tiết theo vị trí đã lưu, không tự động quét vị trí
+        syncWeatherData(refreshLocation = false)
 
         while (true) {
             delay(60_000L)
@@ -2506,9 +2528,7 @@ fun ThoiTietAmLichApp() {
                                                 .background(palette.liquidGlassBrush)
                                                 .border(1.dp, palette.liquidGlassBorder, RoundedCornerShape(20.dp))
                                                 .clickable(enabled = !isSyncing) {
-                                                    scope.launch {
-                                                        syncWeatherData()
-                                                    }
+                                                    triggerManualWeatherSync()
                                                 }
                                         ) {
                                             Column(modifier = Modifier.padding(14.dp)) {
@@ -3057,7 +3077,7 @@ fun ThoiTietAmLichApp() {
                                         autoLocation = checked
                                         AppPrefs.setAutoLocation(context, checked)
                                         scope.launch {
-                                            syncWeatherData()
+                                            syncWeatherData(refreshLocation = false)
                                         }
                                     }
                                 )
@@ -3132,7 +3152,7 @@ fun ThoiTietAmLichApp() {
                                                     weather = updatedCache
                                                     WeatherLunarWidget.updateAllWidgets(context)
                                                     scope.launch {
-                                                        syncWeatherData()
+                                                        syncWeatherData(refreshLocation = false)
                                                     }
                                                 }
                                                 .padding(vertical = 8.dp, horizontal = 4.dp)
@@ -4665,6 +4685,7 @@ fun ThoiTietAmLichApp() {
                     }
                 }
 
+                // Toàn bộ các popup giữ nguyên như bản gốc của bạn
                 AnimatedVisibility(
                     visible = isOptimizingBattery,
                     enter = fadeIn(tween(180)) + scaleIn(initialScale = 0.92f),
