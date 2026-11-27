@@ -41,6 +41,8 @@ import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -6441,69 +6443,79 @@ fun ThoiTietAmLichApp() {
                             Spacer(modifier = Modifier.height(16.dp))
 
                             val moodRows = remember { DailyMoodType.entries.chunked(6) }
-                            Column(
-                                verticalArrangement = Arrangement.spacedBy(10.dp),
-                                modifier = Modifier.fillMaxWidth()
+                            val sharedMoodScrollState = rememberScrollState()
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(sharedMoodScrollState)
+                                    .padding(horizontal = 2.dp)
                             ) {
-                                moodRows.forEach { rowItems ->
-                                    LazyRow(
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                        contentPadding = PaddingValues(horizontal = 2.dp),
-                                        modifier = Modifier.fillMaxWidth()
+                                val colCount = moodRows.maxOfOrNull { it.size } ?: 0
+                                for (colIdx in 0 until colCount) {
+                                    Column(
+                                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally
                                     ) {
-                                        items(rowItems, key = { it.id }) { moodItem ->
-                                            Surface(
-                                                shape = RoundedCornerShape(16.dp),
-                                                color = palette.popupBoxBg,
-                                                modifier = Modifier
-                                                    .width(86.dp)
-                                                    .clip(RoundedCornerShape(16.dp))
-                                                    .border(
-                                                        1.dp,
-                                                        accentCompose.copy(alpha = 0.35f),
-                                                        RoundedCornerShape(16.dp)
-                                                    )
-                                                    .clickable {
-                                                        val freshBeforePick = DailyMoodHelper.loadOrResetToday(context)
-                                                        val prevBeforePick = DailyMoodType.fromId(freshBeforePick.selectedMoodId)?.label
-                                                        val updatedState = DailyMoodHelper.selectMoodForToday(
-                                                            context = context,
-                                                            newMood = moodItem
+                                        moodRows.forEach { rowItems ->
+                                            val moodItem = rowItems.getOrNull(colIdx)
+                                            if (moodItem != null) {
+                                                Surface(
+                                                    shape = RoundedCornerShape(16.dp),
+                                                    color = palette.popupBoxBg,
+                                                    modifier = Modifier
+                                                        .width(86.dp)
+                                                        .clip(RoundedCornerShape(16.dp))
+                                                        .border(
+                                                            1.dp,
+                                                            accentCompose.copy(alpha = 0.35f),
+                                                            RoundedCornerShape(16.dp)
                                                         )
-                                                        dailyMoodState = updatedState
-                                                        showMoodPickerPopup = false
-                                                        moodConfirmedPreviousLabel = prevBeforePick
-                                                        moodConfirmedPopup = moodItem
-                                                    }
-                                            ) {
-                                                Column(
-                                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                                    verticalArrangement = Arrangement.Center,
-                                                    modifier = Modifier.padding(vertical = 12.dp, horizontal = 6.dp)
+                                                        .clickable {
+                                                            val freshBeforePick = DailyMoodHelper.loadOrResetToday(context)
+                                                            val prevBeforePick = DailyMoodType.fromId(freshBeforePick.selectedMoodId)?.label
+                                                            val updatedState = DailyMoodHelper.selectMoodForToday(
+                                                                context = context,
+                                                                newMood = moodItem
+                                                            )
+                                                            dailyMoodState = updatedState
+                                                            showMoodPickerPopup = false
+                                                            moodConfirmedPreviousLabel = prevBeforePick
+                                                            moodConfirmedPopup = moodItem
+                                                        }
                                                 ) {
-                                                    AnimatedMoodIcon(
-                                                        mood = moodItem,
-                                                        isActive = true,
-                                                        fontSize = 26.sp
-                                                    )
-                                                    Spacer(modifier = Modifier.height(6.dp))
-                                                    Text(
-                                                        text = moodItem.label,
-                                                        fontSize = 11.5.sp,
-                                                        fontWeight = FontWeight.SemiBold,
-                                                        color = palette.popupTextPrimary,
-                                                        maxLines = 1,
-                                                        softWrap = false,
-                                                        overflow = TextOverflow.Clip,
+                                                    Column(
+                                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                                        verticalArrangement = Arrangement.Center,
                                                         modifier = Modifier
                                                             .fillMaxWidth()
-                                                            .clipToBounds()
-                                                            .basicMarquee(
-                                                                iterations = Int.MAX_VALUE,
-                                                                repeatDelayMillis = 900,
-                                                                velocity = 24.dp
-                                                            )
-                                                    )
+                                                            .padding(vertical = 12.dp, horizontal = 6.dp)
+                                                    ) {
+                                                        AnimatedMoodIcon(
+                                                            mood = moodItem,
+                                                            isActive = true,
+                                                            fontSize = 26.sp
+                                                        )
+                                                        Spacer(modifier = Modifier.height(6.dp))
+                                                        Text(
+                                                            text = moodItem.label,
+                                                            fontSize = 11.5.sp,
+                                                            fontWeight = FontWeight.SemiBold,
+                                                            color = palette.popupTextPrimary,
+                                                            textAlign = TextAlign.Center,
+                                                            maxLines = 1,
+                                                            softWrap = false,
+                                                            overflow = TextOverflow.Clip,
+                                                            modifier = Modifier
+                                                                .fillMaxWidth()
+                                                                .clipToBounds()
+                                                                .basicMarquee(
+                                                                    iterations = Int.MAX_VALUE,
+                                                                    repeatDelayMillis = 900,
+                                                                    velocity = 24.dp
+                                                                )
+                                                        )
+                                                    }
                                                 }
                                             }
                                         }
