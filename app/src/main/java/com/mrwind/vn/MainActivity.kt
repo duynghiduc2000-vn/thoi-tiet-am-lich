@@ -79,6 +79,7 @@ import androidx.compose.material.icons.filled.CheckCircleOutline
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.LocationOn
@@ -1019,6 +1020,7 @@ private fun TopBarDayNightIndicator(
     palette: AdaptivePalette,
     accentColor: Color,
     isActive: Boolean,
+    onClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var isDay by remember {
@@ -1093,11 +1095,13 @@ private fun TopBarDayNightIndicator(
         color = palette.cardBg,
         modifier = modifier
             .size(35.dp)
+            .clip(CircleShape)
             .border(
                 width = 1.dp,
                 color = if (isDay) Color(0xFFFFB74D).copy(alpha = 0.45f) else moonGoldColor.copy(alpha = 0.45f),
                 shape = CircleShape
             )
+            .clickable(onClick = onClick)
     ) {
         Box(
             contentAlignment = Alignment.Center,
@@ -1218,6 +1222,145 @@ private fun BottomContactCircleButton(
             )
         }
     }
+}
+
+@Composable
+private fun BottomDownloadCircleButton(
+    palette: AdaptivePalette,
+    accentColor: Color,
+    isActive: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val bobY: Float
+    val pulse: Float
+    if (isActive) {
+        val transition = rememberInfiniteTransition(label = "bottom_download_icon_anim")
+        bobY = transition.animateFloat(
+            initialValue = -1.5f,
+            targetValue = 2.5f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 900, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "download_icon_bob"
+        ).value
+        pulse = transition.animateFloat(
+            initialValue = 0.94f,
+            targetValue = 1.06f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 1100, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "download_icon_pulse"
+        ).value
+    } else {
+        bobY = 0f
+        pulse = 1f
+    }
+
+    Surface(
+        shape = CircleShape,
+        color = palette.cardBg,
+        modifier = modifier
+            .size(36.dp)
+            .clip(CircleShape)
+            .border(
+                width = 1.dp,
+                color = accentColor.copy(alpha = 0.45f),
+                shape = CircleShape
+            )
+            .clickable(onClick = onClick)
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.fillMaxSize()
+        ) {
+            Icon(
+                imageVector = Icons.Default.Download,
+                contentDescription = "Tải về phiên bản mới",
+                tint = accentColor,
+                modifier = Modifier
+                    .size(20.dp)
+                    .graphicsLayer {
+                        translationY = bobY.dp.toPx()
+                        scaleX = pulse
+                        scaleY = pulse
+                    }
+            )
+        }
+    }
+}
+
+private const val APP_RELEASES_URL = "https://github.com/duynghiduc2000-vn/thoi-tiet-am-lich/releases"
+
+private val GREETINGS_MORNING = listOf(
+    "Chúc bạn một buổi sáng tràn đầy năng lượng và niềm vui!",
+    "Mặt trời lên rồi, dậy thôi nào, thế giới đang chờ bạn tỏa sáng!",
+    "Hít thở thật sâu, mỉm cười và đón chào buổi sáng rực rỡ.",
+    "Chúc bạn một ngày bình yên, an lành và nhiều niềm vui nhỏ bé.",
+    "Chúc bạn ngày mới không nhầm người, không nhầm đường, không nhầm deadline.",
+    "Sáng nay trời đẹp lắm, chỉ thiếu động lực thôi.",
+    "Dậy đi, ước mơ không tự hoàn thành đâu!",
+    "Sáng rồi đó, cố gắng lên… tối còn ngủ tiếp."
+)
+
+private val GREETINGS_NOON = listOf(
+    "Nghỉ tay ăn trưa thôi, chúc bạn ăn ngon miệng và nạp đầy năng lượng cho buổi chiều hiệu quả.",
+    "Chúc bạn có giờ nghỉ trưa thư giãn, ngủ một giấc thật êm để chiều bứt phá công việc.",
+    "Buổi trưa vui vẻ nhé! Chúc bạn ăn ngon và giữ tinh thần thật thoải mái.",
+    "Trưa rồi, gác lại việc nào, ăn trưa ngon miệng và nạp pin thôi!",
+    "Bỏ bữa trưa là \"kẻ thù\" của năng lượng và sức khỏe đó, đi ăn ngay thôi!",
+    "Chúc bạn buổi trưa ăn ngon, ngủ ngon, chiều làm việc \"nhẹ như lông hồng\"."
+)
+
+private val GREETINGS_AFTERNOON = listOf(
+    "Chúc bạn buổi chiều thật vui vẻ và nhiều năng lượng nhé!",
+    "Chúc một buổi chiều nhẹ nhàng, bình an và đầy niềm vui!",
+    "Chúc buổi chiều vui vẻ, mạnh khỏe, công việc suôn sẻ và vạn sự bình an.",
+    "Cười lên rồi đón buổi chiều nào, mong mọi cố gắng hôm nay đều xứng đáng!",
+    "Cố gắng lên, xíu nữa thôi là tan làm rồi!",
+    "Buổi chiều tốt lành! Chúc công việc của bạn diễn ra thật suôn sẻ và hiệu quả.",
+    "Chúc bạn buổi chiều làm việc tập trung, nhiều cảm hứng và đạt mục tiêu đề ra."
+)
+
+private val GREETINGS_EVENING = listOf(
+    "Chúc bạn có một buổi tối bình yên và gác lại mọi mệt mỏi sau ngày dài.",
+    "Buổi tối ấm áp nhé, nhớ ăn uống đầy đủ và nghỉ ngơi sớm.",
+    "Mong tối nay của bạn thật nhẹ nhàng, nhiều niềm vui.",
+    "Giờ này không ra đường tìm người yêu đi, còn vào đây làm gì 😁",
+    "Có phải bạn không có người yêu nên giờ này mới tìm đến mình, phải không? 😁",
+    "Phố lên đèn, lòng xuống nhịp. Chúc buổi tối bình an.",
+    "Một ly trà, một bản nhạc, một buổi tối dịu êm.",
+    "Hôm nay khép lại, dịu dàng nghỉ ngơi thôi."
+)
+
+private val GREETINGS_NIGHT = listOf(
+    "Chúc bạn ngủ ngon!",
+    "Khuya rồi, không ngủ đi còn vào đây làm gì?",
+    "Thức khuya làm bạn không còn xinh đẹp nữa đấy, đi ngủ đi!",
+    "Cất điện thoại rồi đi ngủ sớm đi nhé, bạn yêu!",
+    "Muốn mai trễ làm hay gì mà giờ này còn thức?",
+    "Bỏ lại lo âu, ngủ một giấc thật sâu nào.",
+    "Chúc bạn đêm an lành và nhiều mơ đẹp.",
+    "Ngủ ngon nhé, hẹn gặp lại vào sáng mai.",
+    "Người yêu bạn ngủ rồi, bạn cũng ngủ đi thôi? Hay bạn không có người yêu? 😁😁😁",
+    "Người yêu đang chờ bạn trong mơ kìa, ngủ đi!!!!!",
+    "Xía, bạn không ngủ, thì mình ngủ đây. Bye bye 👋👋👋!"
+)
+
+/** Chọn ngẫu nhiên 1 câu chúc theo khung giờ hiện tại (giờ Việt Nam). */
+private fun pickRandomGreetingForNow(): String {
+    val cal = Calendar.getInstance(TimeZone.getTimeZone("Asia/Ho_Chi_Minh"))
+    val minutesOfDay = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
+    val pool = when {
+        minutesOfDay in (6 * 60) until (11 * 60) -> GREETINGS_MORNING          // 06:00 - 10:59
+        minutesOfDay in (11 * 60) until (14 * 60) -> GREETINGS_NOON            // 11:00 - 13:59
+        minutesOfDay in (14 * 60) until (18 * 60) -> GREETINGS_AFTERNOON       // 14:00 - 17:59
+        minutesOfDay in (18 * 60) until (21 * 60 + 30) -> GREETINGS_EVENING    // 18:00 - 21:29
+        else -> GREETINGS_NIGHT                                                // 21:30 - 05:59
+    }
+    return pool.random()
 }
 
 private fun openExternalUrlSafely(context: Context, url: String) {
@@ -2440,6 +2583,9 @@ fun ThoiTietAmLichApp() {
     var luckyResultPopup by remember { mutableStateOf<DailyLuckyData?>(null) }
     var showLuckyDisclaimerPopup by remember { mutableStateOf(false) }
     var showContactPopup by remember { mutableStateOf(false) }
+    var showDownloadPopup by remember { mutableStateOf(false) }
+    var showGreetingPopup by remember { mutableStateOf(false) }
+    var greetingPopupText by remember { mutableStateOf("") }
 
     var appThemeMode by remember { mutableIntStateOf(AppPrefs.getAppThemeMode(context)) }
     var cardBounceEnabled by remember { mutableStateOf(AppPrefs.isCardBounceEnabled(context)) }
@@ -2661,6 +2807,14 @@ fun ThoiTietAmLichApp() {
         }
     }
 
+    // Pop-up tải phiên bản mới: tự tắt sau 2 - 4 giây rồi mở trang tải về
+    LaunchedEffect(showDownloadPopup) {
+        if (!showDownloadPopup) return@LaunchedEffect
+        delay((2000L..4000L).random())
+        showDownloadPopup = false
+        openExternalUrlSafely(context, APP_RELEASES_URL)
+    }
+
     LaunchedEffect(isRollingLucky) {
         if (!isRollingLucky) return@LaunchedEffect
         val durationMs = (2000L..4000L).random()
@@ -2748,6 +2902,8 @@ fun ThoiTietAmLichApp() {
         luckyResultPopup,
         showLuckyDisclaimerPopup,
         showContactPopup,
+        showDownloadPopup,
+        showGreetingPopup,
         showHolidayPopup,
         activeHolidayAlerts,
         activeTodoPopup,
@@ -2768,6 +2924,8 @@ fun ThoiTietAmLichApp() {
             luckyResultPopup != null ||
             showLuckyDisclaimerPopup ||
             showContactPopup ||
+            showDownloadPopup ||
+            showGreetingPopup ||
             (showHolidayPopup && activeHolidayAlerts.isNotEmpty()) ||
             activeTodoPopup != null ||
             ageResultPopup != null ||
@@ -3035,7 +3193,11 @@ fun ThoiTietAmLichApp() {
                                     TopBarDayNightIndicator(
                                         palette = palette,
                                         accentColor = accentCompose,
-                                        isActive = canAnimateVisuals
+                                        isActive = canAnimateVisuals,
+                                        onClick = {
+                                            greetingPopupText = pickRandomGreetingForNow()
+                                            showGreetingPopup = true
+                                        }
                                     )
                                 }
                             }
@@ -5175,17 +5337,163 @@ fun ThoiTietAmLichApp() {
 
                         item(key = "bottom_contact_button_row") {
                             Row(
-                                horizontalArrangement = Arrangement.End,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(top = 4.dp, bottom = 8.dp)
                             ) {
+                                BottomDownloadCircleButton(
+                                    palette = palette,
+                                    accentColor = accentCompose,
+                                    isActive = canAnimateVisuals,
+                                    onClick = { showDownloadPopup = true }
+                                )
                                 BottomContactCircleButton(
                                     palette = palette,
                                     accentColor = accentCompose,
                                     isActive = canAnimateVisuals,
                                     onClick = { showContactPopup = true }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Pop-up tải xuống phiên bản mới (tự tắt sau 2 - 4 giây rồi mở trang tải về)
+                AnimatedPopupOverlay(
+                    visible = showDownloadPopup,
+                    onDismiss = {},
+                    dismissOnBackdropClick = false
+                ) {
+                    val dlTransition = rememberInfiniteTransition(label = "download_popup_anim")
+                    val arrowBob by dlTransition.animateFloat(
+                        initialValue = -6f,
+                        targetValue = 8f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(durationMillis = 700, easing = FastOutSlowInEasing),
+                            repeatMode = RepeatMode.Reverse
+                        ),
+                        label = "download_arrow_bob"
+                    )
+                    val ringScale by dlTransition.animateFloat(
+                        initialValue = 0.92f,
+                        targetValue = 1.18f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(durationMillis = 1100, easing = FastOutSlowInEasing),
+                            repeatMode = RepeatMode.Reverse
+                        ),
+                        label = "download_ring_scale"
+                    )
+                    val ringAlpha by dlTransition.animateFloat(
+                        initialValue = 0.55f,
+                        targetValue = 0.12f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(durationMillis = 1100, easing = FastOutSlowInEasing),
+                            repeatMode = RepeatMode.Reverse
+                        ),
+                        label = "download_ring_alpha"
+                    )
+
+                    LiquidGlassPopupSurface(palette = palette) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(24.dp)
+                        ) {
+                            Text(
+                                text = "Tải xuống phiên bản mới",
+                                style = MaterialTheme.typography.headlineSmall,
+                                color = accentCompose,
+                                fontWeight = FontWeight.ExtraBold,
+                                textAlign = TextAlign.Center
+                            )
+
+                            Spacer(modifier = Modifier.height(18.dp))
+
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier.size(124.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(104.dp)
+                                        .graphicsLayer {
+                                            scaleX = ringScale
+                                            scaleY = ringScale
+                                            alpha = ringAlpha
+                                        }
+                                        .clip(CircleShape)
+                                        .background(accentCompose.copy(alpha = 0.30f))
+                                )
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier
+                                        .size(92.dp)
+                                        .clip(CircleShape)
+                                        .background(accentCompose.copy(alpha = 0.16f))
+                                        .border(2.dp, accentCompose.copy(alpha = 0.65f), CircleShape)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Download,
+                                        contentDescription = null,
+                                        tint = accentCompose,
+                                        modifier = Modifier
+                                            .size(54.dp)
+                                            .graphicsLayer {
+                                                translationY = arrowBob.dp.toPx()
+                                            }
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(18.dp))
+
+                            Text(
+                                text = "Đang dẫn đến trang tải về...",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = palette.popupTextSecondary,
+                                fontWeight = FontWeight.SemiBold,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                }
+
+                // Pop-up câu chúc ngẫu nhiên theo khung giờ + nút Ok
+                AnimatedPopupOverlay(
+                    visible = showGreetingPopup,
+                    onDismiss = {},
+                    dismissOnBackdropClick = false
+                ) {
+                    LiquidGlassPopupSurface(palette = palette) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(24.dp)
+                        ) {
+                            Text(
+                                text = greetingPopupText,
+                                style = MaterialTheme.typography.titleMedium,
+                                color = palette.popupTextPrimary,
+                                fontWeight = FontWeight.SemiBold,
+                                textAlign = TextAlign.Center
+                            )
+
+                            Spacer(modifier = Modifier.height(20.dp))
+
+                            Button(
+                                onClick = { showGreetingPopup = false },
+                                shape = RoundedCornerShape(16.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = accentCompose,
+                                    contentColor = palette.onAccentText
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp)
+                            ) {
+                                Text(
+                                    text = "Ok",
+                                    fontWeight = FontWeight.Bold
                                 )
                             }
                         }
