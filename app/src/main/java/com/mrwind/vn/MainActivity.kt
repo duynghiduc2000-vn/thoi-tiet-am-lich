@@ -33,6 +33,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -81,6 +82,7 @@ import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PersonSearch
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
@@ -173,6 +175,9 @@ import kotlin.random.Random
 private const val APP_VERSION_NAME = "31.12-HPBD"
 private const val FEEDBACK_EMAIL = "duynghiduc12@gmail.com"
 private const val DEFAULT_BG_MUSIC_VOLUME = 0.15f
+private const val CONTACT_FACEBOOK_URL = "https://www.facebook.com/share/1JGhc8m62i/"
+private const val CONTACT_XIAOMI_COMMUNITY_URL = "https://new.c.mi.com/vn/user/69262e0d27ba478accf81225d37774a7/"
+private const val CONTACT_DONATE_MBBANK_TEXT = "Ủng hộ anh ấy một cốc cà hê qua MBBank: 3231121997"
 
 private val DAILY_WARM_MESSAGES = listOf(
     "Chúc bạn hôm nay thật nhẹ nhàng, bình yên và gặp nhiều điều dễ thương",
@@ -939,6 +944,92 @@ private fun TopBarDayNightIndicator(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun BottomContactCircleButton(
+    palette: AdaptivePalette,
+    accentColor: Color,
+    isActive: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val gentleScale: Float
+    val gentleTilt: Float
+    if (isActive) {
+        val transition = rememberInfiniteTransition(label = "bottom_contact_icon_anim")
+        gentleScale = transition.animateFloat(
+            initialValue = 0.93f,
+            targetValue = 1.07f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 1250, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "contact_icon_scale"
+        ).value
+        gentleTilt = transition.animateFloat(
+            initialValue = -6f,
+            targetValue = 6f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 1500, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "contact_icon_tilt"
+        ).value
+    } else {
+        gentleScale = 1f
+        gentleTilt = 0f
+    }
+
+    Surface(
+        shape = CircleShape,
+        color = palette.cardBg,
+        modifier = modifier
+            .size(36.dp)
+            .clip(CircleShape)
+            .border(
+                width = 1.dp,
+                color = accentColor.copy(alpha = 0.45f),
+                shape = CircleShape
+            )
+            .clickable(onClick = onClick)
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.fillMaxSize()
+        ) {
+            Icon(
+                imageVector = Icons.Default.Person,
+                contentDescription = "Thông tin liên hệ",
+                tint = accentColor,
+                modifier = Modifier
+                    .size(20.dp)
+                    .graphicsLayer {
+                        scaleX = gentleScale
+                        scaleY = gentleScale
+                        rotationZ = gentleTilt
+                    }
+            )
+        }
+    }
+}
+
+private fun openExternalUrlSafely(context: Context, url: String) {
+    val uri = Uri.parse(url)
+    val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+    try {
+        context.startActivity(intent)
+    } catch (_: ActivityNotFoundException) {
+        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+        clipboard?.setPrimaryClip(ClipData.newPlainText("Liên kết", url))
+        Toast.makeText(
+            context,
+            "Không mở được trình duyệt. Đã sao chép liên kết vào bộ nhớ tạm.",
+            Toast.LENGTH_SHORT
+        ).show()
     }
 }
 
@@ -2052,6 +2143,72 @@ private fun LiquidGlassPopupSurface(
     }
 }
 
+@Composable
+private fun AnimatedPopupOverlay(
+    visible: Boolean,
+    onDismiss: () -> Unit,
+    dismissOnBackdropClick: Boolean = false,
+    content: @Composable () -> Unit
+) {
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing)),
+        exit = fadeOut(animationSpec = tween(durationMillis = 150, easing = FastOutSlowInEasing)),
+        modifier = Modifier.fillMaxSize()
+    ) {
+        val cardEnter = fadeIn(
+            animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing)
+        ) + scaleIn(
+            initialScale = 0.88f,
+            animationSpec = spring(
+                dampingRatio = 0.76f,
+                stiffness = Spring.StiffnessMediumLow
+            )
+        ) + slideInVertically(
+            initialOffsetY = { it / 12 },
+            animationSpec = spring(
+                dampingRatio = 0.76f,
+                stiffness = Spring.StiffnessMediumLow
+            )
+        )
+
+        val cardExit = fadeOut(
+            animationSpec = tween(durationMillis = 140, easing = FastOutSlowInEasing)
+        ) + scaleOut(
+            targetScale = 0.92f,
+            animationSpec = tween(durationMillis = 140, easing = FastOutSlowInEasing)
+        ) + slideOutVertically(
+            targetOffsetY = { it / 16 },
+            animationSpec = tween(durationMillis = 140, easing = FastOutSlowInEasing)
+        )
+
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.72f))
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) {
+                    if (dismissOnBackdropClick) {
+                        onDismiss()
+                    }
+                }
+                .padding(horizontal = 24.dp)
+        ) {
+            AnimatedVisibility(
+                visible = visible,
+                enter = cardEnter,
+                exit = cardExit,
+                initiallyVisible = false
+            ) {
+                content()
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun ThoiTietAmLichApp() {
@@ -2078,6 +2235,7 @@ fun ThoiTietAmLichApp() {
     var rollingPreviewNumber by remember { mutableStateOf("01") }
     var luckyResultPopup by remember { mutableStateOf<DailyLuckyData?>(null) }
     var showLuckyDisclaimerPopup by remember { mutableStateOf(false) }
+    var showContactPopup by remember { mutableStateOf(false) }
 
     var appThemeMode by remember { mutableIntStateOf(AppPrefs.getAppThemeMode(context)) }
     var cardBounceEnabled by remember { mutableStateOf(AppPrefs.isCardBounceEnabled(context)) }
@@ -2363,6 +2521,7 @@ fun ThoiTietAmLichApp() {
         isRollingLucky,
         luckyResultPopup,
         showLuckyDisclaimerPopup,
+        showContactPopup,
         showHolidayPopup,
         activeHolidayAlerts,
         activeTodoPopup,
@@ -2380,6 +2539,7 @@ fun ThoiTietAmLichApp() {
             isRollingLucky ||
             luckyResultPopup != null ||
             showLuckyDisclaimerPopup ||
+            showContactPopup ||
             (showHolidayPopup && activeHolidayAlerts.isNotEmpty()) ||
             activeTodoPopup != null ||
             ageResultPopup != null ||
@@ -4779,19 +4939,150 @@ fun ThoiTietAmLichApp() {
                             }
                         }
 
-                        item(key = "footer_section") {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
+                        item(key = "bottom_contact_button_row") {
+                            Row(
+                                horizontalArrangement = Arrangement.End,
+                                verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(top = 6.dp, bottom = 8.dp)
+                                    .padding(top = 4.dp, bottom = 8.dp)
+                            ) {
+                                BottomContactCircleButton(
+                                    palette = palette,
+                                    accentColor = accentCompose,
+                                    isActive = canAnimateVisuals,
+                                    onClick = { showContactPopup = true }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Pop-up Thông tin liên hệ
+                AnimatedPopupOverlay(
+                    visible = showContactPopup,
+                    onDismiss = { showContactPopup = false },
+                    dismissOnBackdropClick = false
+                ) {
+                    LiquidGlassPopupSurface(palette = palette) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(22.dp)
+                        ) {
+                            Text(
+                                text = "Thông tin liên hệ",
+                                style = MaterialTheme.typography.headlineSmall,
+                                color = palette.popupTextPrimary,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center
+                            )
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            Text(
+                                text = "Mr.Wind",
+                                fontSize = 30.sp,
+                                lineHeight = 36.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = palette.textPrimary,
+                                textAlign = TextAlign.Center,
+                                maxLines = 1,
+                                softWrap = false,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+
+                            Spacer(modifier = Modifier.height(18.dp))
+
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(48.dp)
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .background(palette.liquidGlassBrush)
+                                        .border(1.1.dp, palette.liquidGlassBorder, RoundedCornerShape(16.dp))
+                                        .clickable {
+                                            openExternalUrlSafely(context, CONTACT_FACEBOOK_URL)
+                                        }
+                                        .padding(horizontal = 10.dp)
+                                ) {
+                                    Text(
+                                        text = "Facebook",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = palette.popupTextPrimary,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(48.dp)
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .background(palette.liquidGlassBrush)
+                                        .border(1.1.dp, palette.liquidGlassBorder, RoundedCornerShape(16.dp))
+                                        .clickable {
+                                            openExternalUrlSafely(context, CONTACT_XIAOMI_COMMUNITY_URL)
+                                        }
+                                        .padding(horizontal = 10.dp)
+                                ) {
+                                    Text(
+                                        text = "Xiaomi Community",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = palette.popupTextPrimary,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(palette.liquidGlassBrush)
+                                    .border(1.1.dp, palette.liquidGlassBorder, RoundedCornerShape(16.dp))
+                                    .padding(horizontal = 14.dp, vertical = 14.dp)
                             ) {
                                 Text(
-                                    "Phiên bản $APP_VERSION_NAME\nĐược tạo bởi Mr.WInd - Xiaomi Community Việt Nam\nỦng hộ anh ấy một cốc cà hê qua MOMO: 0923032127",
-                                    fontSize = 11.sp,
-                                    lineHeight = 16.sp,
-                                    color = palette.textSecondary,
+                                    text = CONTACT_DONATE_MBBANK_TEXT,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = palette.popupTextPrimary,
+                                    fontWeight = FontWeight.SemiBold,
                                     textAlign = TextAlign.Center
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(18.dp))
+
+                            Button(
+                                onClick = { showContactPopup = false },
+                                shape = RoundedCornerShape(16.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = accentCompose,
+                                    contentColor = palette.onAccentText
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp)
+                            ) {
+                                Text(
+                                    text = "Ok",
+                                    fontWeight = FontWeight.Bold
                                 )
                             }
                         }
@@ -4799,11 +5090,10 @@ fun ThoiTietAmLichApp() {
                 }
 
                 // Pop-up 1: Đang tìm số may mắn cho bạn... (2 - 4 giây, lần đầu trong ngày)
-                AnimatedVisibility(
+                AnimatedPopupOverlay(
                     visible = isRollingLucky,
-                    enter = fadeIn(tween(160)) + scaleIn(initialScale = 0.92f),
-                    exit = fadeOut(tween(150)) + scaleOut(targetScale = 0.92f),
-                    modifier = Modifier.fillMaxSize()
+                    onDismiss = {},
+                    dismissOnBackdropClick = false
                 ) {
                     val rollTransition = rememberInfiniteTransition(label = "lucky_roll_halo")
                     val rollAngle by rollTransition.animateFloat(
@@ -4816,270 +5106,191 @@ fun ThoiTietAmLichApp() {
                         label = "lucky_roll_angle"
                     )
 
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.72f))
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null
-                            ) {}
-                            .padding(horizontal = 24.dp)
-                    ) {
-                        LiquidGlassPopupSurface(palette = palette) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier.padding(24.dp)
+                    LiquidGlassPopupSurface(palette = palette) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(24.dp)
+                        ) {
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier.size(92.dp)
                             ) {
-                                Box(
-                                    contentAlignment = Alignment.Center,
-                                    modifier = Modifier.size(92.dp)
-                                ) {
-                                    Canvas(modifier = Modifier.fillMaxSize()) {
-                                        drawCircle(
-                                            color = accentCompose.copy(alpha = 0.14f),
-                                            radius = size.minDimension * 0.46f
-                                        )
-                                        rotate(degrees = rollAngle) {
-                                            drawArc(
-                                                color = accentCompose,
-                                                startAngle = 0f,
-                                                sweepAngle = 145f,
-                                                useCenter = false,
-                                                topLeft = Offset(3.dp.toPx(), 3.dp.toPx()),
-                                                size = Size(
-                                                    size.width - 6.dp.toPx(),
-                                                    size.height - 6.dp.toPx()
-                                                ),
-                                                style = Stroke(
-                                                    width = 3.dp.toPx(),
-                                                    cap = StrokeCap.Round
-                                                )
-                                            )
-                                        }
-                                    }
-
-                                    Box(
-                                        contentAlignment = Alignment.Center,
-                                        modifier = Modifier
-                                            .size(72.dp)
-                                            .clip(CircleShape)
-                                            .background(accentCompose.copy(alpha = 0.16f))
-                                            .border(1.5.dp, accentCompose.copy(alpha = 0.55f), CircleShape)
-                                    ) {
-                                        Text(
-                                            text = rollingPreviewNumber,
-                                            fontSize = 28.sp,
-                                            fontWeight = FontWeight.ExtraBold,
+                                Canvas(modifier = Modifier.fillMaxSize()) {
+                                    drawCircle(
+                                        color = accentCompose.copy(alpha = 0.14f),
+                                        radius = size.minDimension * 0.46f
+                                    )
+                                    rotate(degrees = rollAngle) {
+                                        drawArc(
                                             color = accentCompose,
-                                            maxLines = 1,
-                                            softWrap = false
+                                            startAngle = 0f,
+                                            sweepAngle = 145f,
+                                            useCenter = false,
+                                            topLeft = Offset(3.dp.toPx(), 3.dp.toPx()),
+                                            size = Size(
+                                                size.width - 6.dp.toPx(),
+                                                size.height - 6.dp.toPx()
+                                            ),
+                                            style = Stroke(
+                                                width = 3.dp.toPx(),
+                                                cap = StrokeCap.Round
+                                            )
                                         )
                                     }
                                 }
 
-                                Spacer(modifier = Modifier.height(16.dp))
-
-                                Text(
-                                    text = "Đang tìm số may mắn cho bạn...",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = palette.popupTextPrimary,
-                                    fontWeight = FontWeight.Bold,
-                                    textAlign = TextAlign.Center
-                                )
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier
+                                        .size(72.dp)
+                                        .clip(CircleShape)
+                                        .background(accentCompose.copy(alpha = 0.16f))
+                                        .border(1.5.dp, accentCompose.copy(alpha = 0.55f), CircleShape)
+                                ) {
+                                    Text(
+                                        text = rollingPreviewNumber,
+                                        fontSize = 28.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = accentCompose,
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                }
                             }
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            Text(
+                                text = "Đang tìm số may mắn cho bạn...",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = palette.popupTextPrimary,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center
+                            )
                         }
                     }
                 }
 
                 // Pop-up 2: Kết quả theo bản phác thảo (Số may mắn + Màu sắc chạy chữ + Việc nên làm + Đồng ý)
-                AnimatedVisibility(
+                AnimatedPopupOverlay(
                     visible = luckyResultPopup != null,
-                    enter = fadeIn(tween(180)) + scaleIn(initialScale = 0.92f),
-                    exit = fadeOut(tween(150)) + scaleOut(targetScale = 0.92f),
-                    modifier = Modifier.fillMaxSize()
+                    onDismiss = {},
+                    dismissOnBackdropClick = false
                 ) {
                     val luckyData = luckyResultPopup
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.72f))
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null
-                            ) {}
-                            .padding(horizontal = 24.dp)
-                    ) {
-                        LiquidGlassPopupSurface(palette = palette) {
-                            if (luckyData != null) {
-                                val luckyColor = Color(luckyData.colorHex)
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    modifier = Modifier.padding(22.dp)
-                                ) {
-                                    Text(
-                                        text = "Số may mắn hôm nay là",
-                                        style = MaterialTheme.typography.titleLarge,
-                                        color = palette.popupTextPrimary,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        textAlign = TextAlign.Center
-                                    )
-
-                                    Spacer(modifier = Modifier.height(14.dp))
-
-                                    Box(
-                                        contentAlignment = Alignment.Center,
-                                        modifier = Modifier
-                                            .size(94.dp)
-                                            .clip(CircleShape)
-                                            .background(luckyColor.copy(alpha = 0.18f))
-                                            .border(2.5.dp, luckyColor, CircleShape)
-                                    ) {
-                                        Text(
-                                            text = luckyData.numberText,
-                                            fontSize = 36.sp,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            color = palette.popupTextPrimary,
-                                            maxLines = 1,
-                                            softWrap = false
-                                        )
-                                    }
-
-                                    Spacer(modifier = Modifier.height(16.dp))
-
-                                    Surface(
-                                        shape = RoundedCornerShape(16.dp),
-                                        color = palette.popupBoxBg,
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        Column(
-                                            verticalArrangement = Arrangement.spacedBy(10.dp),
-                                            modifier = Modifier.padding(14.dp)
-                                        ) {
-                                            Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                                modifier = Modifier.fillMaxWidth()
-                                            ) {
-                                                Text(
-                                                    text = "Màu sắc may mắn:",
-                                                    style = MaterialTheme.typography.bodyLarge,
-                                                    color = palette.popupTextPrimary,
-                                                    fontWeight = FontWeight.Bold,
-                                                    maxLines = 1,
-                                                    softWrap = false
-                                                )
-                                                Box(
-                                                    modifier = Modifier
-                                                        .size(16.dp)
-                                                        .clip(CircleShape)
-                                                        .background(luckyColor)
-                                                        .border(
-                                                            1.dp,
-                                                            palette.popupTextPrimary.copy(alpha = 0.35f),
-                                                            CircleShape
-                                                        )
-                                                )
-                                                Text(
-                                                    text = luckyData.colorName,
-                                                    style = MaterialTheme.typography.bodyLarge,
-                                                    color = palette.popupTextPrimary,
-                                                    fontWeight = FontWeight.SemiBold,
-                                                    maxLines = 1,
-                                                    softWrap = false,
-                                                    overflow = TextOverflow.Clip,
-                                                    modifier = Modifier
-                                                        .weight(1f)
-                                                        .clipToBounds()
-                                                        .basicMarquee(
-                                                            iterations = Int.MAX_VALUE,
-                                                            repeatDelayMillis = 900,
-                                                            velocity = 28.dp
-                                                        )
-                                                )
-                                            }
-
-                                            Text(
-                                                text = "Việc nên làm:",
-                                                style = MaterialTheme.typography.bodyLarge,
-                                                color = palette.popupTextPrimary,
-                                                fontWeight = FontWeight.Bold
-                                            )
-
-                                            luckyData.tasks.forEach { taskText ->
-                                                Text(
-                                                    text = "• $taskText",
-                                                    style = MaterialTheme.typography.bodyMedium,
-                                                    color = palette.popupTextSecondary
-                                                )
-                                            }
-                                        }
-                                    }
-
-                                    Spacer(modifier = Modifier.height(18.dp))
-
-                                    Button(
-                                        onClick = {
-                                            luckyResultPopup = null
-                                            showLuckyDisclaimerPopup = true
-                                        },
-                                        shape = RoundedCornerShape(16.dp),
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = accentCompose,
-                                            contentColor = palette.onAccentText
-                                        ),
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(48.dp)
-                                    ) {
-                                        Text(
-                                            text = "Đồng ý",
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Pop-up 3: Lưu ý ngẫu nhiên + nút Ok
-                AnimatedVisibility(
-                    visible = showLuckyDisclaimerPopup,
-                    enter = fadeIn(tween(180)) + scaleIn(initialScale = 0.92f),
-                    exit = fadeOut(tween(150)) + scaleOut(targetScale = 0.92f),
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.72f))
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null
-                            ) {}
-                            .padding(horizontal = 24.dp)
-                    ) {
-                        LiquidGlassPopupSurface(palette = palette) {
+                    LiquidGlassPopupSurface(palette = palette) {
+                        if (luckyData != null) {
+                            val luckyColor = Color(luckyData.colorHex)
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 modifier = Modifier.padding(22.dp)
                             ) {
                                 Text(
-                                    text = "Đây chỉ là thông tin ngẫu nhiên, đừng quá tin vào nó nhé!",
-                                    style = MaterialTheme.typography.titleMedium,
+                                    text = "Số may mắn hôm nay là",
+                                    style = MaterialTheme.typography.titleLarge,
                                     color = palette.popupTextPrimary,
-                                    fontWeight = FontWeight.SemiBold,
+                                    fontWeight = FontWeight.ExtraBold,
                                     textAlign = TextAlign.Center
                                 )
+
+                                Spacer(modifier = Modifier.height(14.dp))
+
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier
+                                        .size(94.dp)
+                                        .clip(CircleShape)
+                                        .background(luckyColor.copy(alpha = 0.18f))
+                                        .border(2.5.dp, luckyColor, CircleShape)
+                                ) {
+                                    Text(
+                                        text = luckyData.numberText,
+                                        fontSize = 36.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = palette.popupTextPrimary,
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(16.dp))
+
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = palette.popupBoxBg,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(
+                                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                                        modifier = Modifier.padding(14.dp)
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Text(
+                                                text = "Màu sắc may mắn:",
+                                                style = MaterialTheme.typography.bodyLarge,
+                                                color = palette.popupTextPrimary,
+                                                fontWeight = FontWeight.Bold,
+                                                maxLines = 1,
+                                                softWrap = false
+                                            )
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(16.dp)
+                                                    .clip(CircleShape)
+                                                    .background(luckyColor)
+                                                    .border(
+                                                        1.dp,
+                                                        palette.popupTextPrimary.copy(alpha = 0.35f),
+                                                        CircleShape
+                                                    )
+                                            )
+                                            Text(
+                                                text = luckyData.colorName,
+                                                style = MaterialTheme.typography.bodyLarge,
+                                                color = palette.popupTextPrimary,
+                                                fontWeight = FontWeight.SemiBold,
+                                                maxLines = 1,
+                                                softWrap = false,
+                                                overflow = TextOverflow.Clip,
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .clipToBounds()
+                                                    .basicMarquee(
+                                                        iterations = Int.MAX_VALUE,
+                                                        repeatDelayMillis = 900,
+                                                        velocity = 28.dp
+                                                    )
+                                            )
+                                        }
+
+                                        Text(
+                                            text = "Việc nên làm:",
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            color = palette.popupTextPrimary,
+                                            fontWeight = FontWeight.Bold
+                                        )
+
+                                        luckyData.tasks.forEach { taskText ->
+                                            Text(
+                                                text = "• $taskText",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = palette.popupTextSecondary
+                                            )
+                                        }
+                                    }
+                                }
 
                                 Spacer(modifier = Modifier.height(18.dp))
 
                                 Button(
-                                    onClick = { showLuckyDisclaimerPopup = false },
+                                    onClick = {
+                                        luckyResultPopup = null
+                                        showLuckyDisclaimerPopup = true
+                                    },
                                     shape = RoundedCornerShape(16.dp),
                                     colors = ButtonDefaults.buttonColors(
                                         containerColor = accentCompose,
@@ -5090,7 +5301,7 @@ fun ThoiTietAmLichApp() {
                                         .height(48.dp)
                                 ) {
                                     Text(
-                                        text = "Ok",
+                                        text = "Đồng ý",
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
@@ -5099,11 +5310,51 @@ fun ThoiTietAmLichApp() {
                     }
                 }
 
-                AnimatedVisibility(
+                // Pop-up 3: Lưu ý ngẫu nhiên + nút Ok
+                AnimatedPopupOverlay(
+                    visible = showLuckyDisclaimerPopup,
+                    onDismiss = {},
+                    dismissOnBackdropClick = false
+                ) {
+                    LiquidGlassPopupSurface(palette = palette) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(22.dp)
+                        ) {
+                            Text(
+                                text = "Đây chỉ là thông tin ngẫu nhiên, đừng quá tin vào nó nhé!",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = palette.popupTextPrimary,
+                                fontWeight = FontWeight.SemiBold,
+                                textAlign = TextAlign.Center
+                            )
+
+                            Spacer(modifier = Modifier.height(18.dp))
+
+                            Button(
+                                onClick = { showLuckyDisclaimerPopup = false },
+                                shape = RoundedCornerShape(16.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = accentCompose,
+                                    contentColor = palette.onAccentText
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp)
+                            ) {
+                                Text(
+                                    text = "Ok",
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+
+                AnimatedPopupOverlay(
                     visible = isOptimizingBattery,
-                    enter = fadeIn(tween(180)) + scaleIn(initialScale = 0.92f),
-                    exit = fadeOut(tween(180)) + scaleOut(targetScale = 0.92f),
-                    modifier = Modifier.fillMaxSize()
+                    onDismiss = {},
+                    dismissOnBackdropClick = false
                 ) {
                     val animTransition = rememberInfiniteTransition(label = "liquid_battery_opt_popup")
                     val haloAngle by animTransition.animateFloat(
@@ -5121,180 +5372,258 @@ fun ThoiTietAmLichApp() {
                         label = "opt_progress_bar"
                     )
 
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.72f))
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null
-                            ) {}
-                            .padding(horizontal = 24.dp)
-                    ) {
-                        LiquidGlassPopupSurface(palette = palette) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier.padding(24.dp)
+                    LiquidGlassPopupSurface(palette = palette) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(24.dp)
+                        ) {
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier.size(80.dp)
                             ) {
-                                Box(
-                                    contentAlignment = Alignment.Center,
-                                    modifier = Modifier.size(80.dp)
-                                ) {
-                                    Canvas(modifier = Modifier.fillMaxSize()) {
-                                        drawCircle(
-                                            color = accentCompose.copy(alpha = 0.14f),
-                                            radius = size.minDimension * 0.46f
-                                        )
-                                        rotate(degrees = haloAngle) {
-                                            drawArc(
-                                                color = accentCompose,
-                                                startAngle = 0f,
-                                                sweepAngle = 140f,
-                                                useCenter = false,
-                                                topLeft = Offset(3.dp.toPx(), 3.dp.toPx()),
-                                                size = Size(
-                                                    size.width - 6.dp.toPx(),
-                                                    size.height - 6.dp.toPx()
-                                                ),
-                                                style = Stroke(
-                                                    width = 3.dp.toPx(),
-                                                    cap = StrokeCap.Round
-                                                )
+                                Canvas(modifier = Modifier.fillMaxSize()) {
+                                    drawCircle(
+                                        color = accentCompose.copy(alpha = 0.14f),
+                                        radius = size.minDimension * 0.46f
+                                    )
+                                    rotate(degrees = haloAngle) {
+                                        drawArc(
+                                            color = accentCompose,
+                                            startAngle = 0f,
+                                            sweepAngle = 140f,
+                                            useCenter = false,
+                                            topLeft = Offset(3.dp.toPx(), 3.dp.toPx()),
+                                            size = Size(
+                                                size.width - 6.dp.toPx(),
+                                                size.height - 6.dp.toPx()
+                                            ),
+                                            style = Stroke(
+                                                width = 3.dp.toPx(),
+                                                cap = StrokeCap.Round
                                             )
-                                        }
-                                    }
-
-                                    Box(
-                                        contentAlignment = Alignment.Center,
-                                        modifier = Modifier
-                                            .size(58.dp)
-                                            .clip(CircleShape)
-                                            .background(accentCompose.copy(alpha = 0.16f))
-                                            .border(1.2.dp, accentCompose.copy(alpha = 0.45f), CircleShape)
-                                    ) {
-                                        BatteryOptimizationIconGlyph(
-                                            tint = accentCompose,
-                                            isAnimated = true,
-                                            modifier = Modifier.size(30.dp)
                                         )
                                     }
                                 }
 
-                                Spacer(modifier = Modifier.height(16.dp))
-
-                                Text(
-                                    "Đang tối ưu hóa pin và ứng dụng...",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = palette.popupTextPrimary,
-                                    fontWeight = FontWeight.Bold,
-                                    textAlign = TextAlign.Center
-                                )
-
-                                Spacer(modifier = Modifier.height(8.dp))
-
-                                Text(
-                                    optimizationStepText,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = palette.popupTextSecondary,
-                                    textAlign = TextAlign.Center
-                                )
-
-                                Spacer(modifier = Modifier.height(16.dp))
-
-                                LinearProgressIndicator(
-                                    progress = { animatedProgress },
-                                    color = accentCompose,
-                                    trackColor = palette.popupBoxBg,
-                                    strokeCap = StrokeCap.Round,
+                                Box(
+                                    contentAlignment = Alignment.Center,
                                     modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(6.dp)
+                                        .size(58.dp)
                                         .clip(CircleShape)
+                                        .background(accentCompose.copy(alpha = 0.16f))
+                                        .border(1.2.dp, accentCompose.copy(alpha = 0.45f), CircleShape)
+                                ) {
+                                    BatteryOptimizationIconGlyph(
+                                        tint = accentCompose,
+                                        isAnimated = true,
+                                        modifier = Modifier.size(30.dp)
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            Text(
+                                "Đang tối ưu hóa pin và ứng dụng...",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = palette.popupTextPrimary,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Text(
+                                optimizationStepText,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = palette.popupTextSecondary,
+                                textAlign = TextAlign.Center
+                            )
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            LinearProgressIndicator(
+                                progress = { animatedProgress },
+                                color = accentCompose,
+                                trackColor = palette.popupBoxBg,
+                                strokeCap = StrokeCap.Round,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(6.dp)
+                                    .clip(CircleShape)
+                            )
+                        }
+                    }
+                }
+
+                AnimatedPopupOverlay(
+                    visible = showHolidayPopup && activeHolidayAlerts.isNotEmpty(),
+                    onDismiss = {
+                        BirthdayHelper.markAppPopupShownToday(context)
+                        showHolidayPopup = false
+                    },
+                    dismissOnBackdropClick = true
+                ) {
+                    LiquidGlassPopupSurface(palette = palette) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(22.dp)
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.End,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                IconButton(
+                                    onClick = {
+                                        BirthdayHelper.markAppPopupShownToday(context)
+                                        showHolidayPopup = false
+                                    },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Close,
+                                        contentDescription = "Đóng",
+                                        tint = palette.popupTextSecondary
+                                    )
+                                }
+                            }
+
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(64.dp)
+                                    .clip(CircleShape)
+                                    .background(accentCompose.copy(alpha = 0.16f))
+                                    .border(1.5.dp, accentCompose.copy(alpha = 0.55f), CircleShape)
+                            ) {
+                                Icon(
+                                    Icons.Default.Celebration,
+                                    contentDescription = null,
+                                    tint = accentCompose,
+                                    modifier = Modifier.size(32.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            Text(
+                                "Nhắc ngày lễ & kỷ niệm",
+                                style = MaterialTheme.typography.headlineSmall,
+                                color = palette.popupTextPrimary,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center
+                            )
+
+                            Spacer(modifier = Modifier.height(6.dp))
+
+                            Surface(
+                                shape = RoundedCornerShape(999.dp),
+                                color = accentCompose.copy(alpha = 0.18f)
+                            ) {
+                                Text(
+                                    solarToday,
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = accentCompose,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                activeHolidayAlerts.forEach { alert ->
+                                    Surface(
+                                        shape = RoundedCornerShape(16.dp),
+                                        color = palette.popupBoxBg,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text(
+                                            alert.message,
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = palette.popupTextPrimary,
+                                            textAlign = TextAlign.Center,
+                                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)
+                                        )
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(18.dp))
+
+                            Button(
+                                onClick = {
+                                    BirthdayHelper.markAppPopupShownToday(context)
+                                    showHolidayPopup = false
+                                },
+                                shape = RoundedCornerShape(16.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = accentCompose,
+                                    contentColor = palette.onAccentText
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp)
+                            ) {
+                                Text(
+                                    "Đã rõ!",
+                                    fontWeight = FontWeight.Bold
                                 )
                             }
                         }
                     }
                 }
 
-                AnimatedVisibility(
-                    visible = showHolidayPopup && activeHolidayAlerts.isNotEmpty(),
-                    enter = fadeIn() + scaleIn(initialScale = 0.92f),
-                    exit = fadeOut() + scaleOut(targetScale = 0.92f),
-                    modifier = Modifier.fillMaxSize()
+                AnimatedPopupOverlay(
+                    visible = activeTodoPopup != null,
+                    onDismiss = {},
+                    dismissOnBackdropClick = false
                 ) {
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.72f))
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null
+                    val todoData = activeTodoPopup
+                    LiquidGlassPopupSurface(palette = palette) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(22.dp)
+                        ) {
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(64.dp)
+                                    .clip(CircleShape)
+                                    .background(accentCompose.copy(alpha = 0.16f))
+                                    .border(1.5.dp, accentCompose.copy(alpha = 0.55f), CircleShape)
                             ) {
-                                BirthdayHelper.markAppPopupShownToday(context)
-                                showHolidayPopup = false
-                            }
-                            .padding(horizontal = 24.dp)
-                    ) {
-                        LiquidGlassPopupSurface(palette = palette) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier.padding(22.dp)
-                            ) {
-                                Row(
-                                    horizontalArrangement = Arrangement.End,
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    IconButton(
-                                        onClick = {
-                                            BirthdayHelper.markAppPopupShownToday(context)
-                                            showHolidayPopup = false
-                                        },
-                                        modifier = Modifier.size(32.dp)
-                                    ) {
-                                        Icon(
-                                            Icons.Default.Close,
-                                            contentDescription = "Đóng",
-                                            tint = palette.popupTextSecondary
-                                        )
-                                    }
-                                }
-
-                                Box(
-                                    contentAlignment = Alignment.Center,
-                                    modifier = Modifier
-                                        .size(64.dp)
-                                        .clip(CircleShape)
-                                        .background(accentCompose.copy(alpha = 0.16f))
-                                        .border(1.5.dp, accentCompose.copy(alpha = 0.55f), CircleShape)
-                                ) {
-                                    Icon(
-                                        Icons.Default.Celebration,
-                                        contentDescription = null,
-                                        tint = accentCompose,
-                                        modifier = Modifier.size(32.dp)
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.height(14.dp))
-
-                                Text(
-                                    "Nhắc ngày lễ & kỷ niệm",
-                                    style = MaterialTheme.typography.headlineSmall,
-                                    color = palette.popupTextPrimary,
-                                    fontWeight = FontWeight.Bold,
-                                    textAlign = TextAlign.Center
+                                Icon(
+                                    Icons.Default.Alarm,
+                                    contentDescription = null,
+                                    tint = accentCompose,
+                                    modifier = Modifier.size(32.dp)
                                 )
+                            }
 
-                                Spacer(modifier = Modifier.height(6.dp))
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            Text(
+                                "Đến giờ làm việc!",
+                                style = MaterialTheme.typography.headlineSmall,
+                                color = palette.popupTextPrimary,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center
+                            )
+
+                            if (todoData != null) {
+                                Spacer(modifier = Modifier.height(8.dp))
 
                                 Surface(
                                     shape = RoundedCornerShape(999.dp),
                                     color = accentCompose.copy(alpha = 0.18f)
                                 ) {
                                     Text(
-                                        solarToday,
+                                        "Giờ đặt: ${todoData.timeFormatted}",
                                         style = MaterialTheme.typography.labelLarge,
                                         color = accentCompose,
                                         fontWeight = FontWeight.SemiBold,
@@ -5304,723 +5633,49 @@ fun ThoiTietAmLichApp() {
 
                                 Spacer(modifier = Modifier.height(14.dp))
 
-                                Column(
-                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = palette.popupBoxBg,
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    activeHolidayAlerts.forEach { alert ->
-                                        Surface(
-                                            shape = RoundedCornerShape(16.dp),
-                                            color = palette.popupBoxBg,
-                                            modifier = Modifier.fillMaxWidth()
-                                        ) {
-                                            Text(
-                                                alert.message,
-                                                style = MaterialTheme.typography.titleMedium,
-                                                fontWeight = FontWeight.SemiBold,
-                                                color = palette.popupTextPrimary,
-                                                textAlign = TextAlign.Center,
-                                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)
-                                            )
-                                        }
-                                    }
-                                }
-
-                                Spacer(modifier = Modifier.height(18.dp))
-
-                                Button(
-                                    onClick = {
-                                        BirthdayHelper.markAppPopupShownToday(context)
-                                        showHolidayPopup = false
-                                    },
-                                    shape = RoundedCornerShape(16.dp),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = accentCompose,
-                                        contentColor = palette.onAccentText
-                                    ),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(48.dp)
-                                ) {
                                     Text(
-                                        "Đã rõ!",
-                                        fontWeight = FontWeight.Bold
+                                        todoData.title,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = palette.popupTextPrimary,
+                                        fontWeight = FontWeight.Bold,
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp)
                                     )
                                 }
-                            }
-                        }
-                    }
-                }
-
-                AnimatedVisibility(
-                    visible = activeTodoPopup != null,
-                    enter = fadeIn() + scaleIn(initialScale = 0.92f),
-                    exit = fadeOut() + scaleOut(targetScale = 0.92f),
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    val todoData = activeTodoPopup
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.72f))
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null
-                            ) {}
-                            .padding(horizontal = 24.dp)
-                    ) {
-                        LiquidGlassPopupSurface(palette = palette) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier.padding(22.dp)
-                            ) {
-                                Box(
-                                    contentAlignment = Alignment.Center,
-                                    modifier = Modifier
-                                        .size(64.dp)
-                                        .clip(CircleShape)
-                                        .background(accentCompose.copy(alpha = 0.16f))
-                                        .border(1.5.dp, accentCompose.copy(alpha = 0.55f), CircleShape)
-                                ) {
-                                    Icon(
-                                        Icons.Default.Alarm,
-                                        contentDescription = null,
-                                        tint = accentCompose,
-                                        modifier = Modifier.size(32.dp)
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.height(14.dp))
-
-                                Text(
-                                    "Đến giờ làm việc!",
-                                    style = MaterialTheme.typography.headlineSmall,
-                                    color = palette.popupTextPrimary,
-                                    fontWeight = FontWeight.Bold,
-                                    textAlign = TextAlign.Center
-                                )
-
-                                if (todoData != null) {
-                                    Spacer(modifier = Modifier.height(8.dp))
-
-                                    Surface(
-                                        shape = RoundedCornerShape(999.dp),
-                                        color = accentCompose.copy(alpha = 0.18f)
-                                    ) {
-                                        Text(
-                                            "Giờ đặt: ${todoData.timeFormatted}",
-                                            style = MaterialTheme.typography.labelLarge,
-                                            color = accentCompose,
-                                            fontWeight = FontWeight.SemiBold,
-                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
-                                        )
-                                    }
-
-                                    Spacer(modifier = Modifier.height(14.dp))
-
-                                    Surface(
-                                        shape = RoundedCornerShape(16.dp),
-                                        color = palette.popupBoxBg,
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        Text(
-                                            todoData.title,
-                                            style = MaterialTheme.typography.titleMedium,
-                                            color = palette.popupTextPrimary,
-                                            fontWeight = FontWeight.Bold,
-                                            textAlign = TextAlign.Center,
-                                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp)
-                                        )
-                                    }
-
-                                    Spacer(modifier = Modifier.height(20.dp))
-
-                                    Row(
-                                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        OutlinedButton(
-                                            onClick = {
-                                                todoTasks = TodoHelper.markTaskSkipped(context, todoData.id)
-                                                activeTodoPopup = null
-                                            },
-                                            shape = RoundedCornerShape(16.dp),
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .height(48.dp)
-                                        ) {
-                                            Text(
-                                                "Tạm bỏ qua",
-                                                color = palette.popupTextPrimary,
-                                                fontWeight = FontWeight.SemiBold,
-                                                maxLines = 1
-                                            )
-                                        }
-
-                                        Button(
-                                            onClick = {
-                                                todoTasks = TodoHelper.markTaskDone(context, todoData.id)
-                                                activeTodoPopup = null
-                                            },
-                                            shape = RoundedCornerShape(16.dp),
-                                            colors = ButtonDefaults.buttonColors(
-                                                containerColor = accentCompose,
-                                                contentColor = palette.onAccentText
-                                            ),
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .height(48.dp)
-                                        ) {
-                                            Icon(
-                                                Icons.Default.CheckCircle,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Text(
-                                                "Ok, làm ngay đây",
-                                                fontWeight = FontWeight.Bold,
-                                                maxLines = 1
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                AnimatedVisibility(
-                    visible = ageResultPopup != null,
-                    enter = fadeIn() + scaleIn(initialScale = 0.92f),
-                    exit = fadeOut() + scaleOut(targetScale = 0.92f),
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    val ageData = ageResultPopup
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.72f))
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null
-                            ) { ageResultPopup = null }
-                            .padding(horizontal = 24.dp)
-                    ) {
-                        LiquidGlassPopupSurface(palette = palette) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier.padding(22.dp)
-                            ) {
-                                Row(
-                                    horizontalArrangement = Arrangement.End,
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    IconButton(
-                                        onClick = { ageResultPopup = null },
-                                        modifier = Modifier.size(32.dp)
-                                    ) {
-                                        Icon(
-                                            Icons.Default.Close,
-                                            contentDescription = "Đóng",
-                                            tint = palette.popupTextSecondary
-                                        )
-                                    }
-                                }
-
-                                Box(
-                                    contentAlignment = Alignment.Center,
-                                    modifier = Modifier
-                                        .size(64.dp)
-                                        .clip(CircleShape)
-                                        .background(accentCompose.copy(alpha = 0.16f))
-                                        .border(1.5.dp, accentCompose.copy(alpha = 0.55f), CircleShape)
-                                ) {
-                                    Icon(
-                                        Icons.Default.PersonSearch,
-                                        contentDescription = null,
-                                        tint = accentCompose,
-                                        modifier = Modifier.size(32.dp)
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.height(14.dp))
-
-                                Text(
-                                    "Kết quả tính tuổi",
-                                    style = MaterialTheme.typography.headlineSmall,
-                                    color = palette.popupTextPrimary,
-                                    fontWeight = FontWeight.Bold,
-                                    textAlign = TextAlign.Center
-                                )
-
-                                Spacer(modifier = Modifier.height(8.dp))
-
-                                if (ageData != null) {
-                                    Surface(
-                                        shape = RoundedCornerShape(999.dp),
-                                        color = accentCompose.copy(alpha = 0.18f)
-                                    ) {
-                                        Text(
-                                            ageData.birthLabel,
-                                            style = MaterialTheme.typography.labelLarge,
-                                            color = accentCompose,
-                                            fontWeight = FontWeight.SemiBold,
-                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
-                                        )
-                                    }
-
-                                    Spacer(modifier = Modifier.height(6.dp))
-
-                                    Text(
-                                        ageData.currentLabel,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = palette.popupTextSecondary
-                                    )
-
-                                    Spacer(modifier = Modifier.height(14.dp))
-
-                                    Surface(
-                                        shape = RoundedCornerShape(16.dp),
-                                        color = palette.popupBoxBg,
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        Text(
-                                            ageData.ageSummary,
-                                            style = MaterialTheme.typography.headlineSmall,
-                                            color = accentCompose,
-                                            fontWeight = FontWeight.Bold,
-                                            textAlign = TextAlign.Center,
-                                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp)
-                                        )
-                                    }
-                                }
-
-                                Spacer(modifier = Modifier.height(18.dp))
-
-                                Button(
-                                    onClick = { ageResultPopup = null },
-                                    shape = RoundedCornerShape(16.dp),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = accentCompose,
-                                        contentColor = palette.onAccentText
-                                    ),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(48.dp)
-                                ) {
-                                    Text(
-                                        "Đóng",
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                AnimatedVisibility(
-                    visible = showAgeHistoryClearedPopup,
-                    enter = fadeIn() + scaleIn(initialScale = 0.92f),
-                    exit = fadeOut() + scaleOut(targetScale = 0.92f),
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.72f))
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null
-                            ) { showAgeHistoryClearedPopup = false }
-                            .padding(horizontal = 24.dp)
-                    ) {
-                        LiquidGlassPopupSurface(palette = palette) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier.padding(22.dp)
-                            ) {
-                                Box(
-                                    contentAlignment = Alignment.Center,
-                                    modifier = Modifier
-                                        .size(64.dp)
-                                        .clip(CircleShape)
-                                        .background(accentCompose.copy(alpha = 0.16f))
-                                        .border(1.5.dp, accentCompose.copy(alpha = 0.55f), CircleShape)
-                                ) {
-                                    Icon(
-                                        Icons.Default.CheckCircleOutline,
-                                        contentDescription = null,
-                                        tint = accentCompose,
-                                        modifier = Modifier.size(32.dp)
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.height(14.dp))
-
-                                Text(
-                                    "Đã xóa lịch sử tính tuổi",
-                                    style = MaterialTheme.typography.headlineSmall,
-                                    color = palette.popupTextPrimary,
-                                    fontWeight = FontWeight.Bold,
-                                    textAlign = TextAlign.Center
-                                )
-
-                                Spacer(modifier = Modifier.height(8.dp))
-
-                                Text(
-                                    "Toàn bộ lịch sử tính tuổi đã được xóa thành công.",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = palette.popupTextSecondary,
-                                    textAlign = TextAlign.Center
-                                )
-
-                                Spacer(modifier = Modifier.height(18.dp))
-
-                                Button(
-                                    onClick = { showAgeHistoryClearedPopup = false },
-                                    shape = RoundedCornerShape(16.dp),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = accentCompose,
-                                        contentColor = palette.onAccentText
-                                    ),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(48.dp)
-                                ) {
-                                    Text(
-                                        "Ok",
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                AnimatedVisibility(
-                    visible = lunarResultPopup != null,
-                    enter = fadeIn() + scaleIn(initialScale = 0.92f),
-                    exit = fadeOut() + scaleOut(targetScale = 0.92f),
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    val data = lunarResultPopup
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.72f))
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null
-                            ) { lunarResultPopup = null }
-                            .padding(horizontal = 24.dp)
-                    ) {
-                        LiquidGlassPopupSurface(palette = palette) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier.padding(22.dp)
-                            ) {
-                                Row(
-                                    horizontalArrangement = Arrangement.End,
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    IconButton(
-                                        onClick = { lunarResultPopup = null },
-                                        modifier = Modifier.size(32.dp)
-                                    ) {
-                                        Icon(
-                                            Icons.Default.Close,
-                                            contentDescription = "Đóng",
-                                            tint = palette.popupTextSecondary
-                                        )
-                                    }
-                                }
-
-                                Box(
-                                    contentAlignment = Alignment.Center,
-                                    modifier = Modifier
-                                        .size(64.dp)
-                                        .clip(CircleShape)
-                                        .background(accentCompose.copy(alpha = 0.16f))
-                                        .border(1.5.dp, accentCompose.copy(alpha = 0.55f), CircleShape)
-                                ) {
-                                    Icon(
-                                        Icons.Default.CalendarMonth,
-                                        contentDescription = null,
-                                        tint = accentCompose,
-                                        modifier = Modifier.size(32.dp)
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.height(14.dp))
-
-                                Text(
-                                    "Thông báo lịch âm",
-                                    style = MaterialTheme.typography.headlineSmall,
-                                    color = palette.popupTextPrimary,
-                                    fontWeight = FontWeight.Bold,
-                                    textAlign = TextAlign.Center
-                                )
-
-                                Spacer(modifier = Modifier.height(8.dp))
-
-                                if (data != null) {
-                                    Surface(
-                                        shape = RoundedCornerShape(999.dp),
-                                        color = accentCompose.copy(alpha = 0.18f)
-                                    ) {
-                                        Text(
-                                            data.solarLabel,
-                                            style = MaterialTheme.typography.labelLarge,
-                                            color = accentCompose,
-                                            fontWeight = FontWeight.SemiBold,
-                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
-                                        )
-                                    }
-
-                                    Spacer(modifier = Modifier.height(14.dp))
-
-                                    Surface(
-                                        shape = RoundedCornerShape(16.dp),
-                                        color = palette.popupBoxBg,
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        Text(
-                                            data.lunarSummary,
-                                            style = MaterialTheme.typography.titleMedium,
-                                            color = palette.popupTextPrimary,
-                                            fontWeight = FontWeight.Bold,
-                                            textAlign = TextAlign.Center,
-                                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp)
-                                        )
-                                    }
-                                }
-
-                                Spacer(modifier = Modifier.height(18.dp))
-
-                                Button(
-                                    onClick = { lunarResultPopup = null },
-                                    shape = RoundedCornerShape(16.dp),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = accentCompose,
-                                        contentColor = palette.onAccentText
-                                    ),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(48.dp)
-                                ) {
-                                    Text(
-                                        "Đóng",
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                AnimatedVisibility(
-                    visible = showHistoryClearedPopup,
-                    enter = fadeIn() + scaleIn(initialScale = 0.92f),
-                    exit = fadeOut() + scaleOut(targetScale = 0.92f),
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.72f))
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null
-                            ) { showHistoryClearedPopup = false }
-                            .padding(horizontal = 24.dp)
-                    ) {
-                        LiquidGlassPopupSurface(palette = palette) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier.padding(22.dp)
-                            ) {
-                                Box(
-                                    contentAlignment = Alignment.Center,
-                                    modifier = Modifier
-                                        .size(64.dp)
-                                        .clip(CircleShape)
-                                        .background(accentCompose.copy(alpha = 0.16f))
-                                        .border(1.5.dp, accentCompose.copy(alpha = 0.55f), CircleShape)
-                                ) {
-                                    Icon(
-                                        Icons.Default.CheckCircleOutline,
-                                        contentDescription = null,
-                                        tint = accentCompose,
-                                        modifier = Modifier.size(32.dp)
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.height(14.dp))
-
-                                Text(
-                                    "Đã xóa lịch sử",
-                                    style = MaterialTheme.typography.headlineSmall,
-                                    color = palette.popupTextPrimary,
-                                    fontWeight = FontWeight.Bold,
-                                    textAlign = TextAlign.Center
-                                )
-
-                                Spacer(modifier = Modifier.height(8.dp))
-
-                                Text(
-                                    "Toàn bộ lịch sử tra cứu lịch âm đã được xóa thành công.",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = palette.popupTextSecondary,
-                                    textAlign = TextAlign.Center
-                                )
-
-                                Spacer(modifier = Modifier.height(18.dp))
-
-                                Button(
-                                    onClick = { showHistoryClearedPopup = false },
-                                    shape = RoundedCornerShape(16.dp),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = accentCompose,
-                                        contentColor = palette.onAccentText
-                                    ),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(48.dp)
-                                ) {
-                                    Text(
-                                        "Ok",
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                AnimatedVisibility(
-                    visible = showSecondsWarningPopup || pendingBatteryWarningTarget != null,
-                    enter = fadeIn() + scaleIn(initialScale = 0.92f),
-                    exit = fadeOut() + scaleOut(targetScale = 0.92f),
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    val closeBatteryWarningPopup = {
-                        showSecondsWarningPopup = false
-                        pendingBatteryWarningTarget = null
-                    }
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.72f))
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null
-                            ) { closeBatteryWarningPopup() }
-                            .padding(horizontal = 24.dp)
-                    ) {
-                        LiquidGlassPopupSurface(palette = palette) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier.padding(22.dp)
-                            ) {
-                                Row(
-                                    horizontalArrangement = Arrangement.End,
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    IconButton(
-                                        onClick = closeBatteryWarningPopup,
-                                        modifier = Modifier.size(32.dp)
-                                    ) {
-                                        Icon(
-                                            Icons.Default.Close,
-                                            contentDescription = "Đóng",
-                                            tint = palette.popupTextSecondary
-                                        )
-                                    }
-                                }
-
-                                Box(
-                                    contentAlignment = Alignment.Center,
-                                    modifier = Modifier
-                                        .size(64.dp)
-                                        .clip(CircleShape)
-                                        .background(accentCompose.copy(alpha = 0.16f))
-                                        .border(1.5.dp, accentCompose.copy(alpha = 0.55f), CircleShape)
-                                ) {
-                                    Icon(
-                                        Icons.Default.BatteryAlert,
-                                        contentDescription = null,
-                                        tint = accentCompose,
-                                        modifier = Modifier.size(32.dp)
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.height(14.dp))
-
-                                Text(
-                                    "Lưu ý mức tiêu thụ pin",
-                                    style = MaterialTheme.typography.headlineSmall,
-                                    color = palette.popupTextPrimary,
-                                    fontWeight = FontWeight.Bold,
-                                    textAlign = TextAlign.Center
-                                )
-
-                                Spacer(modifier = Modifier.height(10.dp))
-
-                                Text(
-                                    "Bật tính năng này sẽ làm cho thiết bị của bạn hao pin hơn.",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = palette.popupTextSecondary,
-                                    textAlign = TextAlign.Center
-                                )
 
                                 Spacer(modifier = Modifier.height(20.dp))
 
                                 Row(
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     OutlinedButton(
-                                        onClick = closeBatteryWarningPopup,
+                                        onClick = {
+                                            todoTasks = TodoHelper.markTaskSkipped(context, todoData.id)
+                                            activeTodoPopup = null
+                                        },
                                         shape = RoundedCornerShape(16.dp),
                                         modifier = Modifier
                                             .weight(1f)
                                             .height(48.dp)
                                     ) {
                                         Text(
-                                            "Hủy",
+                                            "Tạm bỏ qua",
                                             color = palette.popupTextPrimary,
-                                            fontWeight = FontWeight.SemiBold
+                                            fontWeight = FontWeight.SemiBold,
+                                            maxLines = 1
                                         )
                                     }
 
                                     Button(
                                         onClick = {
-                                            when {
-                                                showSecondsWarningPopup -> {
-                                                    showSeconds = true
-                                                    AppPrefs.setShowSeconds(context, true)
-                                                    WeatherLunarWidget.updateAllWidgets(context)
-                                                }
-                                                pendingBatteryWarningTarget == BatteryWarningTarget.TOP_WEATHER_BG -> {
-                                                    topWeatherBgEnabled = true
-                                                }
-                                                pendingBatteryWarningTarget == BatteryWarningTarget.BG_MUSIC -> {
-                                                    bgMusicEnabled = true
-                                                    AppPrefs.setBgMusicEnabled(context, true)
-                                                }
-                                                pendingBatteryWarningTarget == BatteryWarningTarget.CARD_BOUNCE -> {
-                                                    cardBounceEnabled = true
-                                                    AppPrefs.setCardBounceEnabled(context, true)
-                                                }
-                                            }
-                                            closeBatteryWarningPopup()
+                                            todoTasks = TodoHelper.markTaskDone(context, todoData.id)
+                                            activeTodoPopup = null
                                         },
                                         shape = RoundedCornerShape(16.dp),
                                         colors = ButtonDefaults.buttonColors(
@@ -6031,9 +5686,16 @@ fun ThoiTietAmLichApp() {
                                             .weight(1f)
                                             .height(48.dp)
                                     ) {
+                                        Icon(
+                                            Icons.Default.CheckCircle,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
                                         Text(
-                                            "Ok",
-                                            fontWeight = FontWeight.Bold
+                                            "Ok, làm ngay đây",
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1
                                         )
                                     }
                                 }
@@ -6042,81 +5704,252 @@ fun ThoiTietAmLichApp() {
                     }
                 }
 
-                AnimatedVisibility(
-                    visible = showBirthdayPopup && (todayBirthdays.isNotEmpty() || showAdminBirthdayToday),
-                    enter = fadeIn() + scaleIn(initialScale = 0.92f),
-                    exit = fadeOut() + scaleOut(targetScale = 0.92f),
-                    modifier = Modifier.fillMaxSize()
+                AnimatedPopupOverlay(
+                    visible = ageResultPopup != null,
+                    onDismiss = { ageResultPopup = null },
+                    dismissOnBackdropClick = true
                 ) {
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.72f))
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null
-                            ) { showBirthdayPopup = false }
-                            .padding(horizontal = 24.dp)
-                    ) {
-                        LiquidGlassPopupSurface(palette = palette) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier.padding(22.dp)
+                    val ageData = ageResultPopup
+                    LiquidGlassPopupSurface(palette = palette) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(22.dp)
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.End,
+                                modifier = Modifier.fillMaxWidth()
                             ) {
-                                Row(
-                                    horizontalArrangement = Arrangement.End,
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    IconButton(
-                                        onClick = { showBirthdayPopup = false },
-                                        modifier = Modifier.size(32.dp)
-                                    ) {
-                                        Icon(
-                                            Icons.Default.Close,
-                                            contentDescription = "Đóng",
-                                            tint = palette.popupTextSecondary
-                                        )
-                                    }
-                                }
-
-                                Box(
-                                    contentAlignment = Alignment.Center,
-                                    modifier = Modifier
-                                        .size(64.dp)
-                                        .clip(CircleShape)
-                                        .background(accentCompose.copy(alpha = 0.16f))
-                                        .border(1.5.dp, accentCompose.copy(alpha = 0.55f), CircleShape)
+                                IconButton(
+                                    onClick = { ageResultPopup = null },
+                                    modifier = Modifier.size(32.dp)
                                 ) {
                                     Icon(
-                                        Icons.Default.Cake,
-                                        contentDescription = null,
-                                        tint = accentCompose,
-                                        modifier = Modifier.size(32.dp)
+                                        Icons.Default.Close,
+                                        contentDescription = "Đóng",
+                                        tint = palette.popupTextSecondary
                                     )
                                 }
+                            }
 
-                                Spacer(modifier = Modifier.height(14.dp))
-
-                                Text(
-                                    if (showAdminBirthdayToday && todayBirthdays.isEmpty())
-                                        "Chúc mừng sinh nhật!"
-                                    else
-                                        "Sinh nhật hôm nay",
-                                    style = MaterialTheme.typography.headlineSmall,
-                                    color = palette.popupTextPrimary,
-                                    fontWeight = FontWeight.Bold,
-                                    textAlign = TextAlign.Center
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(64.dp)
+                                    .clip(CircleShape)
+                                    .background(accentCompose.copy(alpha = 0.16f))
+                                    .border(1.5.dp, accentCompose.copy(alpha = 0.55f), CircleShape)
+                            ) {
+                                Icon(
+                                    Icons.Default.PersonSearch,
+                                    contentDescription = null,
+                                    tint = accentCompose,
+                                    modifier = Modifier.size(32.dp)
                                 )
+                            }
 
-                                Spacer(modifier = Modifier.height(6.dp))
+                            Spacer(modifier = Modifier.height(14.dp))
 
+                            Text(
+                                "Kết quả tính tuổi",
+                                style = MaterialTheme.typography.headlineSmall,
+                                color = palette.popupTextPrimary,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            if (ageData != null) {
                                 Surface(
                                     shape = RoundedCornerShape(999.dp),
                                     color = accentCompose.copy(alpha = 0.18f)
                                 ) {
                                     Text(
-                                        solarToday,
+                                        ageData.birthLabel,
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = accentCompose,
+                                        fontWeight = FontWeight.SemiBold,
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(6.dp))
+
+                                Text(
+                                    ageData.currentLabel,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = palette.popupTextSecondary
+                                )
+
+                                Spacer(modifier = Modifier.height(14.dp))
+
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = palette.popupBoxBg,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        ageData.ageSummary,
+                                        style = MaterialTheme.typography.headlineSmall,
+                                        color = accentCompose,
+                                        fontWeight = FontWeight.Bold,
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp)
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(18.dp))
+
+                            Button(
+                                onClick = { ageResultPopup = null },
+                                shape = RoundedCornerShape(16.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = accentCompose,
+                                    contentColor = palette.onAccentText
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp)
+                            ) {
+                                Text(
+                                    "Đóng",
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+
+                AnimatedPopupOverlay(
+                    visible = showAgeHistoryClearedPopup,
+                    onDismiss = { showAgeHistoryClearedPopup = false },
+                    dismissOnBackdropClick = true
+                ) {
+                    LiquidGlassPopupSurface(palette = palette) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(22.dp)
+                        ) {
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(64.dp)
+                                    .clip(CircleShape)
+                                    .background(accentCompose.copy(alpha = 0.16f))
+                                    .border(1.5.dp, accentCompose.copy(alpha = 0.55f), CircleShape)
+                            ) {
+                                Icon(
+                                    Icons.Default.CheckCircleOutline,
+                                    contentDescription = null,
+                                    tint = accentCompose,
+                                    modifier = Modifier.size(32.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            Text(
+                                "Đã xóa lịch sử tính tuổi",
+                                style = MaterialTheme.typography.headlineSmall,
+                                color = palette.popupTextPrimary,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Text(
+                                "Toàn bộ lịch sử tính tuổi đã được xóa thành công.",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = palette.popupTextSecondary,
+                                textAlign = TextAlign.Center
+                            )
+
+                            Spacer(modifier = Modifier.height(18.dp))
+
+                            Button(
+                                onClick = { showAgeHistoryClearedPopup = false },
+                                shape = RoundedCornerShape(16.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = accentCompose,
+                                    contentColor = palette.onAccentText
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp)
+                            ) {
+                                Text(
+                                    "Ok",
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+
+                AnimatedPopupOverlay(
+                    visible = lunarResultPopup != null,
+                    onDismiss = { lunarResultPopup = null },
+                    dismissOnBackdropClick = true
+                ) {
+                    val data = lunarResultPopup
+                    LiquidGlassPopupSurface(palette = palette) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(22.dp)
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.End,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                IconButton(
+                                    onClick = { lunarResultPopup = null },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Close,
+                                        contentDescription = "Đóng",
+                                        tint = palette.popupTextSecondary
+                                    )
+                                }
+                            }
+
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(64.dp)
+                                    .clip(CircleShape)
+                                    .background(accentCompose.copy(alpha = 0.16f))
+                                    .border(1.5.dp, accentCompose.copy(alpha = 0.55f), CircleShape)
+                            ) {
+                                Icon(
+                                    Icons.Default.CalendarMonth,
+                                    contentDescription = null,
+                                    tint = accentCompose,
+                                    modifier = Modifier.size(32.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            Text(
+                                "Thông báo lịch âm",
+                                style = MaterialTheme.typography.headlineSmall,
+                                color = palette.popupTextPrimary,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            if (data != null) {
+                                Surface(
+                                    shape = RoundedCornerShape(999.dp),
+                                    color = accentCompose.copy(alpha = 0.18f)
+                                ) {
+                                    Text(
+                                        data.solarLabel,
                                         style = MaterialTheme.typography.labelLarge,
                                         color = accentCompose,
                                         fontWeight = FontWeight.SemiBold,
@@ -6126,86 +5959,391 @@ fun ThoiTietAmLichApp() {
 
                                 Spacer(modifier = Modifier.height(14.dp))
 
-                                if (showAdminBirthdayToday) {
-                                    Surface(
-                                        shape = RoundedCornerShape(16.dp),
-                                        color = palette.popupBoxBg,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(bottom = if (todayBirthdays.isNotEmpty()) 8.dp else 0.dp)
-                                    ) {
-                                        Text(
-                                            BirthdayHelper.ADMIN_BIRTHDAY_MESSAGE,
-                                            style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = palette.popupTextPrimary,
-                                            textAlign = TextAlign.Center,
-                                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)
-                                        )
-                                    }
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = palette.popupBoxBg,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        data.lunarSummary,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = palette.popupTextPrimary,
+                                        fontWeight = FontWeight.Bold,
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp)
+                                    )
                                 }
+                            }
 
-                                if (todayBirthdays.isNotEmpty()) {
-                                    Column(
-                                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        todayBirthdays.forEach { person ->
-                                            Surface(
-                                                shape = RoundedCornerShape(16.dp),
-                                                color = palette.popupBoxBg,
-                                                modifier = Modifier.fillMaxWidth()
-                                            ) {
-                                                Row(
-                                                    verticalAlignment = Alignment.CenterVertically,
-                                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
-                                                ) {
-                                                    Text(
-                                                        "🎉 ${person.name}",
-                                                        style = MaterialTheme.typography.titleMedium,
-                                                        color = palette.popupTextPrimary,
-                                                        fontWeight = FontWeight.Bold
-                                                    )
-                                                    Text(
-                                                        "${person.day.toString().padStart(2, '0')}/${person.month.toString().padStart(2, '0')}",
-                                                        style = MaterialTheme.typography.labelLarge,
-                                                        color = accentCompose,
-                                                        fontWeight = FontWeight.SemiBold
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
+                            Spacer(modifier = Modifier.height(18.dp))
 
-                                Spacer(modifier = Modifier.height(12.dp))
-
+                            Button(
+                                onClick = { lunarResultPopup = null },
+                                shape = RoundedCornerShape(16.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = accentCompose,
+                                    contentColor = palette.onAccentText
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp)
+                            ) {
                                 Text(
-                                    "Đừng quên gửi lời chúc mừng sinh nhật thật ấm áp nhé!",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = palette.popupTextSecondary,
-                                    textAlign = TextAlign.Center
+                                    "Đóng",
+                                    fontWeight = FontWeight.Bold
                                 )
+                            }
+                        }
+                    }
+                }
 
-                                Spacer(modifier = Modifier.height(18.dp))
+                AnimatedPopupOverlay(
+                    visible = showHistoryClearedPopup,
+                    onDismiss = { showHistoryClearedPopup = false },
+                    dismissOnBackdropClick = true
+                ) {
+                    LiquidGlassPopupSurface(palette = palette) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(22.dp)
+                        ) {
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(64.dp)
+                                    .clip(CircleShape)
+                                    .background(accentCompose.copy(alpha = 0.16f))
+                                    .border(1.5.dp, accentCompose.copy(alpha = 0.55f), CircleShape)
+                            ) {
+                                Icon(
+                                    Icons.Default.CheckCircleOutline,
+                                    contentDescription = null,
+                                    tint = accentCompose,
+                                    modifier = Modifier.size(32.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            Text(
+                                "Đã xóa lịch sử",
+                                style = MaterialTheme.typography.headlineSmall,
+                                color = palette.popupTextPrimary,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Text(
+                                "Toàn bộ lịch sử tra cứu lịch âm đã được xóa thành công.",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = palette.popupTextSecondary,
+                                textAlign = TextAlign.Center
+                            )
+
+                            Spacer(modifier = Modifier.height(18.dp))
+
+                            Button(
+                                onClick = { showHistoryClearedPopup = false },
+                                shape = RoundedCornerShape(16.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = accentCompose,
+                                    contentColor = palette.onAccentText
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp)
+                            ) {
+                                Text(
+                                    "Ok",
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+
+                AnimatedPopupOverlay(
+                    visible = showSecondsWarningPopup || pendingBatteryWarningTarget != null,
+                    onDismiss = {
+                        showSecondsWarningPopup = false
+                        pendingBatteryWarningTarget = null
+                    },
+                    dismissOnBackdropClick = true
+                ) {
+                    val closeBatteryWarningPopup = {
+                        showSecondsWarningPopup = false
+                        pendingBatteryWarningTarget = null
+                    }
+                    LiquidGlassPopupSurface(palette = palette) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(22.dp)
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.End,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                IconButton(
+                                    onClick = closeBatteryWarningPopup,
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Close,
+                                        contentDescription = "Đóng",
+                                        tint = palette.popupTextSecondary
+                                    )
+                                }
+                            }
+
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(64.dp)
+                                    .clip(CircleShape)
+                                    .background(accentCompose.copy(alpha = 0.16f))
+                                    .border(1.5.dp, accentCompose.copy(alpha = 0.55f), CircleShape)
+                            ) {
+                                Icon(
+                                    Icons.Default.BatteryAlert,
+                                    contentDescription = null,
+                                    tint = accentCompose,
+                                    modifier = Modifier.size(32.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            Text(
+                                "Lưu ý mức tiêu thụ pin",
+                                style = MaterialTheme.typography.headlineSmall,
+                                color = palette.popupTextPrimary,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center
+                            )
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            Text(
+                                "Bật tính năng này sẽ làm cho thiết bị của bạn hao pin hơn.",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = palette.popupTextSecondary,
+                                textAlign = TextAlign.Center
+                            )
+
+                            Spacer(modifier = Modifier.height(20.dp))
+
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                OutlinedButton(
+                                    onClick = closeBatteryWarningPopup,
+                                    shape = RoundedCornerShape(16.dp),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(48.dp)
+                                ) {
+                                    Text(
+                                        "Hủy",
+                                        color = palette.popupTextPrimary,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
 
                                 Button(
-                                    onClick = { showBirthdayPopup = false },
+                                    onClick = {
+                                        when {
+                                            showSecondsWarningPopup -> {
+                                                showSeconds = true
+                                                AppPrefs.setShowSeconds(context, true)
+                                                WeatherLunarWidget.updateAllWidgets(context)
+                                            }
+                                            pendingBatteryWarningTarget == BatteryWarningTarget.TOP_WEATHER_BG -> {
+                                                topWeatherBgEnabled = true
+                                            }
+                                            pendingBatteryWarningTarget == BatteryWarningTarget.BG_MUSIC -> {
+                                                bgMusicEnabled = true
+                                                AppPrefs.setBgMusicEnabled(context, true)
+                                            }
+                                            pendingBatteryWarningTarget == BatteryWarningTarget.CARD_BOUNCE -> {
+                                                cardBounceEnabled = true
+                                                AppPrefs.setCardBounceEnabled(context, true)
+                                            }
+                                        }
+                                        closeBatteryWarningPopup()
+                                    },
                                     shape = RoundedCornerShape(16.dp),
                                     colors = ButtonDefaults.buttonColors(
                                         containerColor = accentCompose,
                                         contentColor = palette.onAccentText
                                     ),
                                     modifier = Modifier
-                                        .fillMaxWidth()
+                                        .weight(1f)
                                         .height(48.dp)
                                 ) {
                                     Text(
-                                        "Tuyệt vời, đã nhớ!",
+                                        "Ok",
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
+                            }
+                        }
+                    }
+                }
+
+                AnimatedPopupOverlay(
+                    visible = showBirthdayPopup && (todayBirthdays.isNotEmpty() || showAdminBirthdayToday),
+                    onDismiss = { showBirthdayPopup = false },
+                    dismissOnBackdropClick = true
+                ) {
+                    LiquidGlassPopupSurface(palette = palette) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(22.dp)
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.End,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                IconButton(
+                                    onClick = { showBirthdayPopup = false },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Close,
+                                        contentDescription = "Đóng",
+                                        tint = palette.popupTextSecondary
+                                    )
+                                }
+                            }
+
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(64.dp)
+                                    .clip(CircleShape)
+                                    .background(accentCompose.copy(alpha = 0.16f))
+                                    .border(1.5.dp, accentCompose.copy(alpha = 0.55f), CircleShape)
+                            ) {
+                                Icon(
+                                    Icons.Default.Cake,
+                                    contentDescription = null,
+                                    tint = accentCompose,
+                                    modifier = Modifier.size(32.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            Text(
+                                if (showAdminBirthdayToday && todayBirthdays.isEmpty())
+                                    "Chúc mừng sinh nhật!"
+                                else
+                                    "Sinh nhật hôm nay",
+                                style = MaterialTheme.typography.headlineSmall,
+                                color = palette.popupTextPrimary,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center
+                            )
+
+                            Spacer(modifier = Modifier.height(6.dp))
+
+                            Surface(
+                                shape = RoundedCornerShape(999.dp),
+                                color = accentCompose.copy(alpha = 0.18f)
+                            ) {
+                                Text(
+                                    solarToday,
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = accentCompose,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            if (showAdminBirthdayToday) {
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = palette.popupBoxBg,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(bottom = if (todayBirthdays.isNotEmpty()) 8.dp else 0.dp)
+                                ) {
+                                    Text(
+                                        BirthdayHelper.ADMIN_BIRTHDAY_MESSAGE,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = palette.popupTextPrimary,
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)
+                                    )
+                                }
+                            }
+
+                            if (todayBirthdays.isNotEmpty()) {
+                                Column(
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    todayBirthdays.forEach { person ->
+                                        Surface(
+                                            shape = RoundedCornerShape(16.dp),
+                                            color = palette.popupBoxBg,
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+                                            ) {
+                                                Text(
+                                                    "🎉 ${person.name}",
+                                                    style = MaterialTheme.typography.titleMedium,
+                                                    color = palette.popupTextPrimary,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                                Text(
+                                                    "${person.day.toString().padStart(2, '0')}/${person.month.toString().padStart(2, '0')}",
+                                                    style = MaterialTheme.typography.labelLarge,
+                                                    color = accentCompose,
+                                                    fontWeight = FontWeight.SemiBold
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            Text(
+                                "Đừng quên gửi lời chúc mừng sinh nhật thật ấm áp nhé!",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = palette.popupTextSecondary,
+                                textAlign = TextAlign.Center
+                            )
+
+                            Spacer(modifier = Modifier.height(18.dp))
+
+                            Button(
+                                onClick = { showBirthdayPopup = false },
+                                shape = RoundedCornerShape(16.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = accentCompose,
+                                    contentColor = palette.onAccentText
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp)
+                            ) {
+                                Text(
+                                    "Tuyệt vời, đã nhớ!",
+                                    fontWeight = FontWeight.Bold
+                                )
                             }
                         }
                     }
