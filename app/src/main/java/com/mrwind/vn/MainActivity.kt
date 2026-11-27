@@ -3888,64 +3888,77 @@ fun ThoiTietAmLichApp() {
                                         .fillMaxWidth()
                                         .padding(horizontal = 2.dp, vertical = 4.dp)
                                 ) {
-                                    Row(
-                                        horizontalArrangement = Arrangement.spacedBy(5.dp, Alignment.End),
-                                        verticalAlignment = Alignment.CenterVertically,
+                                    Column(
+                                        verticalArrangement = Arrangement.spacedBy(4.dp),
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .padding(end = 6.dp)
+                                            .padding(horizontal = 2.dp)
                                     ) {
-                                        val currentSelectedMood = remember(dailyMoodState) {
-                                            if (dailyMoodState.dateKey == DailyMoodHelper.todayKey()) {
-                                                DailyMoodType.fromId(dailyMoodState.selectedMoodId)
-                                            } else {
-                                                null
+                                        Row(
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(end = 6.dp)
+                                        ) {
+                                            Text(
+                                                solarToday.uppercase(Locale.getDefault()),
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                letterSpacing = 1.sp,
+                                                color = accentCompose,
+                                                maxLines = 1,
+                                                softWrap = false,
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.weight(1f, fill = false)
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Row(
+                                                horizontalArrangement = Arrangement.spacedBy(5.dp, Alignment.End),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                val currentSelectedMood = remember(dailyMoodState) {
+                                                    if (dailyMoodState.dateKey == DailyMoodHelper.todayKey()) {
+                                                        DailyMoodType.fromId(dailyMoodState.selectedMoodId)
+                                                    } else {
+                                                        null
+                                                    }
+                                                }
+                                                Row2CoinTossButton(
+                                                    palette = palette,
+                                                    accentColor = accentCompose,
+                                                    isActive = canAnimateVisuals,
+                                                    onClick = {
+                                                        if (!isTossingCoin) {
+                                                            coinOutcomePopup = null
+                                                            isTossingCoin = true
+                                                        }
+                                                    }
+                                                )
+                                                Row2MoodButton(
+                                                    palette = palette,
+                                                    accentColor = accentCompose,
+                                                    isActive = canAnimateVisuals,
+                                                    selectedMood = currentSelectedMood,
+                                                    onClick = {
+                                                        dailyMoodState = DailyMoodHelper.loadOrResetToday(context)
+                                                        showMoodPickerPopup = true
+                                                    }
+                                                )
+                                                Row2PlaceholderButton(
+                                                    symbol = "✦",
+                                                    palette = palette,
+                                                    accentColor = accentCompose,
+                                                    isActive = canAnimateVisuals
+                                                )
+                                                Row2PlaceholderButton(
+                                                    symbol = "◈",
+                                                    palette = palette,
+                                                    accentColor = accentCompose,
+                                                    isActive = canAnimateVisuals
+                                                )
                                             }
                                         }
-                                        Row2CoinTossButton(
-                                            palette = palette,
-                                            accentColor = accentCompose,
-                                            isActive = canAnimateVisuals,
-                                            onClick = {
-                                                if (!isTossingCoin) {
-                                                    coinOutcomePopup = null
-                                                    isTossingCoin = true
-                                                }
-                                            }
-                                        )
-                                        Row2MoodButton(
-                                            palette = palette,
-                                            accentColor = accentCompose,
-                                            isActive = canAnimateVisuals,
-                                            selectedMood = currentSelectedMood,
-                                            onClick = {
-                                                dailyMoodState = DailyMoodHelper.loadOrResetToday(context)
-                                                showMoodPickerPopup = true
-                                            }
-                                        )
-                                        Row2PlaceholderButton(
-                                            symbol = "✦",
-                                            palette = palette,
-                                            accentColor = accentCompose,
-                                            isActive = canAnimateVisuals
-                                        )
-                                        Row2PlaceholderButton(
-                                            symbol = "◈",
-                                            palette = palette,
-                                            accentColor = accentCompose,
-                                            isActive = canAnimateVisuals
-                                        )
-                                    }
-
-                                    Column(modifier = Modifier.padding(horizontal = 2.dp)) {
-                                        Text(
-                                            solarToday.uppercase(Locale.getDefault()),
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            letterSpacing = 1.sp,
-                                            color = accentCompose
-                                        )
-                                        Spacer(modifier = Modifier.height(2.dp))
                                         Text(
                                             dailyWarmMessage,
                                             fontSize = 19.sp,
@@ -6503,7 +6516,7 @@ fun ThoiTietAmLichApp() {
                                         ) {
                                             append(prevLabel)
                                         }
-                                        append(". Hiện tại, bạn cảm thấy như thế nào?")
+                                        append(". Hiện tại bạn cảm thấy:")
                                     }
                                     Text(
                                         text = annotatedTitle,
