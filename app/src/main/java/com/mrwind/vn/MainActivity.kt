@@ -4800,28 +4800,6 @@ fun ThoiTietAmLichApp() {
                                     )
                                     SectionHairline(palette)
 
-                                    FlatSwitchRow(
-                                        title = "Nhắc ngày Rằm & Mùng 1",
-                                        subtitle = if (ramMung1ReminderEnabled)
-                                            "Đang bật nhắc ngày Rằm (15) & Mùng 1 Âm lịch (trước 1 ngày & đúng ngày)"
-                                        else
-                                            "Gạt bật để nhận thông báo & Pop-up trước 1 ngày và đúng ngày Rằm, Mùng 1",
-                                        checked = ramMung1ReminderEnabled,
-                                        accentColor = accentCompose,
-                                        palette = palette,
-                                        onCheckedChange = { checked ->
-                                            ramMung1ReminderEnabled = checked
-                                            AppPrefs.setRamMung1ReminderEnabled(context, checked)
-                                            if (checked) {
-                                                BirthdayHelper.notifyTodayRamMung1OncePerDay(context)
-                                            }
-                                            activeRamMung1Alerts = BirthdayHelper.getActiveRamMung1AlertsForToday(context)
-                                            if (checked && activeRamMung1Alerts.isNotEmpty()) {
-                                                showRamMung1Popup = true
-                                            }
-                                        }
-                                    )
-                                    SectionHairline(palette)
 
                                     Column(modifier = Modifier.padding(vertical = 10.dp)) {
                                         Text(
@@ -5152,6 +5130,31 @@ fun ThoiTietAmLichApp() {
                                             .border(1.3.dp, accentCompose.copy(alpha = 0.65f), RoundedCornerShape(24.dp))
                                     ) {
                                         Column(modifier = Modifier.padding(16.dp)) {
+                                            FlatSwitchRow(
+                                                title = "Nhắc ngày Rằm & Mùng 1",
+                                                subtitle = if (ramMung1ReminderEnabled)
+                                                    "Đang bật nhắc ngày Rằm (15) & Mùng 1 Âm lịch (trước 1 ngày & đúng ngày)"
+                                                else
+                                                    "Gạt bật để nhận thông báo & Pop-up trước 1 ngày và đúng ngày Rằm, Mùng 1",
+                                                checked = ramMung1ReminderEnabled,
+                                                accentColor = accentCompose,
+                                                palette = palette,
+                                                onCheckedChange = { checked ->
+                                                    ramMung1ReminderEnabled = checked
+                                                    AppPrefs.setRamMung1ReminderEnabled(context, checked)
+                                                    if (checked) {
+                                                        BirthdayHelper.notifyTodayRamMung1OncePerDay(context)
+                                                    }
+                                                    activeRamMung1Alerts = BirthdayHelper.getActiveRamMung1AlertsForToday(context)
+                                                    if (checked && activeRamMung1Alerts.isNotEmpty()) {
+                                                        showRamMung1Popup = true
+                                                    }
+                                                }
+                                            )
+
+                                            SectionHairline(palette)
+                                            Spacer(modifier = Modifier.height(10.dp))
+
                                             FlatSwitchRow(
                                                 title = "Bật nhắc tất cả ngày lễ / kỷ niệm",
                                                 subtitle = if (holidayReminderEnabled)
