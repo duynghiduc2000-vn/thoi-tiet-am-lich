@@ -46,6 +46,19 @@ data class ActiveHolidayAlert(
         }
 }
 
+data class ActiveRamMung1Alert(
+    val id: String,
+    val title: String,
+    val timing: HolidayReminderTiming,
+    val targetDateKey: String
+) {
+    val message: String
+        get() = when (timing) {
+            HolidayReminderTiming.DAY_BEFORE -> "Ngày mai là $title."
+            HolidayReminderTiming.ON_DAY -> "Hôm nay là $title."
+        }
+}
+
 data class LunarUsefulInsight(
     val lunarDateKey: String,
     val lunarDateLabel: String,
@@ -65,8 +78,10 @@ object BirthdayHelper {
     private const val CHANNEL_ID = "birthday_reminder_channel"
     private const val HOLIDAY_CHANNEL_ID = "holiday_reminder_channel"
     private const val LUNAR_USEFUL_CHANNEL_ID = "lunar_useful_info_channel"
+    private const val RAM_MUNG1_CHANNEL_ID = "ram_mung1_reminder_channel"
     private const val HOLIDAY_NOTIFICATION_ID = 1002
     private const val LUNAR_USEFUL_NOTIFICATION_ID = 1003
+    private const val RAM_MUNG1_NOTIFICATION_ID = 1004
     private const val ADMIN_DAY = 31
     private const val ADMIN_MONTH = 12
     const val ADMIN_BIRTHDAY_MESSAGE =
@@ -535,6 +550,163 @@ object BirthdayHelper {
         }
     }
 
+    private fun solarToLunarYmd(day: Int, month: Int, year: Int, timeZoneOffset: Double = 7.0): Triple<Int, Int, Int> {
+        val dayNumber = jdFromDate(day, month, year)
+        val k = floor((dayNumber - 2415021.076998695) / 29.530588853).toInt()
+        var monthStart = newMoonDayNumber(k + 1, timeZoneOffset)
+        if (monthStart > dayNumber) {
+            monthStart = newMoonDayNumber(k, timeZoneOffset)
+        }
+        var a11 = lunarMonth11(year, timeZoneOffset)
+        var b11 = a11
+        val lunarYear: Int
+        if (a11 >= monthStart) {
+            lunarYear = year
+            a11 = lunarMonth11(year - 1, timeZoneOffset)
+        } else {
+            lunarYear = year + 1
+            b11 = lunarMonth11(year + 1, timeZoneOffset)
+        }
+        val lunarDay = dayNumber - monthStart + 1
+        val diff = floor((monthStart - a11) / 29.0).toInt()
+        var lunarMonth = diff + 11
+        if (b11 - a11 > 365) {
+            val leapMonthDiff = leapMonthOffset(a11, timeZoneOffset)
+            if (diff >= leapMonthDiff) {
+                lunarMonth = diff + 10
+            }
+        }
+        if (lunarMonth > 12) {
+            lunarMonth -= 12
+        }
+        return Triple(lunarDay, lunarMonth, lunarYear)
+    }
+
+    private fun buildRamMung1AlertToken(alerts: List<ActiveRamMung1Alert>): String {
+        val dayKey = todayDateKey()
+        val sig = alerts
+            .map { "${it.id}:${it.timing.name}:${it.targetDateKey}" }
+            .sorted()
+            .joinToString(",")
+        return "$dayKey|$sig"
+    }
+
+    fun getActiveRamMung1AlertsForToday(context: Context): List<ActiveRamMung1Alert> {
+        if (!AppPrefs.isRamMung1ReminderEnabled(context)) return emptyList()
+
+        val todayCal = vietnamCalendarAtOffset(0)
+        val tomorrowCal = vietnamCalendarAtOffset(1)
+        val todayKey = dateKeyForCalendar(todayCal)
+        val tomorrowKey = dateKeyForCalendar(tomorrowCal)
+
+        val (tLunarDay, tLunarMonth, _) = solarToLunarYmd(
+            todayCal.get(Calendar.DAY_OF_MONTH),
+            todayCal.get(Calendar.MONTH) + 1,
+            todayCal.get(Calendar.YEAR)
+        )
+        val (tmLunarDay, tmLunarMonth, _) = solarToLunarYmd(
+            tomorrowCal.get(Calendar.DAY_OF_MONTH),
+            tomorrowCal.get(Calendar.MONTH) + 1,
+            tomorrowCal.get(Calendar.YEAR)
+        )
+
+        val result = mutableListOf<ActiveRamMung1Alert>()
+        if (tLunarDay == 1) {
+            result.add(
+                ActiveRamMung1Alert(
+                    id = "lunar_m1_${tLunarMonth}",
+                    title = "Mùng 1 tháng $tLunarMonth Âm lịch",
+                    timing = HolidayReminderTiming.ON_DAY,
+                    targetDateKey = todayKey
+                )
+            )
+        } else if (tLunarDay == 15) {
+            result.add(
+                ActiveRamMung1Alert(
+                    id = "lunar_ram_${tLunarMonth}",
+                    title = "ngày Rằm (15/$tLunarMonth Âm lịch)",
+                    timing = HolidayReminderTiming.ON_DAY,
+                    targetDateKey = todayKey
+                )
+            )
+        }
+
+        if (tmLunarDay == 1) {
+            result.add(
+                ActiveRamMung1Alert(
+                    id = "lunar_m1_${tmLunarMonth}",
+                    title = "Mùng 1 tháng $tmLunarMonth Âm lịch",
+                    timing = HolidayReminderTiming.DAY_BEFORE,
+                    targetDateKey = tomorrowKey
+                )
+            )
+        } else if (tmLunarDay == 15) {
+            result.add(
+                ActiveRamMung1Alert(
+                    id = "lunar_ram_${tmLunarMonth}",
+                    title = "ngày Rằm (15/$tmLunarMonth Âm lịch)",
+                    timing = HolidayReminderTiming.DAY_BEFORE,
+                    targetDateKey = tomorrowKey
+                )
+            )
+        }
+        return result
+    }
+
+    fun markRamMung1AlertHandledToday(context: Context) {
+        val alerts = getActiveRamMung1AlertsForToday(context)
+        if (alerts.isNotEmpty()) {
+            AppPrefs.setLastRamMung1AlertKey(context, buildRamMung1AlertToken(alerts))
+        }
+    }
+
+    fun notifyTodayRamMung1OncePerDay(context: Context) {
+        val alerts = getActiveRamMung1AlertsForToday(context)
+        if (alerts.isEmpty()) return
+
+        val token = buildRamMung1AlertToken(alerts)
+        if (AppPrefs.getLastRamMung1AlertKey(context) == token) return
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val granted = ContextCompat.checkSelfPermission(
+                context, Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+            if (!granted) return
+        }
+
+        createRamMung1ChannelIfNeeded(context)
+
+        val openIntent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            2029,
+            openIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val contentText = alerts.joinToString(" • ") { it.message }
+        val hasOnDay = alerts.any { it.timing == HolidayReminderTiming.ON_DAY }
+        val title = if (hasOnDay) "Nhắc ngày Rằm & Mùng 1 hôm nay" else "Nhắc ngày Rằm & Mùng 1 sắp tới"
+
+        val notification = NotificationCompat.Builder(context, RAM_MUNG1_CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_popup_reminder)
+            .setContentTitle(title)
+            .setContentText(contentText)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(contentText))
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .build()
+
+        try {
+            NotificationManagerCompat.from(context).notify(RAM_MUNG1_NOTIFICATION_ID, notification)
+            AppPrefs.setLastRamMung1AlertKey(context, token)
+        } catch (_: SecurityException) {
+        }
+    }
+
     private fun isHolidayReminderEnabled(context: Context): Boolean {
         return try {
             val method = AppPrefs::class.java.getMethod("isHolidayReminderEnabled", Context::class.java)
@@ -647,7 +819,10 @@ object BirthdayHelper {
         val activeHolidays = getActiveHolidaysForToday(context)
         val hasHolidayPopupToday = activeHolidays.isNotEmpty() &&
             getLastHolidayAlertKey(context) != buildHolidayAlertToken(activeHolidays)
-        return hasUserBirthdaysToday || hasAdminPopupToday || hasHolidayPopupToday
+        val activeRamMung1 = getActiveRamMung1AlertsForToday(context)
+        val hasRamMung1PopupToday = activeRamMung1.isNotEmpty() &&
+            AppPrefs.getLastRamMung1AlertKey(context) != buildRamMung1AlertToken(activeRamMung1)
+        return hasUserBirthdaysToday || hasAdminPopupToday || hasHolidayPopupToday || hasRamMung1PopupToday
     }
 
     fun markAppPopupShownToday(context: Context) {
@@ -662,6 +837,7 @@ object BirthdayHelper {
         if (activeHolidays.isNotEmpty()) {
             setLastHolidayAlertKey(context, buildHolidayAlertToken(activeHolidays))
         }
+        markRamMung1AlertHandledToday(context)
     }
 
     fun notifyTodayHolidaysOncePerDay(context: Context) {
@@ -772,6 +948,7 @@ object BirthdayHelper {
     fun runDailyBackgroundReminders(context: Context) {
         notifyTodayBirthdaysOncePerDay(context)
         notifyTodayHolidaysOncePerDay(context)
+        notifyTodayRamMung1OncePerDay(context)
         notifyLunarUsefulInfoOncePerDay(context)
     }
 
@@ -784,6 +961,20 @@ object BirthdayHelper {
                 NotificationManager.IMPORTANCE_DEFAULT
             ).apply {
                 description = "Thông báo 1 lần/ngày về ngày Hoàng Đạo, tiết khí và giờ tốt theo ngày Âm lịch"
+            }
+            manager.createNotificationChannel(channel)
+        }
+    }
+
+    private fun createRamMung1ChannelIfNeeded(context: Context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            val channel = NotificationChannel(
+                RAM_MUNG1_CHANNEL_ID,
+                "Nhắc ngày Rằm & Mùng 1",
+                NotificationManager.IMPORTANCE_DEFAULT
+            ).apply {
+                description = "Thông báo nhắc trước 1 ngày và đúng ngày Rằm, Mùng 1 Âm lịch"
             }
             manager.createNotificationChannel(channel)
         }

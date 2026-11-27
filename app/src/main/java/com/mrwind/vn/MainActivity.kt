@@ -2740,6 +2740,12 @@ fun ThoiTietAmLichApp() {
     }
     var showHolidayPopup by remember { mutableStateOf(false) }
 
+    var ramMung1ReminderEnabled by remember { mutableStateOf(AppPrefs.isRamMung1ReminderEnabled(context)) }
+    var activeRamMung1Alerts by remember {
+        mutableStateOf(BirthdayHelper.getActiveRamMung1AlertsForToday(context))
+    }
+    var showRamMung1Popup by remember { mutableStateOf(false) }
+
     var feedbackCategory by remember { mutableStateOf(FeedbackCategory.BUG) }
     var feedbackMessageInput by remember { mutableStateOf("") }
     var feedbackError by remember { mutableStateOf<String?>(null) }
@@ -2906,6 +2912,8 @@ fun ThoiTietAmLichApp() {
         showGreetingPopup,
         showHolidayPopup,
         activeHolidayAlerts,
+        showRamMung1Popup,
+        activeRamMung1Alerts,
         activeTodoPopup,
         ageResultPopup,
         showAgeHistoryClearedPopup,
@@ -2927,6 +2935,7 @@ fun ThoiTietAmLichApp() {
             showDownloadPopup ||
             showGreetingPopup ||
             (showHolidayPopup && activeHolidayAlerts.isNotEmpty()) ||
+            (showRamMung1Popup && activeRamMung1Alerts.isNotEmpty()) ||
             activeTodoPopup != null ||
             ageResultPopup != null ||
             showAgeHistoryClearedPopup ||
@@ -3002,6 +3011,14 @@ fun ThoiTietAmLichApp() {
             AppPrefs.getLastHolidayAlertKey(context) != BirthdayHelper.todayDateKey()
         ) {
             showHolidayPopup = true
+        }
+
+        val currentRamMung1Alerts = BirthdayHelper.getActiveRamMung1AlertsForToday(context)
+        activeRamMung1Alerts = currentRamMung1Alerts
+        if (currentRamMung1Alerts.isNotEmpty() &&
+            AppPrefs.getLastRamMung1AlertKey(context) != BirthdayHelper.todayDateKey()
+        ) {
+            showRamMung1Popup = true
         }
 
         if (BirthdayHelper.shouldShowAppPopupToday(context)) {
@@ -4783,6 +4800,29 @@ fun ThoiTietAmLichApp() {
                                     )
                                     SectionHairline(palette)
 
+                                    FlatSwitchRow(
+                                        title = "Nhắc ngày Rằm & Mùng 1",
+                                        subtitle = if (ramMung1ReminderEnabled)
+                                            "Đang bật nhắc ngày Rằm (15) & Mùng 1 Âm lịch (trước 1 ngày & đúng ngày)"
+                                        else
+                                            "Gạt bật để nhận thông báo & Pop-up trước 1 ngày và đúng ngày Rằm, Mùng 1",
+                                        checked = ramMung1ReminderEnabled,
+                                        accentColor = accentCompose,
+                                        palette = palette,
+                                        onCheckedChange = { checked ->
+                                            ramMung1ReminderEnabled = checked
+                                            AppPrefs.setRamMung1ReminderEnabled(context, checked)
+                                            if (checked) {
+                                                BirthdayHelper.notifyTodayRamMung1OncePerDay(context)
+                                            }
+                                            activeRamMung1Alerts = BirthdayHelper.getActiveRamMung1AlertsForToday(context)
+                                            if (checked && activeRamMung1Alerts.isNotEmpty()) {
+                                                showRamMung1Popup = true
+                                            }
+                                        }
+                                    )
+                                    SectionHairline(palette)
+
                                     Column(modifier = Modifier.padding(vertical = 10.dp)) {
                                         Text(
                                             "${lunarInsight.lunarDateLabel} • Ngày ${lunarInsight.dayCanChi}",
@@ -6269,6 +6309,128 @@ fun ThoiTietAmLichApp() {
                                 onClick = {
                                     BirthdayHelper.markAppPopupShownToday(context)
                                     showHolidayPopup = false
+                                },
+                                shape = RoundedCornerShape(16.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = accentCompose,
+                                    contentColor = palette.onAccentText
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp)
+                            ) {
+                                Text(
+                                    "Đã rõ!",
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+
+                AnimatedPopupOverlay(
+                    visible = showRamMung1Popup && activeRamMung1Alerts.isNotEmpty(),
+                    onDismiss = {
+                        BirthdayHelper.markRamMung1AlertHandledToday(context)
+                        showRamMung1Popup = false
+                    },
+                    dismissOnBackdropClick = true
+                ) {
+                    LiquidGlassPopupSurface(palette = palette) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(22.dp)
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.End,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                IconButton(
+                                    onClick = {
+                                        BirthdayHelper.markRamMung1AlertHandledToday(context)
+                                        showRamMung1Popup = false
+                                    },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Close,
+                                        contentDescription = "Đóng",
+                                        tint = palette.popupTextSecondary
+                                    )
+                                }
+                            }
+
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(64.dp)
+                                    .clip(CircleShape)
+                                    .background(accentCompose.copy(alpha = 0.16f))
+                                    .border(1.5.dp, accentCompose.copy(alpha = 0.55f), CircleShape)
+                            ) {
+                                Icon(
+                                    Icons.Default.Celebration,
+                                    contentDescription = null,
+                                    tint = accentCompose,
+                                    modifier = Modifier.size(32.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            Text(
+                                "Nhắc ngày Rằm & Mùng 1",
+                                style = MaterialTheme.typography.headlineSmall,
+                                color = palette.popupTextPrimary,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center
+                            )
+
+                            Spacer(modifier = Modifier.height(6.dp))
+
+                            Surface(
+                                shape = RoundedCornerShape(999.dp),
+                                color = accentCompose.copy(alpha = 0.18f)
+                            ) {
+                                Text(
+                                    solarToday,
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = accentCompose,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                activeRamMung1Alerts.forEach { alert ->
+                                    Surface(
+                                        shape = RoundedCornerShape(16.dp),
+                                        color = palette.popupBoxBg,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text(
+                                            alert.message,
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = palette.popupTextPrimary,
+                                            textAlign = TextAlign.Center,
+                                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)
+                                        )
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(18.dp))
+
+                            Button(
+                                onClick = {
+                                    BirthdayHelper.markRamMung1AlertHandledToday(context)
+                                    showRamMung1Popup = false
                                 },
                                 shape = RoundedCornerShape(16.dp),
                                 colors = ButtonDefaults.buttonColors(

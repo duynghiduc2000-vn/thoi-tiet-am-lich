@@ -473,6 +473,21 @@ object AppPrefs {
         writeString(context, "lunar_day_note_$lunarDateKey", note)
     }
 
+    // Nhắc ngày Rằm (15) & Mùng 1 Âm lịch (trước 1 ngày & đúng ngày)
+    fun isRamMung1ReminderEnabled(context: Context): Boolean =
+        prefs(context).getBoolean("ram_mung1_reminder_enabled", false)
+
+    fun setRamMung1ReminderEnabled(context: Context, enabled: Boolean) {
+        writeBoolean(context, "ram_mung1_reminder_enabled", enabled)
+    }
+
+    fun getLastRamMung1AlertKey(context: Context): String =
+        prefs(context).getString("last_ram_mung1_alert_key", "") ?: ""
+
+    fun setLastRamMung1AlertKey(context: Context, key: String, commitNow: Boolean = true) {
+        writeString(context, "last_ram_mung1_alert_key", key, commitNow = commitNow)
+    }
+
     private fun prefs(context: Context) =
         context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
 }
