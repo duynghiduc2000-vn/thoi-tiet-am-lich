@@ -142,7 +142,9 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -3108,6 +3110,7 @@ fun ThoiTietAmLichApp() {
     var luckyResultPopup by remember { mutableStateOf<DailyLuckyData?>(null) }
     var showLuckyDisclaimerPopup by remember { mutableStateOf(false) }
     var showContactPopup by remember { mutableStateOf(false) }
+    var showDonateQrPopup by remember { mutableStateOf(false) }
     var showDownloadPopup by remember { mutableStateOf(false) }
     var showGreetingPopup by remember { mutableStateOf(false) }
     var greetingPopupText by remember { mutableStateOf("") }
@@ -3496,6 +3499,7 @@ fun ThoiTietAmLichApp() {
             luckyResultPopup != null ||
             showLuckyDisclaimerPopup ||
             showContactPopup ||
+            showDonateQrPopup ||
             showDownloadPopup ||
             showGreetingPopup ||
             isTossingCoin ||
@@ -6738,6 +6742,10 @@ fun ThoiTietAmLichApp() {
                                     .clip(RoundedCornerShape(16.dp))
                                     .background(palette.liquidGlassBrush)
                                     .border(1.1.dp, palette.liquidGlassBorder, RoundedCornerShape(16.dp))
+                                    .clickable {
+                                        showContactPopup = false
+                                        showDonateQrPopup = true
+                                    }
                                     .padding(horizontal = 14.dp, vertical = 14.dp)
                             ) {
                                 Text(
@@ -6764,6 +6772,116 @@ fun ThoiTietAmLichApp() {
                             ) {
                                 Text(
                                     text = "Ok",
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Pop-up mã QR & thông tin chuyển khoản khi bấm vào mục ủng hộ
+                AnimatedPopupOverlay(
+                    visible = showDonateQrPopup,
+                    onDismiss = { showDonateQrPopup = false },
+                    dismissOnBackdropClick = false
+                ) {
+                    LiquidGlassPopupSurface(palette = palette) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(22.dp)
+                        ) {
+                            Text(
+                                text = "Ủng hộ qua mã QR",
+                                style = MaterialTheme.typography.headlineSmall,
+                                color = palette.popupTextPrimary,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center
+                            )
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(210.dp)
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .background(Color.White)
+                                    .border(1.5.dp, accentCompose.copy(alpha = 0.55f), RoundedCornerShape(20.dp))
+                                    .padding(10.dp)
+                            ) {
+                                Image(
+                                    painter = painterResource(id = R.drawable.donate_qr),
+                                    contentDescription = "Mã QR chuyển khoản MBBank",
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(palette.liquidGlassBrush)
+                                    .border(1.1.dp, palette.liquidGlassBorder, RoundedCornerShape(16.dp))
+                                    .padding(horizontal = 14.dp, vertical = 14.dp)
+                            ) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        text = "NGUYEN PHUOC DUY",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = palette.popupTextPrimary,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        textAlign = TextAlign.Center
+                                    )
+                                    Text(
+                                        text = "3231121997",
+                                        style = MaterialTheme.typography.titleLarge,
+                                        color = accentCompose,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        textAlign = TextAlign.Center
+                                    )
+                                    OutlinedButton(
+                                        onClick = {
+                                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                                            clipboard?.setPrimaryClip(ClipData.newPlainText("Số tài khoản MBBank", "3231121997"))
+                                            Toast.makeText(
+                                                context,
+                                                "Đã sao chép số tài khoản 3231121997",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        },
+                                        shape = RoundedCornerShape(12.dp)
+                                    ) {
+                                        Text(
+                                            text = "Sao chép STK",
+                                            color = palette.popupTextPrimary,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(18.dp))
+
+                            Button(
+                                onClick = { showDonateQrPopup = false },
+                                shape = RoundedCornerShape(16.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = accentCompose,
+                                    contentColor = palette.onAccentText
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp)
+                            ) {
+                                Text(
+                                    text = "Đóng",
                                     fontWeight = FontWeight.Bold
                                 )
                             }
