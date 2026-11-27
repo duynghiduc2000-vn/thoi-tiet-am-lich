@@ -179,6 +179,109 @@ private const val CONTACT_FACEBOOK_URL = "https://www.facebook.com/share/1JGhc8m
 private const val CONTACT_XIAOMI_COMMUNITY_URL = "https://new.c.mi.com/vn/user/69262e0d27ba478accf81225d37774a7/"
 private const val CONTACT_DONATE_MBBANK_TEXT = "Ủng hộ anh ấy một cốc cà hê qua MBBank: 3231121997"
 
+private val FOOD_AND_DRINK_OPTIONS = listOf(
+    "Bún bò Huế",
+    "Bánh canh xương",
+    "Bánh canh chả cá",
+    "Mì xào bò",
+    "Mì xào giòn",
+    "Cơm tấm sườn bì chả",
+    "Bánh canh cá lóc",
+    "bánh canh bột xắt",
+    "Hủ tiếu nam vang",
+    "Pizza",
+    "Bánh xèo",
+    "Bánh mì thịt",
+    "Bánh mì ốp la",
+    "Xôi mặn",
+    "Xôi đậu (kèm muối mè)",
+    "Xôi xoài",
+    "Bánh giầy kẹp chả",
+    "Kem",
+    "Cơm phần công ty",
+    "Cơm chay",
+    "Mì chay",
+    "Bún chay",
+    "Phở chay",
+    "Phở bò",
+    "Phở gà",
+    "Phở heo",
+    "Xiên bẩn",
+    "Trà sữa",
+    "Bún đậu mắm tôm",
+    "Trà chanh",
+    "Trà đào",
+    "Trà vải",
+    "Trà đường",
+    "Bánh kem",
+    "Chả cá lã vọng",
+    "Cơm gà",
+    "Cơm gà xối mỡ",
+    "Cơm gà rô ti",
+    "Bún thịt xào",
+    "Bánh bột lọc trần",
+    "Bánh Quai Dạc",
+    "Bánh Căn Phan Thiết",
+    "Mì Quảng miền Trung",
+    "Mì Quảng Phan Thiết",
+    "Bún thịt xào",
+    "Mì gói",
+    "Heo quay da giòn",
+    "Bò né",
+    "Bò quanh lửa hồng",
+    "Bánh mì bơ Campuchia",
+    "Chè",
+    "Trà xanh",
+    "Dép (Troll)",
+    "Gạch ống (Troll)",
+    "Thùng phi (Troll)",
+    "Mì cay 7 cấp độ",
+    "Mì tương đen",
+    "Bánh đồng xu",
+    "Lạp xưởng nướng đá",
+    "Trứng vịt lột",
+    "Trứng gà nướng",
+    "Bánh tráng nướng Phan Thiết",
+    "Bánh tráng kẹp Đà Lạt",
+    "Bún thịt nướng",
+    "Gà chiên giòn",
+    "Lagu thịt vịt",
+    "Cơm cà ri",
+    "Dorayaki",
+    "Tokbokki",
+    "Cháo thịt bằm",
+    "Cháo lòng",
+    "Cháo thịt bò",
+    "Cháo gà",
+    "Cháo trai",
+    "Cơm hến",
+    "Bún ốc",
+    "Ốc (Hải sản các loại)",
+    "Mochi",
+    "Chân gà sốt thái",
+    "Bánh tráng trộn",
+    "Lẩu",
+    "Buffet"
+)
+
+private val FOOD_ENJOYMENT_WISHES = listOf(
+    "Chúc bạn có một bữa ăn thật ngon miệng và nạp đầy năng lượng nhé!",
+    "Ăn uống vui vẻ nha, nhớ thưởng thức chậm rãi cho thật đã!",
+    "Chúc món này hợp khẩu vị của bạn và mang lại thật nhiều niềm vui hôm nay!",
+    "Nạp năng lượng xong rồi lại tiếp tục ngày mới thật rạng rỡ nhé!",
+    "Chúc bạn ăn ngon, uống đã, tâm trạng phơi phới suốt cả ngày!",
+    "Một lựa chọn quá chuẩn bài, chúc bạn thưởng thức thật trọn vẹn!",
+    "Chúc bạn có một bữa ngon hết sảy và thật nhiều năng lượng tích cực!",
+    "Ăn ngon miệng nhé bạn ơi, nhớ uống thêm nước cho cân bằng nha!",
+    "Chúc bạn có phút giây ăn uống thư giãn và thật nhiều niềm vui!",
+    "Chúc bữa này của bạn thơm ngon tròn vị và ấm lòng hết mức!"
+)
+
+private data class FoodChoiceResult(
+    val itemName: String,
+    val wishText: String
+)
+
 private val DAILY_WARM_MESSAGES = listOf(
     "Chúc bạn hôm nay thật nhẹ nhàng, bình yên và gặp nhiều điều dễ thương",
     "Mỗi ngày mới là một cơ hội nhỏ để mỉm cười nhiều hơn một chút",
@@ -399,6 +502,73 @@ private object DailyLuckyHelper {
 }
 
 @Composable
+private fun TopBarFoodChoiceButton(
+    palette: AdaptivePalette,
+    accentColor: Color,
+    isActive: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val scale: Float
+    val tilt: Float
+    if (isActive) {
+        val transition = rememberInfiniteTransition(label = "top_food_choice_anim")
+        scale = transition.animateFloat(
+            initialValue = 0.94f,
+            targetValue = 1.07f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 1050, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "food_btn_scale"
+        ).value
+        tilt = transition.animateFloat(
+            initialValue = -7f,
+            targetValue = 7f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 1200, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "food_btn_tilt"
+        ).value
+    } else {
+        scale = 1f
+        tilt = 0f
+    }
+
+    Surface(
+        shape = CircleShape,
+        color = palette.cardBg,
+        modifier = modifier
+            .size(35.dp)
+            .clip(CircleShape)
+            .border(
+                width = 1.dp,
+                color = accentColor.copy(alpha = 0.45f),
+                shape = CircleShape
+            )
+            .clickable(onClick = onClick)
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.fillMaxSize()
+        ) {
+            Text(
+                text = "🍽️",
+                fontSize = 16.sp,
+                maxLines = 1,
+                softWrap = false,
+                modifier = Modifier.graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                    rotationZ = tilt
+                }
+            )
+        }
+    }
+}
+
+@Composable
 private fun TopBarLuckyButton(
     palette: AdaptivePalette,
     accentColor: Color,
@@ -426,7 +596,7 @@ private fun TopBarLuckyButton(
         shape = CircleShape,
         color = palette.cardBg,
         modifier = modifier
-            .size(36.dp)
+            .size(35.dp)
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
@@ -445,7 +615,7 @@ private fun TopBarLuckyButton(
         ) {
             Text(
                 text = "🍀",
-                fontSize = 17.sp,
+                fontSize = 16.sp,
                 maxLines = 1,
                 softWrap = false
             )
@@ -772,7 +942,7 @@ private fun TopBarBatteryOptimizeButton(
         shape = CircleShape,
         color = palette.cardBg,
         modifier = modifier
-            .size(36.dp)
+            .size(35.dp)
             .clip(CircleShape)
             .border(
                 width = 1.dp,
@@ -803,7 +973,7 @@ private fun TopBarBatteryOptimizeButton(
             BatteryOptimizationIconGlyph(
                 tint = accentColor,
                 isAnimated = isOptimizing,
-                modifier = Modifier.size(20.dp)
+                modifier = Modifier.size(19.dp)
             )
         }
     }
@@ -887,7 +1057,7 @@ private fun TopBarDayNightIndicator(
         shape = CircleShape,
         color = palette.cardBg,
         modifier = modifier
-            .size(36.dp)
+            .size(35.dp)
             .border(
                 width = 1.dp,
                 color = if (isDay) Color(0xFFFFB74D).copy(alpha = 0.45f) else moonGoldColor.copy(alpha = 0.45f),
@@ -901,13 +1071,13 @@ private fun TopBarDayNightIndicator(
             if (isDay) {
                 Text(
                     text = "☀️",
-                    fontSize = 18.sp,
+                    fontSize = 17.sp,
                     maxLines = 1,
                     softWrap = false,
                     modifier = Modifier.rotate(sunSpin * 0.15f)
                 )
             } else {
-                Canvas(modifier = Modifier.size(28.dp)) {
+                Canvas(modifier = Modifier.size(27.dp)) {
                     val w = size.width
                     val h = size.height
 
@@ -2226,6 +2396,10 @@ fun ThoiTietAmLichApp() {
     var optimizationStepText by remember { mutableStateOf("Đang chuẩn bị tối ưu hóa...") }
     var optimizationProgress by remember { mutableFloatStateOf(0f) }
 
+    var isSearchingFood by remember { mutableStateOf(false) }
+    var pendingFoodResult by remember { mutableStateOf<FoodChoiceResult?>(null) }
+    var foodResultPopup by remember { mutableStateOf<FoodChoiceResult?>(null) }
+
     var isRollingLucky by remember { mutableStateOf(false) }
     var rollingPreviewNumber by remember { mutableStateOf("01") }
     var luckyResultPopup by remember { mutableStateOf<DailyLuckyData?>(null) }
@@ -2432,6 +2606,26 @@ fun ThoiTietAmLichApp() {
         }
     }
 
+    fun startFoodRandomizer() {
+        if (isSearchingFood) return
+        val pickedFood = FOOD_AND_DRINK_OPTIONS[Random.nextInt(FOOD_AND_DRINK_OPTIONS.size)]
+        val pickedWish = FOOD_ENJOYMENT_WISHES[Random.nextInt(FOOD_ENJOYMENT_WISHES.size)]
+        pendingFoodResult = FoodChoiceResult(itemName = pickedFood, wishText = pickedWish)
+        foodResultPopup = null
+        isSearchingFood = true
+    }
+
+    LaunchedEffect(isSearchingFood) {
+        if (!isSearchingFood) return@LaunchedEffect
+        val durationMs = (2000L..4000L).random()
+        delay(durationMs)
+        val result = pendingFoodResult
+        isSearchingFood = false
+        if (result != null) {
+            foodResultPopup = result
+        }
+    }
+
     LaunchedEffect(isRollingLucky) {
         if (!isRollingLucky) return@LaunchedEffect
         val durationMs = (2000L..4000L).random()
@@ -2513,6 +2707,8 @@ fun ThoiTietAmLichApp() {
 
     val hasBlockingPopup = remember(
         isOptimizingBattery,
+        isSearchingFood,
+        foodResultPopup,
         isRollingLucky,
         luckyResultPopup,
         showLuckyDisclaimerPopup,
@@ -2531,6 +2727,8 @@ fun ThoiTietAmLichApp() {
         showAdminBirthdayToday
     ) {
         isOptimizingBattery ||
+            isSearchingFood ||
+            foodResultPopup != null ||
             isRollingLucky ||
             luckyResultPopup != null ||
             showLuckyDisclaimerPopup ||
@@ -2764,9 +2962,15 @@ fun ThoiTietAmLichApp() {
                             actions = {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    modifier = Modifier.padding(end = 10.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                                    modifier = Modifier.padding(end = 6.dp)
                                 ) {
+                                    TopBarFoodChoiceButton(
+                                        palette = palette,
+                                        accentColor = accentCompose,
+                                        isActive = canAnimateVisuals,
+                                        onClick = { startFoodRandomizer() }
+                                    )
                                     TopBarLuckyButton(
                                         palette = palette,
                                         accentColor = accentCompose,
@@ -4953,6 +5157,172 @@ fun ThoiTietAmLichApp() {
                     }
                 }
 
+                // Pop-up tìm món ăn / thức uống (2 - 4 giây)
+                AnimatedPopupOverlay(
+                    visible = isSearchingFood,
+                    onDismiss = {},
+                    dismissOnBackdropClick = false
+                ) {
+                    val searchTransition = rememberInfiniteTransition(label = "food_search_question_anim")
+                    val qScale by searchTransition.animateFloat(
+                        initialValue = 0.90f,
+                        targetValue = 1.12f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(durationMillis = 520, easing = FastOutSlowInEasing),
+                            repeatMode = RepeatMode.Reverse
+                        ),
+                        label = "food_q_scale"
+                    )
+                    val qTilt by searchTransition.animateFloat(
+                        initialValue = -14f,
+                        targetValue = 14f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(durationMillis = 480, easing = FastOutSlowInEasing),
+                            repeatMode = RepeatMode.Reverse
+                        ),
+                        label = "food_q_tilt"
+                    )
+
+                    LiquidGlassPopupSurface(palette = palette) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(24.dp)
+                        ) {
+                            Text(
+                                text = "Bây giờ nên ăn gì nhỉ?",
+                                style = MaterialTheme.typography.headlineSmall,
+                                color = palette.screenBg,
+                                fontWeight = FontWeight.ExtraBold,
+                                textAlign = TextAlign.Center
+                            )
+
+                            Spacer(modifier = Modifier.height(18.dp))
+
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(88.dp)
+                                    .clip(CircleShape)
+                                    .background(accentCompose.copy(alpha = 0.16f))
+                                    .border(2.dp, accentCompose.copy(alpha = 0.65f), CircleShape)
+                            ) {
+                                Text(
+                                    text = "?",
+                                    fontSize = 38.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = accentCompose,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    modifier = Modifier.graphicsLayer {
+                                        scaleX = qScale
+                                        scaleY = qScale
+                                        rotationZ = qTilt
+                                    }
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(18.dp))
+
+                            Text(
+                                text = "Đang tìm món ăn/thức uống cho bạn ...",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = palette.popupTextSecondary,
+                                fontWeight = FontWeight.SemiBold,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                }
+
+                // Pop-up kết quả món ăn / thức uống + lời chúc + nút Ok
+                AnimatedPopupOverlay(
+                    visible = foodResultPopup != null,
+                    onDismiss = {},
+                    dismissOnBackdropClick = false
+                ) {
+                    val foodData = foodResultPopup
+                    LiquidGlassPopupSurface(palette = palette) {
+                        if (foodData != null) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.padding(22.dp)
+                            ) {
+                                Text(
+                                    text = "Bây giờ mình ăn/uống:",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    color = accentCompose,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    textAlign = TextAlign.Center
+                                )
+
+                                Spacer(modifier = Modifier.height(14.dp))
+
+                                Surface(
+                                    shape = RoundedCornerShape(18.dp),
+                                    color = palette.popupBoxBg,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Box(
+                                        contentAlignment = Alignment.Center,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 14.dp, vertical = 16.dp)
+                                    ) {
+                                        Text(
+                                            text = foodData.itemName,
+                                            fontSize = 26.sp,
+                                            lineHeight = 32.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = palette.popupTextPrimary,
+                                            textAlign = TextAlign.Center,
+                                            maxLines = 1,
+                                            softWrap = false,
+                                            overflow = TextOverflow.Clip,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clipToBounds()
+                                                .basicMarquee(
+                                                    iterations = Int.MAX_VALUE,
+                                                    repeatDelayMillis = 900,
+                                                    velocity = 30.dp
+                                                )
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(14.dp))
+
+                                Text(
+                                    text = foodData.wishText,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = palette.popupTextSecondary,
+                                    fontWeight = FontWeight.Medium,
+                                    textAlign = TextAlign.Center
+                                )
+
+                                Spacer(modifier = Modifier.height(18.dp))
+
+                                Button(
+                                    onClick = { foodResultPopup = null },
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = accentCompose,
+                                        contentColor = palette.onAccentText
+                                    ),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(48.dp)
+                                ) {
+                                    Text(
+                                        text = "Ok",
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // Pop-up Thông tin liên hệ
                 AnimatedPopupOverlay(
                     visible = showContactPopup,
@@ -6366,23 +6736,29 @@ private fun rememberCardBounceScale(
         }
         if (bounceEnabled) {
             pulseToken += 1
-            delay(75L)
-            pulseToken = 0
-        } else {
-            pulseToken = 0
         }
     }
 
-    val targetScale = if (bounceEnabled && pulseToken > 0) 0.945f else 1f
-    val animatedScale by animateFloatAsState(
-        targetValue = targetScale,
+    var targetScale by remember { mutableFloatStateOf(1f) }
+    LaunchedEffect(pulseToken) {
+        if (pulseToken > 0 && bounceEnabled) {
+            targetScale = 1.035f
+            delay(95L)
+            targetScale = 1f
+        } else {
+            targetScale = 1f
+        }
+    }
+
+    val animated by animateFloatAsState(
+        targetValue = if (bounceEnabled) targetScale else 1f,
         animationSpec = spring(
-            dampingRatio = 0.52f,
+            dampingRatio = 0.62f,
             stiffness = Spring.StiffnessMediumLow
         ),
         label = label
     )
-    return if (bounceEnabled) animatedScale else 1f
+    return if (bounceEnabled) animated else 1f
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -6400,44 +6776,27 @@ private fun CompactDualCard(
     val cardScale = rememberCardBounceScale(
         bounceEnabled = bounceEnabled,
         pulseKey = expanded,
-        label = "dual_card_bounce_scale"
+        label = "compact_card_bounce"
     )
-    val arrowRotation by animateFloatAsState(
+    val chevronAngle by animateFloatAsState(
         targetValue = if (expanded) 180f else 0f,
-        animationSpec = tween(durationMillis = 150),
-        label = "dual_card_arrow_rotation"
+        animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow),
+        label = "compact_chevron_rotation"
     )
-    val borderBrush = remember(expanded, accentColor, palette) {
-        if (expanded) {
-            Brush.linearGradient(
-                listOf(
-                    accentColor.copy(alpha = 0.85f),
-                    Color.White.copy(alpha = if (palette.isDark) 0.25f else 0.75f),
-                    accentColor.copy(alpha = 0.25f)
-                )
-            )
-        } else {
-            palette.liquidGlassBorder
-        }
-    }
+    val borderColor = if (expanded) accentColor.copy(alpha = 0.65f) else palette.border
 
     Surface(
-        shape = RoundedCornerShape(24.dp),
-        color = Color.Transparent,
+        shape = RoundedCornerShape(20.dp),
+        color = palette.cardBg,
         contentColor = palette.textPrimary,
         modifier = modifier
-            .height(52.dp)
+            .height(64.dp)
             .graphicsLayer {
                 scaleX = cardScale
                 scaleY = cardScale
             }
-            .clip(RoundedCornerShape(24.dp))
-            .background(palette.liquidGlassBrush)
-            .border(
-                width = if (expanded) 1.4.dp else 1.dp,
-                brush = borderBrush,
-                shape = RoundedCornerShape(24.dp)
-            )
+            .clip(RoundedCornerShape(20.dp))
+            .border(width = if (expanded) 1.5.dp else 1.dp, color = borderColor, shape = RoundedCornerShape(20.dp))
             .clickable(onClick = onToggle)
     ) {
         Row(
@@ -6449,53 +6808,196 @@ private fun CompactDualCard(
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f, fill = true)
+                modifier = Modifier.weight(1f)
             ) {
                 Box(
                     modifier = Modifier
-                        .width(3.5.dp)
-                        .height(16.dp)
+                        .size(7.dp)
                         .clip(CircleShape)
-                        .background(accentColor)
+                        .background(if (expanded) accentColor else accentColor.copy(alpha = 0.65f))
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = palette.textPrimary,
+                    fontSize = 13.5.sp,
                     fontWeight = FontWeight.Bold,
+                    color = palette.textPrimary,
                     maxLines = 1,
                     softWrap = false,
                     overflow = TextOverflow.Clip,
                     modifier = Modifier
-                        .fillMaxWidth()
+                        .weight(1f)
+                        .clipToBounds()
                         .basicMarquee(
                             iterations = Int.MAX_VALUE,
-                            repeatDelayMillis = 900,
-                            velocity = 28.dp
+                            repeatDelayMillis = 1200,
+                            velocity = 24.dp
                         )
                 )
             }
 
             Spacer(modifier = Modifier.width(6.dp))
 
-            Text(
-                text = badgeText,
-                fontSize = 11.sp,
-                color = accentColor,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                softWrap = false
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(
+                    shape = RoundedCornerShape(999.dp),
+                    color = if (expanded) accentColor.copy(alpha = 0.22f) else palette.subtleBg
+                ) {
+                    Text(
+                        badgeText,
+                        fontSize = 10.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (expanded) accentColor else palette.textSecondary,
+                        maxLines = 1,
+                        softWrap = false,
+                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(2.dp))
+                Icon(
+                    imageVector = Icons.Default.ExpandMore,
+                    contentDescription = null,
+                    tint = if (expanded) accentColor else palette.textSecondary,
+                    modifier = Modifier
+                        .size(18.dp)
+                        .rotate(chevronAngle)
+                )
+            }
+        }
+    }
+}
 
-            Icon(
-                imageVector = Icons.Default.ExpandMore,
-                contentDescription = if (expanded) "Thu gọn" else "Mở rộng",
-                tint = palette.textPrimary,
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun CollapsibleSectionCard(
+    title: String,
+    badgeText: String? = null,
+    accentColor: Color,
+    palette: AdaptivePalette,
+    bounceEnabled: Boolean,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    val cardScale = rememberCardBounceScale(
+        bounceEnabled = bounceEnabled,
+        pulseKey = expanded,
+        label = "section_card_bounce"
+    )
+    val chevronAngle by animateFloatAsState(
+        targetValue = if (expanded) 180f else 0f,
+        animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow),
+        label = "chevron_rotation"
+    )
+    val borderColor = if (expanded) accentColor.copy(alpha = 0.65f) else palette.border
+
+    Column(
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .graphicsLayer {
+                scaleX = cardScale
+                scaleY = cardScale
+            }
+    ) {
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = palette.cardBg,
+            contentColor = palette.textPrimary,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(60.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .border(width = if (expanded) 1.5.dp else 1.dp, color = borderColor, shape = RoundedCornerShape(20.dp))
+                .clickable(onClick = onToggle)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier
-                    .size(18.dp)
-                    .rotate(arrowRotation)
-            )
+                    .fillMaxSize()
+                    .padding(horizontal = 14.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(if (expanded) accentColor else accentColor.copy(alpha = 0.65f))
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = title,
+                        fontSize = 14.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = palette.textPrimary,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Clip,
+                        modifier = Modifier
+                            .weight(1f)
+                            .clipToBounds()
+                            .basicMarquee(
+                                iterations = Int.MAX_VALUE,
+                                repeatDelayMillis = 1200,
+                                velocity = 24.dp
+                            )
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (!badgeText.isNullOrBlank()) {
+                        Surface(
+                            shape = RoundedCornerShape(999.dp),
+                            color = if (expanded) accentColor.copy(alpha = 0.22f) else palette.subtleBg
+                        ) {
+                            Text(
+                                badgeText,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (expanded) accentColor else palette.textSecondary,
+                                maxLines = 1,
+                                softWrap = false,
+                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(4.dp))
+                    }
+                    Icon(
+                        imageVector = Icons.Default.ExpandMore,
+                        contentDescription = null,
+                        tint = if (expanded) accentColor else palette.textSecondary,
+                        modifier = Modifier.rotate(chevronAngle)
+                    )
+                }
+            }
+        }
+
+        AnimatedVisibility(
+            visible = expanded,
+            enter = fadeIn(tween(140)) + slideInVertically(animationSpec = tween(140)) { it / 14 },
+            exit = fadeOut(tween(100))
+        ) {
+            Surface(
+                shape = RoundedCornerShape(24.dp),
+                color = Color.Transparent,
+                contentColor = palette.textPrimary,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(palette.liquidGlassBrush)
+                    .border(1.3.dp, accentColor.copy(alpha = 0.65f), RoundedCornerShape(24.dp))
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    content()
+                }
+            }
         }
     }
 }
@@ -6506,14 +7008,13 @@ private fun SectionHairline(
     topPadding: androidx.compose.ui.unit.Dp = 0.dp
 ) {
     HorizontalDivider(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = topPadding),
-        thickness = 0.8.dp,
-        color = palette.border
+        thickness = 1.dp,
+        color = palette.border,
+        modifier = Modifier.padding(top = topPadding)
     )
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun FlatSwitchRow(
     title: String,
@@ -6534,159 +7035,33 @@ private fun FlatSwitchRow(
             Text(
                 title,
                 color = palette.textPrimary,
-                fontWeight = FontWeight.SemiBold
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.5.sp,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Clip,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clipToBounds()
+                    .basicMarquee(
+                        iterations = Int.MAX_VALUE,
+                        repeatDelayMillis = 1200,
+                        velocity = 24.dp
+                    )
             )
             Text(
                 subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = palette.textSecondary
+                color = palette.textSecondary,
+                fontSize = 11.5.sp,
+                modifier = Modifier.padding(top = 2.dp)
             )
         }
-        Spacer(modifier = Modifier.width(8.dp))
+        Spacer(modifier = Modifier.width(12.dp))
         Switch(
             checked = checked,
-            colors = SwitchDefaults.colors(checkedTrackColor = accentColor),
-            onCheckedChange = onCheckedChange
+            onCheckedChange = onCheckedChange,
+            colors = SwitchDefaults.colors(checkedTrackColor = accentColor)
         )
-    }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun CollapsibleSectionCard(
-    title: String,
-    badgeText: String? = null,
-    accentColor: Color,
-    palette: AdaptivePalette,
-    bounceEnabled: Boolean,
-    expanded: Boolean,
-    onToggle: () -> Unit,
-    content: @Composable () -> Unit
-) {
-    val cardScale = rememberCardBounceScale(
-        bounceEnabled = bounceEnabled,
-        pulseKey = expanded,
-        label = "section_card_bounce_scale"
-    )
-    val arrowRotation by animateFloatAsState(
-        targetValue = if (expanded) 180f else 0f,
-        animationSpec = tween(durationMillis = 150),
-        label = "section_arrow_rotation"
-    )
-
-    val activeBorderBrush = remember(expanded, accentColor, palette) {
-        if (expanded) {
-            Brush.linearGradient(
-                listOf(
-                    accentColor.copy(alpha = 0.80f),
-                    Color.White.copy(alpha = if (palette.isDark) 0.25f else 0.75f),
-                    accentColor.copy(alpha = 0.20f)
-                )
-            )
-        } else {
-            palette.liquidGlassBorder
-        }
-    }
-
-    Surface(
-        shape = RoundedCornerShape(24.dp),
-        color = Color.Transparent,
-        contentColor = palette.textPrimary,
-        modifier = Modifier
-            .fillMaxWidth()
-            .graphicsLayer {
-                scaleX = cardScale
-                scaleY = cardScale
-            }
-            .clip(RoundedCornerShape(24.dp))
-            .background(palette.liquidGlassBrush)
-            .border(
-                width = if (expanded) 1.4.dp else 1.dp,
-                brush = activeBorderBrush,
-                shape = RoundedCornerShape(24.dp)
-            )
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp)
-                    .clip(RoundedCornerShape(24.dp))
-                    .clickable(onClick = onToggle)
-                    .padding(horizontal = 16.dp)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f, fill = true)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .width(4.dp)
-                            .height(18.dp)
-                            .clip(CircleShape)
-                            .background(accentColor)
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = palette.textPrimary,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        softWrap = false,
-                        overflow = TextOverflow.Clip,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .basicMarquee(
-                                iterations = Int.MAX_VALUE,
-                                repeatDelayMillis = 900,
-                                velocity = 30.dp
-                            )
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(8.dp))
-
-                if (badgeText != null) {
-                    Text(
-                        text = badgeText,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = accentColor,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        softWrap = false
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                }
-
-                Icon(
-                    imageVector = Icons.Default.ExpandMore,
-                    contentDescription = if (expanded) "Thu gọn" else "Mở rộng",
-                    tint = palette.textPrimary,
-                    modifier = Modifier
-                        .size(22.dp)
-                        .rotate(arrowRotation)
-                )
-            }
-
-            AnimatedVisibility(
-                visible = expanded,
-                enter = fadeIn(tween(140)),
-                exit = fadeOut(tween(110))
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
-                ) {
-                    SectionHairline(palette)
-                    Spacer(modifier = Modifier.height(10.dp))
-                    content()
-                }
-            }
-        }
     }
 }
 
@@ -6702,7 +7077,7 @@ private fun ModernTextField(
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
-        label = { Text(label, color = palette.textSecondary, maxLines = 1) },
+        label = { Text(label, color = palette.textSecondary) },
         singleLine = true,
         shape = RoundedCornerShape(14.dp),
         colors = OutlinedTextFieldDefaults.colors(
@@ -6733,19 +7108,26 @@ private fun ScaleSliderRow(
             horizontalArrangement = Arrangement.SpaceBetween,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text(label, color = palette.textPrimary, fontWeight = FontWeight.Medium)
             Text(
-                "$value / 20",
-                style = MaterialTheme.typography.labelMedium,
+                label,
+                color = palette.textPrimary,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 13.5.sp
+            )
+            Text(
+                "$value/20",
                 color = accentColor,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.5.sp
             )
         }
         Slider(
-            value = value.toFloat(),
-            onValueChange = { raw ->
-                val intVal = raw.roundToInt().coerceIn(1, 20)
-                if (intVal != value) onValueChange(intVal)
+            value = value.coerceIn(1, 20).toFloat(),
+            onValueChange = { floatVal ->
+                val intVal = floatVal.roundToInt().coerceIn(1, 20)
+                if (intVal != value) {
+                    onValueChange(intVal)
+                }
             },
             valueRange = 1f..20f,
             steps = 18,
