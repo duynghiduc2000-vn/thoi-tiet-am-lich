@@ -3899,7 +3899,7 @@ fun ThoiTietAmLichApp() {
                                             verticalAlignment = Alignment.CenterVertically,
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .padding(end = 6.dp)
+                                                .padding(end = 10.dp)
                                         ) {
                                             Text(
                                                 solarToday.uppercase(Locale.getDefault()),
