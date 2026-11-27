@@ -715,7 +715,11 @@ private enum class DailyMoodType(
     IN_LOVE("in_love", "Đang yêu", "🥰"),
     ANGRY("angry", "Tức giận", "😠"),
     CALM("calm", "Thản nhiên", "😌"),
-    ANXIOUS("anxious", "Lo lắng", "😰");
+    ANXIOUS("anxious", "Lo lắng", "😰"),
+    TIRED("tired", "Mệt mỏi", "😫"),
+    SURPRISED("surprised", "Ngạc nhiên", "😲"),
+    OVERWHELMED("overwhelmed", "Vỡ òa", "🤩"),
+    STRESSED("stressed", "Căng thẳng", "😣");
 
     companion object {
         fun fromId(id: String?): DailyMoodType? = entries.firstOrNull { it.id == id }
@@ -1024,6 +1028,122 @@ private fun AnimatedMoodIcon(
                         repeatMode = RepeatMode.Reverse
                     ),
                     label = "anx_y"
+                ).value
+            }
+            DailyMoodType.TIRED -> {
+                scale = transition.animateFloat(
+                    initialValue = 0.94f,
+                    targetValue = 1.01f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(durationMillis = 1650, easing = FastOutSlowInEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "tired_scale"
+                ).value
+                tilt = transition.animateFloat(
+                    initialValue = -7f,
+                    targetValue = 3f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(durationMillis = 1750, easing = FastOutSlowInEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "tired_tilt"
+                ).value
+                offsetY = transition.animateFloat(
+                    initialValue = -1f,
+                    targetValue = 3.2f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(durationMillis = 1650, easing = FastOutSlowInEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "tired_y"
+                ).value
+            }
+            DailyMoodType.SURPRISED -> {
+                scale = transition.animateFloat(
+                    initialValue = 0.95f,
+                    targetValue = 1.18f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(durationMillis = 520, easing = FastOutSlowInEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "surprised_scale"
+                ).value
+                tilt = transition.animateFloat(
+                    initialValue = -5f,
+                    targetValue = 5f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(durationMillis = 600, easing = FastOutSlowInEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "surprised_tilt"
+                ).value
+                offsetY = transition.animateFloat(
+                    initialValue = 1f,
+                    targetValue = -4.5f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(durationMillis = 520, easing = FastOutSlowInEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "surprised_y"
+                ).value
+            }
+            DailyMoodType.OVERWHELMED -> {
+                scale = transition.animateFloat(
+                    initialValue = 0.93f,
+                    targetValue = 1.20f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(durationMillis = 480, easing = FastOutSlowInEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "overwhelmed_scale"
+                ).value
+                tilt = transition.animateFloat(
+                    initialValue = -11f,
+                    targetValue = 11f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(durationMillis = 440, easing = FastOutSlowInEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "overwhelmed_tilt"
+                ).value
+                offsetY = transition.animateFloat(
+                    initialValue = 1.5f,
+                    targetValue = -4f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(durationMillis = 480, easing = FastOutSlowInEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "overwhelmed_y"
+                ).value
+            }
+            DailyMoodType.STRESSED -> {
+                scale = transition.animateFloat(
+                    initialValue = 0.95f,
+                    targetValue = 1.07f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(durationMillis = 360, easing = FastOutSlowInEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "stressed_scale"
+                ).value
+                tilt = transition.animateFloat(
+                    initialValue = -11f,
+                    targetValue = 11f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(durationMillis = 260, easing = FastOutSlowInEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "stressed_tilt"
+                ).value
+                offsetY = transition.animateFloat(
+                    initialValue = -2f,
+                    targetValue = 2f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(durationMillis = 300, easing = FastOutSlowInEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "stressed_y"
                 ).value
             }
         }
@@ -6320,22 +6440,23 @@ fun ThoiTietAmLichApp() {
 
                             Spacer(modifier = Modifier.height(16.dp))
 
-                            val moodRows = remember { DailyMoodType.entries.chunked(4) }
+                            val moodRows = remember { DailyMoodType.entries.chunked(6) }
                             Column(
                                 verticalArrangement = Arrangement.spacedBy(10.dp),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 moodRows.forEach { rowItems ->
-                                    Row(
+                                    LazyRow(
                                         horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        contentPadding = PaddingValues(horizontal = 2.dp),
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
-                                        rowItems.forEach { moodItem ->
+                                        items(rowItems, key = { it.id }) { moodItem ->
                                             Surface(
                                                 shape = RoundedCornerShape(16.dp),
                                                 color = palette.popupBoxBg,
                                                 modifier = Modifier
-                                                    .weight(1f)
+                                                    .width(86.dp)
                                                     .clip(RoundedCornerShape(16.dp))
                                                     .border(
                                                         1.dp,
@@ -6358,7 +6479,7 @@ fun ThoiTietAmLichApp() {
                                                 Column(
                                                     horizontalAlignment = Alignment.CenterHorizontally,
                                                     verticalArrangement = Arrangement.Center,
-                                                    modifier = Modifier.padding(vertical = 12.dp, horizontal = 4.dp)
+                                                    modifier = Modifier.padding(vertical = 12.dp, horizontal = 6.dp)
                                                 ) {
                                                     AnimatedMoodIcon(
                                                         mood = moodItem,
@@ -6373,13 +6494,22 @@ fun ThoiTietAmLichApp() {
                                                         color = palette.popupTextPrimary,
                                                         maxLines = 1,
                                                         softWrap = false,
-                                                        overflow = TextOverflow.Ellipsis
+                                                        overflow = TextOverflow.Clip,
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .clipToBounds()
+                                                            .basicMarquee(
+                                                                iterations = Int.MAX_VALUE,
+                                                                repeatDelayMillis = 900,
+                                                                velocity = 24.dp
+                                                            )
                                                     )
                                                 }
                                             }
                                         }
                                     }
                                 }
+                            }
                             }
 
                             Spacer(modifier = Modifier.height(18.dp))
