@@ -2150,32 +2150,10 @@ private fun AnimatedPopupOverlay(
     dismissOnBackdropClick: Boolean = false,
     content: @Composable () -> Unit
 ) {
-    val cardScale by animateFloatAsState(
-        targetValue = if (visible) 1f else 0.88f,
-        animationSpec = spring(
-            dampingRatio = 0.76f,
-            stiffness = Spring.StiffnessMediumLow
-        ),
-        label = "popup_card_scale"
-    )
-    val cardAlpha by animateFloatAsState(
-        targetValue = if (visible) 1f else 0f,
-        animationSpec = tween(durationMillis = 160, easing = FastOutSlowInEasing),
-        label = "popup_card_alpha"
-    )
-    val cardOffsetY by animateFloatAsState(
-        targetValue = if (visible) 0f else 28f,
-        animationSpec = spring(
-            dampingRatio = 0.76f,
-            stiffness = Spring.StiffnessMediumLow
-        ),
-        label = "popup_card_offset_y"
-    )
-
     AnimatedVisibility(
         visible = visible,
-        enter = fadeIn(animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing)),
-        exit = fadeOut(animationSpec = tween(durationMillis = 150, easing = FastOutSlowInEasing)),
+        enter = fadeIn(animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing)),
+        exit = fadeOut(animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing)),
         modifier = Modifier.fillMaxSize()
     ) {
         Box(
@@ -2193,16 +2171,34 @@ private fun AnimatedPopupOverlay(
                 }
                 .padding(horizontal = 24.dp)
         ) {
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier.graphicsLayer {
-                    scaleX = cardScale
-                    scaleY = cardScale
-                    alpha = cardAlpha
-                    translationY = cardOffsetY
-                }
+            AnimatedVisibility(
+                visible = visible,
+                enter = scaleIn(
+                    initialScale = 0.80f,
+                    animationSpec = spring(
+                        dampingRatio = 0.68f,
+                        stiffness = Spring.StiffnessMediumLow
+                    )
+                ) + slideInVertically(
+                    animationSpec = spring(
+                        dampingRatio = 0.72f,
+                        stiffness = Spring.StiffnessMediumLow
+                    )
+                ) { fullHeight -> fullHeight / 5 } + fadeIn(
+                    animationSpec = tween(durationMillis = 190, easing = FastOutSlowInEasing)
+                ),
+                exit = scaleOut(
+                    targetScale = 0.80f,
+                    animationSpec = tween(durationMillis = 210, easing = FastOutSlowInEasing)
+                ) + slideOutVertically(
+                    animationSpec = tween(durationMillis = 210, easing = FastOutSlowInEasing)
+                ) { fullHeight -> fullHeight / 5 } + fadeOut(
+                    animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing)
+                )
             ) {
-                content()
+                Box(contentAlignment = Alignment.Center) {
+                    content()
+                }
             }
         }
     }
@@ -4966,7 +4962,7 @@ fun ThoiTietAmLichApp() {
                     LiquidGlassPopupSurface(palette = palette) {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.padding(22.dp)
+                            modifier = Modifier.padding(20.dp)
                         ) {
                             Text(
                                 text = "Thông tin liên hệ",
@@ -4983,7 +4979,7 @@ fun ThoiTietAmLichApp() {
                                 fontSize = 30.sp,
                                 lineHeight = 36.sp,
                                 fontWeight = FontWeight.ExtraBold,
-                                color = palette.textPrimary,
+                                color = accentCompose,
                                 textAlign = TextAlign.Center,
                                 maxLines = 1,
                                 softWrap = false,
@@ -4993,7 +4989,7 @@ fun ThoiTietAmLichApp() {
                             Spacer(modifier = Modifier.height(18.dp))
 
                             Row(
-                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier.fillMaxWidth()
                             ) {
@@ -5008,16 +5004,17 @@ fun ThoiTietAmLichApp() {
                                         .clickable {
                                             openExternalUrlSafely(context, CONTACT_FACEBOOK_URL)
                                         }
-                                        .padding(horizontal = 10.dp)
+                                        .padding(horizontal = 6.dp)
                                 ) {
                                     Text(
                                         text = "Facebook",
-                                        style = MaterialTheme.typography.labelLarge,
+                                        fontSize = 12.sp,
+                                        letterSpacing = (-0.2).sp,
                                         color = palette.popupTextPrimary,
                                         fontWeight = FontWeight.Bold,
                                         maxLines = 1,
                                         softWrap = false,
-                                        overflow = TextOverflow.Ellipsis
+                                        overflow = TextOverflow.Clip
                                     )
                                 }
 
@@ -5032,16 +5029,17 @@ fun ThoiTietAmLichApp() {
                                         .clickable {
                                             openExternalUrlSafely(context, CONTACT_XIAOMI_COMMUNITY_URL)
                                         }
-                                        .padding(horizontal = 10.dp)
+                                        .padding(horizontal = 6.dp)
                                 ) {
                                     Text(
                                         text = "Xiaomi Community",
-                                        style = MaterialTheme.typography.labelLarge,
+                                        fontSize = 12.sp,
+                                        letterSpacing = (-0.2).sp,
                                         color = palette.popupTextPrimary,
                                         fontWeight = FontWeight.Bold,
                                         maxLines = 1,
                                         softWrap = false,
-                                        overflow = TextOverflow.Ellipsis
+                                        overflow = TextOverflow.Clip
                                     )
                                 }
                             }
