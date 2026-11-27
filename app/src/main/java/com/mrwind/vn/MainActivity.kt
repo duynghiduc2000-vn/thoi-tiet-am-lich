@@ -32,6 +32,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -2664,8 +2665,8 @@ fun ThoiTietAmLichApp() {
 
                                 AnimatedVisibility(
                                     visible = expandedSection == ExpandableSection.APP_APPEARANCE_AUDIO,
-                                    enter = fadeIn(tween(140)),
-                                    exit = fadeOut(tween(110))
+                                    enter = fadeIn(tween(140)) + slideInVertically(animationSpec = tween(140)) { it / 14 },
+                                    exit = fadeOut(tween(100))
                                 ) {
                                     Surface(
                                         shape = RoundedCornerShape(24.dp),
@@ -2865,8 +2866,8 @@ fun ThoiTietAmLichApp() {
 
                                 AnimatedVisibility(
                                     visible = expandedSection == ExpandableSection.CLOCK_THEME_BG,
-                                    enter = fadeIn(tween(140)),
-                                    exit = fadeOut(tween(110))
+                                    enter = fadeIn(tween(140)) + slideInVertically(animationSpec = tween(140)) { it / 14 },
+                                    exit = fadeOut(tween(100))
                                 ) {
                                     Surface(
                                         shape = RoundedCornerShape(24.dp),
@@ -3464,8 +3465,8 @@ fun ThoiTietAmLichApp() {
 
                                 AnimatedVisibility(
                                     visible = expandedSection == ExpandableSection.LUNAR_LOOKUP,
-                                    enter = fadeIn(tween(140)),
-                                    exit = fadeOut(tween(110))
+                                    enter = fadeIn(tween(140)) + slideInVertically(animationSpec = tween(140)) { it / 14 },
+                                    exit = fadeOut(tween(100))
                                 ) {
                                     Surface(
                                         shape = RoundedCornerShape(24.dp),
@@ -3700,8 +3701,8 @@ fun ThoiTietAmLichApp() {
 
                                 AnimatedVisibility(
                                     visible = expandedSection == ExpandableSection.AGE_CALC,
-                                    enter = fadeIn(tween(140)),
-                                    exit = fadeOut(tween(110))
+                                    enter = fadeIn(tween(140)) + slideInVertically(animationSpec = tween(140)) { it / 14 },
+                                    exit = fadeOut(tween(100))
                                 ) {
                                     Surface(
                                         shape = RoundedCornerShape(24.dp),
@@ -4113,8 +4114,8 @@ fun ThoiTietAmLichApp() {
 
                                 AnimatedVisibility(
                                     visible = expandedSection == ExpandableSection.BIRTHDAY,
-                                    enter = fadeIn(tween(140)),
-                                    exit = fadeOut(tween(110))
+                                    enter = fadeIn(tween(140)) + slideInVertically(animationSpec = tween(140)) { it / 14 },
+                                    exit = fadeOut(tween(100))
                                 ) {
                                     Surface(
                                         shape = RoundedCornerShape(24.dp),
@@ -4288,8 +4289,8 @@ fun ThoiTietAmLichApp() {
 
                                 AnimatedVisibility(
                                     visible = expandedSection == ExpandableSection.HOLIDAY,
-                                    enter = fadeIn(tween(140)),
-                                    exit = fadeOut(tween(110))
+                                    enter = fadeIn(tween(140)) + slideInVertically(animationSpec = tween(140)) { it / 14 },
+                                    exit = fadeOut(tween(100))
                                 ) {
                                     Surface(
                                         shape = RoundedCornerShape(24.dp),
