@@ -2150,38 +2150,34 @@ private fun AnimatedPopupOverlay(
     dismissOnBackdropClick: Boolean = false,
     content: @Composable () -> Unit
 ) {
+    val cardScale by animateFloatAsState(
+        targetValue = if (visible) 1f else 0.88f,
+        animationSpec = spring(
+            dampingRatio = 0.76f,
+            stiffness = Spring.StiffnessMediumLow
+        ),
+        label = "popup_card_scale"
+    )
+    val cardAlpha by animateFloatAsState(
+        targetValue = if (visible) 1f else 0f,
+        animationSpec = tween(durationMillis = 160, easing = FastOutSlowInEasing),
+        label = "popup_card_alpha"
+    )
+    val cardOffsetY by animateFloatAsState(
+        targetValue = if (visible) 0f else 28f,
+        animationSpec = spring(
+            dampingRatio = 0.76f,
+            stiffness = Spring.StiffnessMediumLow
+        ),
+        label = "popup_card_offset_y"
+    )
+
     AnimatedVisibility(
         visible = visible,
         enter = fadeIn(animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing)),
         exit = fadeOut(animationSpec = tween(durationMillis = 150, easing = FastOutSlowInEasing)),
         modifier = Modifier.fillMaxSize()
     ) {
-        val cardEnter = fadeIn(
-            animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing)
-        ) + scaleIn(
-            initialScale = 0.88f,
-            animationSpec = spring(
-                dampingRatio = 0.76f,
-                stiffness = Spring.StiffnessMediumLow
-            )
-        ) + slideInVertically(
-            initialOffsetY = { it / 12 },
-            animationSpec = spring(
-                dampingRatio = 0.76f,
-                stiffness = Spring.StiffnessMediumLow
-            )
-        )
-
-        val cardExit = fadeOut(
-            animationSpec = tween(durationMillis = 140, easing = FastOutSlowInEasing)
-        ) + scaleOut(
-            targetScale = 0.92f,
-            animationSpec = tween(durationMillis = 140, easing = FastOutSlowInEasing)
-        ) + slideOutVertically(
-            targetOffsetY = { it / 16 },
-            animationSpec = tween(durationMillis = 140, easing = FastOutSlowInEasing)
-        )
-
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier
@@ -2197,11 +2193,14 @@ private fun AnimatedPopupOverlay(
                 }
                 .padding(horizontal = 24.dp)
         ) {
-            AnimatedVisibility(
-                visible = visible,
-                enter = cardEnter,
-                exit = cardExit,
-                initiallyVisible = false
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.graphicsLayer {
+                    scaleX = cardScale
+                    scaleY = cardScale
+                    alpha = cardAlpha
+                    translationY = cardOffsetY
+                }
             ) {
                 content()
             }
