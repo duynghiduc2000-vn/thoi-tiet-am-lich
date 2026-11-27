@@ -146,6 +146,9 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -608,24 +611,56 @@ private fun TopBarFoodChoiceButton(
 private fun TopBarLuckyButton(
     palette: AdaptivePalette,
     accentColor: Color,
+    isActive: Boolean,
     isRolling: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val scale: Float
+    val iconScale: Float
+    val iconTilt: Float
     if (isRolling) {
         val transition = rememberInfiniteTransition(label = "top_lucky_btn_pulse")
-        scale = transition.animateFloat(
-            initialValue = 0.94f,
-            targetValue = 1.07f,
+        iconScale = transition.animateFloat(
+            initialValue = 0.90f,
+            targetValue = 1.14f,
             animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = 550, easing = FastOutSlowInEasing),
+                animation = tween(durationMillis = 500, easing = FastOutSlowInEasing),
                 repeatMode = RepeatMode.Reverse
             ),
             label = "lucky_btn_scale"
         ).value
+        iconTilt = transition.animateFloat(
+            initialValue = -12f,
+            targetValue = 12f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 480, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "lucky_btn_tilt"
+        ).value
+    } else if (isActive) {
+        val transition = rememberInfiniteTransition(label = "top_lucky_idle_anim")
+        iconScale = transition.animateFloat(
+            initialValue = 0.94f,
+            targetValue = 1.07f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 1100, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "lucky_idle_scale"
+        ).value
+        iconTilt = transition.animateFloat(
+            initialValue = -6f,
+            targetValue = 6f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 1250, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "lucky_idle_tilt"
+        ).value
     } else {
-        scale = 1f
+        iconScale = 1f
+        iconTilt = 0f
     }
 
     Surface(
@@ -633,10 +668,6 @@ private fun TopBarLuckyButton(
         color = palette.cardBg,
         modifier = modifier
             .size(35.dp)
-            .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-            }
             .clip(CircleShape)
             .border(
                 width = 1.dp,
@@ -653,7 +684,550 @@ private fun TopBarLuckyButton(
                 text = "🍀",
                 fontSize = 16.sp,
                 maxLines = 1,
-                softWrap = false
+                softWrap = false,
+                modifier = Modifier.graphicsLayer {
+                    scaleX = iconScale
+                    scaleY = iconScale
+                    rotationZ = iconTilt
+                }
+            )
+        }
+    }
+}
+
+private data class CoinTossOutcome(
+    val isYes: Boolean,
+    val faceLabel: String,
+    val message: String
+)
+
+private enum class DailyMoodType(
+    val id: String,
+    val label: String,
+    val emoji: String
+) {
+    HAPPY("happy", "Vui", "😄"),
+    SAD("sad", "Buồn", "😔"),
+    CRYING("crying", "Muốn khóc", "🥲"),
+    SICK("sick", "Bệnh", "🤒"),
+    IN_LOVE("in_love", "Đang yêu", "🥰"),
+    ANGRY("angry", "Tức giận", "😠"),
+    CALM("calm", "Thản nhiên", "😌"),
+    ANXIOUS("anxious", "Lo lắng", "😰");
+
+    companion object {
+        fun fromId(id: String?): DailyMoodType? = entries.firstOrNull { it.id == id }
+    }
+}
+
+private data class DailyMoodState(
+    val dateKey: String,
+    val selectedMoodId: String?,
+    val previousMoodId: String?
+)
+
+private object DailyMoodHelper {
+    private const val PREFS_NAME = "daily_mood_prefs"
+    private const val KEY_DATE = "mood_date_key"
+    private const val KEY_SELECTED = "mood_selected_id"
+    private const val KEY_PREVIOUS = "mood_previous_id"
+
+    fun todayKey(): String {
+        val fmt = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply {
+            timeZone = TimeZone.getTimeZone("Asia/Ho_Chi_Minh")
+        }
+        return fmt.format(Date())
+    }
+
+    fun loadOrResetToday(context: Context): DailyMoodState {
+        val today = todayKey()
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val savedDate = prefs.getString(KEY_DATE, null)
+        if (savedDate != today) {
+            prefs.edit()
+                .putString(KEY_DATE, today)
+                .remove(KEY_SELECTED)
+                .remove(KEY_PREVIOUS)
+                .commit()
+            return DailyMoodState(dateKey = today, selectedMoodId = null, previousMoodId = null)
+        }
+        val selected = prefs.getString(KEY_SELECTED, null)
+        val previous = prefs.getString(KEY_PREVIOUS, null)
+        return DailyMoodState(dateKey = today, selectedMoodId = selected, previousMoodId = previous)
+    }
+
+    fun selectMoodForToday(context: Context, newMood: DailyMoodType): DailyMoodState {
+        val current = loadOrResetToday(context)
+        val nextPrevious = current.selectedMoodId ?: current.previousMoodId
+        val updated = DailyMoodState(
+            dateKey = current.dateKey,
+            selectedMoodId = newMood.id,
+            previousMoodId = nextPrevious
+        )
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KEY_DATE, updated.dateKey)
+            .putString(KEY_SELECTED, updated.selectedMoodId)
+            .putString(KEY_PREVIOUS, updated.previousMoodId)
+            .commit()
+        return updated
+    }
+}
+
+@Composable
+private fun AnimatedMoodIcon(
+    mood: DailyMoodType,
+    isActive: Boolean,
+    fontSize: androidx.compose.ui.unit.TextUnit = 24.sp,
+    modifier: Modifier = Modifier
+) {
+    val scale: Float
+    val tilt: Float
+    val offsetY: Float
+
+    if (!isActive) {
+        scale = 1f
+        tilt = 0f
+        offsetY = 0f
+    } else {
+        val transition = rememberInfiniteTransition(label = "mood_anim_${mood.id}")
+        when (mood) {
+            DailyMoodType.HAPPY -> {
+                scale = transition.animateFloat(
+                    initialValue = 0.94f,
+                    targetValue = 1.12f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(durationMillis = 650, easing = FastOutSlowInEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "happy_scale"
+                ).value
+                tilt = transition.animateFloat(
+                    initialValue = -8f,
+                    targetValue = 8f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(durationMillis = 720, easing = FastOutSlowInEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "happy_tilt"
+                ).value
+                offsetY = transition.animateFloat(
+                    initialValue = 0f,
+                    targetValue = -3.5f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(durationMillis = 650, easing = FastOutSlowInEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "happy_y"
+                ).value
+            }
+            DailyMoodType.SAD -> {
+                scale = transition.animateFloat(
+                    initialValue = 0.95f,
+                    targetValue = 1.02f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(durationMillis = 1500, easing = FastOutSlowInEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "sad_scale"
+                ).value
+                tilt = transition.animateFloat(
+                    initialValue = -5f,
+                    targetValue = 2f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(durationMillis = 1600, easing = FastOutSlowInEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "sad_tilt"
+                ).value
+                offsetY = transition.animateFloat(
+                    initialValue = -1f,
+                    targetValue = 2.5f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(durationMillis = 1500, easing = FastOutSlowInEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "sad_y"
+                ).value
+            }
+            DailyMoodType.CRYING -> {
+                scale = transition.animateFloat(
+                    initialValue = 0.95f,
+                    targetValue = 1.06f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(durationMillis = 850, easing = FastOutSlowInEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "cry_scale"
+                ).value
+                tilt = transition.animateFloat(
+                    initialValue = -6f,
+                    targetValue = 6f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(durationMillis = 550, easing = FastOutSlowInEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "cry_tilt"
+                ).value
+                offsetY = transition.animateFloat(
+                    initialValue = -1f,
+                    targetValue = 2.2f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(durationMillis = 850, easing = FastOutSlowInEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "cry_y"
+                ).value
+            }
+            DailyMoodType.SICK -> {
+                scale = transition.animateFloat(
+                    initialValue = 0.93f,
+                    targetValue = 1.04f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(durationMillis = 1200, easing = FastOutSlowInEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "sick_scale"
+                ).value
+                tilt = transition.animateFloat(
+                    initialValue = -9f,
+                    targetValue = 9f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(durationMillis = 1350, easing = FastOutSlowInEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "sick_tilt"
+                ).value
+                offsetY = transition.animateFloat(
+                    initialValue = -1.5f,
+                    targetValue = 1.5f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(durationMillis = 1200, easing = FastOutSlowInEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "sick_y"
+                ).value
+            }
+            DailyMoodType.IN_LOVE -> {
+                scale = transition.animateFloat(
+                    initialValue = 0.94f,
+                    targetValue = 1.15f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(durationMillis = 700, easing = FastOutSlowInEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "love_scale"
+                ).value
+                tilt = transition.animateFloat(
+                    initialValue = -7f,
+                    targetValue = 7f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(durationMillis = 950, easing = FastOutSlowInEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "love_tilt"
+                ).value
+                offsetY = transition.animateFloat(
+                    initialValue = 1f,
+                    targetValue = -2.5f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(durationMillis = 700, easing = FastOutSlowInEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "love_y"
+                ).value
+            }
+            DailyMoodType.ANGRY -> {
+                scale = transition.animateFloat(
+                    initialValue = 0.96f,
+                    targetValue = 1.12f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(durationMillis = 420, easing = FastOutSlowInEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "angry_scale"
+                ).value
+                tilt = transition.animateFloat(
+                    initialValue = -10f,
+                    targetValue = 10f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(durationMillis = 320, easing = FastOutSlowInEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "angry_tilt"
+                ).value
+                offsetY = transition.animateFloat(
+                    initialValue = -1.5f,
+                    targetValue = 1.5f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(durationMillis = 360, easing = FastOutSlowInEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "angry_y"
+                ).value
+            }
+            DailyMoodType.CALM -> {
+                scale = transition.animateFloat(
+                    initialValue = 0.96f,
+                    targetValue = 1.05f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(durationMillis = 1600, easing = FastOutSlowInEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "calm_scale"
+                ).value
+                tilt = transition.animateFloat(
+                    initialValue = -3.5f,
+                    targetValue = 3.5f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(durationMillis = 1800, easing = FastOutSlowInEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "calm_tilt"
+                ).value
+                offsetY = transition.animateFloat(
+                    initialValue = -1f,
+                    targetValue = 1f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(durationMillis = 1600, easing = FastOutSlowInEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "calm_y"
+                ).value
+            }
+            DailyMoodType.ANXIOUS -> {
+                scale = transition.animateFloat(
+                    initialValue = 0.94f,
+                    targetValue = 1.08f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(durationMillis = 450, easing = FastOutSlowInEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "anx_scale"
+                ).value
+                tilt = transition.animateFloat(
+                    initialValue = -9f,
+                    targetValue = 9f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(durationMillis = 360, easing = FastOutSlowInEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "anx_tilt"
+                ).value
+                offsetY = transition.animateFloat(
+                    initialValue = -2f,
+                    targetValue = 2f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(durationMillis = 400, easing = FastOutSlowInEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "anx_y"
+                ).value
+            }
+        }
+    }
+
+    Text(
+        text = mood.emoji,
+        fontSize = fontSize,
+        maxLines = 1,
+        softWrap = false,
+        modifier = modifier.graphicsLayer {
+            scaleX = scale
+            scaleY = scale
+            rotationZ = tilt
+            translationY = offsetY.dp.toPx()
+        }
+    )
+}
+
+@Composable
+private fun Row2CoinTossButton(
+    palette: AdaptivePalette,
+    accentColor: Color,
+    isActive: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val coinScale: Float
+    val coinTilt: Float
+    if (isActive) {
+        val transition = rememberInfiniteTransition(label = "row2_coin_toss_idle")
+        coinScale = transition.animateFloat(
+            initialValue = 0.94f,
+            targetValue = 1.07f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 1080, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "coin_idle_scale"
+        ).value
+        coinTilt = transition.animateFloat(
+            initialValue = -8f,
+            targetValue = 8f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 1220, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "coin_idle_tilt"
+        ).value
+    } else {
+        coinScale = 1f
+        coinTilt = 0f
+    }
+
+    Surface(
+        shape = CircleShape,
+        color = palette.cardBg,
+        modifier = modifier
+            .size(35.dp)
+            .clip(CircleShape)
+            .border(
+                width = 1.dp,
+                color = accentColor.copy(alpha = 0.45f),
+                shape = CircleShape
+            )
+            .clickable(onClick = onClick)
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.fillMaxSize()
+        ) {
+            Text(
+                text = "🪙",
+                fontSize = 16.sp,
+                maxLines = 1,
+                softWrap = false,
+                modifier = Modifier.graphicsLayer {
+                    scaleX = coinScale
+                    scaleY = coinScale
+                    rotationZ = coinTilt
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun Row2MoodButton(
+    palette: AdaptivePalette,
+    accentColor: Color,
+    isActive: Boolean,
+    selectedMood: DailyMoodType?,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var randomIdx by remember { mutableIntStateOf(0) }
+
+    LaunchedEffect(isActive, selectedMood) {
+        if (!isActive || selectedMood != null) return@LaunchedEffect
+        while (true) {
+            randomIdx = Random.nextInt(DailyMoodType.entries.size)
+            delay(550L)
+        }
+    }
+
+    Surface(
+        shape = CircleShape,
+        color = palette.cardBg,
+        modifier = modifier
+            .size(35.dp)
+            .clip(CircleShape)
+            .border(
+                width = 1.dp,
+                color = accentColor.copy(alpha = 0.45f),
+                shape = CircleShape
+            )
+            .clickable(onClick = onClick)
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.fillMaxSize()
+        ) {
+            if (selectedMood != null) {
+                AnimatedMoodIcon(
+                    mood = selectedMood,
+                    isActive = isActive,
+                    fontSize = 16.sp
+                )
+            } else {
+                val staticMood = DailyMoodType.entries[randomIdx.coerceIn(0, DailyMoodType.entries.lastIndex)]
+                Text(
+                    text = staticMood.emoji,
+                    fontSize = 16.sp,
+                    maxLines = 1,
+                    softWrap = false
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun Row2PlaceholderButton(
+    symbol: String,
+    palette: AdaptivePalette,
+    accentColor: Color,
+    isActive: Boolean,
+    onClick: () -> Unit = {},
+    modifier: Modifier = Modifier
+) {
+    val scale: Float
+    val tilt: Float
+    if (isActive) {
+        val transition = rememberInfiniteTransition(label = "row2_placeholder_$symbol")
+        scale = transition.animateFloat(
+            initialValue = 0.94f,
+            targetValue = 1.07f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 1150, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "row2_ph_scale"
+        ).value
+        tilt = transition.animateFloat(
+            initialValue = -6f,
+            targetValue = 6f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 1300, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "row2_ph_tilt"
+        ).value
+    } else {
+        scale = 1f
+        tilt = 0f
+    }
+
+    Surface(
+        shape = CircleShape,
+        color = palette.cardBg,
+        modifier = modifier
+            .size(35.dp)
+            .clip(CircleShape)
+            .border(
+                width = 1.dp,
+                color = accentColor.copy(alpha = 0.45f),
+                shape = CircleShape
+            )
+            .clickable(onClick = onClick)
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.fillMaxSize()
+        ) {
+            Text(
+                text = symbol,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                color = accentColor,
+                maxLines = 1,
+                softWrap = false,
+                modifier = Modifier.graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                    rotationZ = tilt
+                }
             )
         }
     }
@@ -954,6 +1528,7 @@ private fun BatteryOptimizationIconGlyph(
 private fun TopBarBatteryOptimizeButton(
     palette: AdaptivePalette,
     accentColor: Color,
+    isActive: Boolean,
     isOptimizing: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -972,6 +1547,22 @@ private fun TopBarBatteryOptimizeButton(
         ).value
     } else {
         ringRotation = 0f
+    }
+
+    val idleTilt: Float
+    if (!isOptimizing && isActive) {
+        val transition = rememberInfiniteTransition(label = "top_battery_idle_tilt")
+        idleTilt = transition.animateFloat(
+            initialValue = -5f,
+            targetValue = 5f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 1300, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "battery_idle_tilt"
+        ).value
+    } else {
+        idleTilt = 0f
     }
 
     Surface(
@@ -1008,8 +1599,12 @@ private fun TopBarBatteryOptimizeButton(
             }
             BatteryOptimizationIconGlyph(
                 tint = accentColor,
-                isAnimated = isOptimizing,
-                modifier = Modifier.size(19.dp)
+                isAnimated = isOptimizing || isActive,
+                modifier = Modifier
+                    .size(19.dp)
+                    .graphicsLayer {
+                        rotationZ = idleTilt
+                    }
             )
         }
     }
@@ -2587,6 +3182,14 @@ fun ThoiTietAmLichApp() {
     var showGreetingPopup by remember { mutableStateOf(false) }
     var greetingPopupText by remember { mutableStateOf("") }
 
+    var isTossingCoin by remember { mutableStateOf(false) }
+    var coinOutcomePopup by remember { mutableStateOf<CoinTossOutcome?>(null) }
+
+    var dailyMoodState by remember { mutableStateOf(DailyMoodHelper.loadOrResetToday(context)) }
+    var showMoodPickerPopup by remember { mutableStateOf(false) }
+    var moodConfirmedPopup by remember { mutableStateOf<DailyMoodType?>(null) }
+    var moodConfirmedPreviousLabel by remember { mutableStateOf<String?>(null) }
+
     var appThemeMode by remember { mutableIntStateOf(AppPrefs.getAppThemeMode(context)) }
     var cardBounceEnabled by remember { mutableStateOf(AppPrefs.isCardBounceEnabled(context)) }
     var topWeatherBgEnabled by remember { mutableStateOf(false) }
@@ -2821,6 +3424,32 @@ fun ThoiTietAmLichApp() {
         openExternalUrlSafely(context, APP_RELEASES_URL)
     }
 
+    LaunchedEffect(isTossingCoin) {
+        if (!isTossingCoin) return@LaunchedEffect
+        delay((2000L..3000L).random())
+        val isYes = Random.nextBoolean()
+        isTossingCoin = false
+        coinOutcomePopup = if (isYes) {
+            CoinTossOutcome(
+                isYes = true,
+                faceLabel = "Có",
+                message = "Ý trời rồi, bạn nên làm việc này thôi"
+            )
+        } else {
+            CoinTossOutcome(
+                isYes = false,
+                faceLabel = "Không",
+                message = "Thôi dẹp đi, hôm khác rồi hẵn làm"
+            )
+        }
+    }
+
+    LaunchedEffect(moodConfirmedPopup) {
+        if (moodConfirmedPopup == null) return@LaunchedEffect
+        delay(2000L)
+        moodConfirmedPopup = null
+    }
+
     LaunchedEffect(isRollingLucky) {
         if (!isRollingLucky) return@LaunchedEffect
         val durationMs = (2000L..4000L).random()
@@ -2873,6 +3502,7 @@ fun ThoiTietAmLichApp() {
                     isAppResumed = true
                     applyBgMusicState()
                     TodoHelper.ensureChannel(context)
+                    dailyMoodState = DailyMoodHelper.loadOrResetToday(context)
                     refreshTodosAndCheckDueTasks()
                     BirthdayHelper.runDailyBackgroundReminders(context)
                 }
@@ -2910,6 +3540,10 @@ fun ThoiTietAmLichApp() {
         showContactPopup,
         showDownloadPopup,
         showGreetingPopup,
+        isTossingCoin,
+        coinOutcomePopup,
+        showMoodPickerPopup,
+        moodConfirmedPopup,
         showHolidayPopup,
         activeHolidayAlerts,
         showRamMung1Popup,
@@ -2934,6 +3568,10 @@ fun ThoiTietAmLichApp() {
             showContactPopup ||
             showDownloadPopup ||
             showGreetingPopup ||
+            isTossingCoin ||
+            coinOutcomePopup != null ||
+            showMoodPickerPopup ||
+            moodConfirmedPopup != null ||
             (showHolidayPopup && activeHolidayAlerts.isNotEmpty()) ||
             (showRamMung1Popup && activeRamMung1Alerts.isNotEmpty()) ||
             activeTodoPopup != null ||
@@ -3037,6 +3675,7 @@ fun ThoiTietAmLichApp() {
 
         while (true) {
             delay(60_000L)
+            dailyMoodState = DailyMoodHelper.loadOrResetToday(context)
             refreshTodosAndCheckDueTasks()
         }
     }
@@ -3184,6 +3823,7 @@ fun ThoiTietAmLichApp() {
                                     TopBarLuckyButton(
                                         palette = palette,
                                         accentColor = accentCompose,
+                                        isActive = canAnimateVisuals,
                                         isRolling = isRollingLucky,
                                         onClick = {
                                             val existingToday = DailyLuckyHelper.getTodayLuckyIfExists(appContext)
@@ -3198,6 +3838,7 @@ fun ThoiTietAmLichApp() {
                                     TopBarBatteryOptimizeButton(
                                         palette = palette,
                                         accentColor = accentCompose,
+                                        isActive = canAnimateVisuals,
                                         isOptimizing = isOptimizingBattery,
                                         onClick = {
                                             if (!isOptimizingBattery) {
@@ -3247,6 +3888,55 @@ fun ThoiTietAmLichApp() {
                                         .fillMaxWidth()
                                         .padding(horizontal = 2.dp, vertical = 4.dp)
                                 ) {
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(5.dp, Alignment.End),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(end = 6.dp)
+                                    ) {
+                                        val currentSelectedMood = remember(dailyMoodState) {
+                                            if (dailyMoodState.dateKey == DailyMoodHelper.todayKey()) {
+                                                DailyMoodType.fromId(dailyMoodState.selectedMoodId)
+                                            } else {
+                                                null
+                                            }
+                                        }
+                                        Row2CoinTossButton(
+                                            palette = palette,
+                                            accentColor = accentCompose,
+                                            isActive = canAnimateVisuals,
+                                            onClick = {
+                                                if (!isTossingCoin) {
+                                                    coinOutcomePopup = null
+                                                    isTossingCoin = true
+                                                }
+                                            }
+                                        )
+                                        Row2MoodButton(
+                                            palette = palette,
+                                            accentColor = accentCompose,
+                                            isActive = canAnimateVisuals,
+                                            selectedMood = currentSelectedMood,
+                                            onClick = {
+                                                dailyMoodState = DailyMoodHelper.loadOrResetToday(context)
+                                                showMoodPickerPopup = true
+                                            }
+                                        )
+                                        Row2PlaceholderButton(
+                                            symbol = "✦",
+                                            palette = palette,
+                                            accentColor = accentCompose,
+                                            isActive = canAnimateVisuals
+                                        )
+                                        Row2PlaceholderButton(
+                                            symbol = "◈",
+                                            palette = palette,
+                                            accentColor = accentCompose,
+                                            isActive = canAnimateVisuals
+                                        )
+                                    }
+
                                     Column(modifier = Modifier.padding(horizontal = 2.dp)) {
                                         Text(
                                             solarToday.uppercase(Locale.getDefault()),
@@ -5537,6 +6227,326 @@ fun ThoiTietAmLichApp() {
                                 Text(
                                     text = "Ok",
                                     fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Pop-up đang tung đồng xu (2 - 3 giây)
+                AnimatedPopupOverlay(
+                    visible = isTossingCoin,
+                    onDismiss = {},
+                    dismissOnBackdropClick = false
+                ) {
+                    val tossTransition = rememberInfiniteTransition(label = "coin_toss_popup_anim")
+                    val tossY by tossTransition.animateFloat(
+                        initialValue = 10f,
+                        targetValue = -22f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(durationMillis = 460, easing = FastOutSlowInEasing),
+                            repeatMode = RepeatMode.Reverse
+                        ),
+                        label = "coin_toss_y"
+                    )
+                    val tossScaleX by tossTransition.animateFloat(
+                        initialValue = 0.25f,
+                        targetValue = 1.08f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(durationMillis = 360, easing = FastOutSlowInEasing),
+                            repeatMode = RepeatMode.Reverse
+                        ),
+                        label = "coin_toss_flip_x"
+                    )
+                    val tossTilt by tossTransition.animateFloat(
+                        initialValue = -16f,
+                        targetValue = 16f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(durationMillis = 460, easing = FastOutSlowInEasing),
+                            repeatMode = RepeatMode.Reverse
+                        ),
+                        label = "coin_toss_tilt"
+                    )
+
+                    LiquidGlassPopupSurface(palette = palette) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(24.dp)
+                        ) {
+                            Text(
+                                text = "Đang tung đồng xu",
+                                style = MaterialTheme.typography.headlineSmall,
+                                color = accentCompose,
+                                fontWeight = FontWeight.ExtraBold,
+                                textAlign = TextAlign.Center
+                            )
+
+                            Spacer(modifier = Modifier.height(26.dp))
+
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(96.dp)
+                                    .graphicsLayer {
+                                        translationY = tossY.dp.toPx()
+                                        scaleX = tossScaleX
+                                        rotationZ = tossTilt
+                                    }
+                                    .clip(CircleShape)
+                                    .background(accentCompose.copy(alpha = 0.18f))
+                                    .border(2.5.dp, accentCompose, CircleShape)
+                            ) {
+                                Text(
+                                    text = "🪙",
+                                    fontSize = 42.sp,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(22.dp))
+                        }
+                    }
+                }
+
+                // Pop-up kết quả tung đồng xu (Có / Không)
+                AnimatedPopupOverlay(
+                    visible = coinOutcomePopup != null,
+                    onDismiss = {},
+                    dismissOnBackdropClick = false
+                ) {
+                    val outcome = coinOutcomePopup
+                    LiquidGlassPopupSurface(palette = palette) {
+                        if (outcome != null) {
+                            val badgeColor = if (outcome.isYes) accentCompose else Color(0xFFFF8A65)
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.padding(24.dp)
+                            ) {
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier
+                                        .size(104.dp)
+                                        .clip(CircleShape)
+                                        .background(badgeColor.copy(alpha = 0.18f))
+                                        .border(3.dp, badgeColor, CircleShape)
+                                ) {
+                                    Text(
+                                        text = outcome.faceLabel,
+                                        fontSize = 26.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = palette.popupTextPrimary,
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(18.dp))
+
+                                Text(
+                                    text = outcome.message,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = palette.popupTextPrimary,
+                                    fontWeight = FontWeight.SemiBold,
+                                    textAlign = TextAlign.Center
+                                )
+
+                                Spacer(modifier = Modifier.height(20.dp))
+
+                                Button(
+                                    onClick = { coinOutcomePopup = null },
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = accentCompose,
+                                        contentColor = palette.onAccentText
+                                    ),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(48.dp)
+                                ) {
+                                    Text(
+                                        text = "Ok",
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Pop-up chọn cảm xúc trong ngày (8 ô nhỏ cảm xúc động + Đóng)
+                AnimatedPopupOverlay(
+                    visible = showMoodPickerPopup,
+                    onDismiss = { showMoodPickerPopup = false },
+                    dismissOnBackdropClick = false
+                ) {
+                    val pickerTitle = "Cảm xúc của bạn hiện tại là"
+
+                    LiquidGlassPopupSurface(palette = palette) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(20.dp)
+                        ) {
+                            Text(
+                                text = pickerTitle,
+                                style = MaterialTheme.typography.titleMedium,
+                                color = palette.popupTextPrimary,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center
+                            )
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            val moodRows = remember { DailyMoodType.entries.chunked(4) }
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                moodRows.forEach { rowItems ->
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        rowItems.forEach { moodItem ->
+                                            Surface(
+                                                shape = RoundedCornerShape(16.dp),
+                                                color = palette.popupBoxBg,
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .clip(RoundedCornerShape(16.dp))
+                                                    .border(
+                                                        1.dp,
+                                                        accentCompose.copy(alpha = 0.35f),
+                                                        RoundedCornerShape(16.dp)
+                                                    )
+                                                    .clickable {
+                                                        val freshBeforePick = DailyMoodHelper.loadOrResetToday(context)
+                                                        val prevBeforePick = DailyMoodType.fromId(freshBeforePick.selectedMoodId)?.label
+                                                        val updatedState = DailyMoodHelper.selectMoodForToday(
+                                                            context = context,
+                                                            newMood = moodItem
+                                                        )
+                                                        dailyMoodState = updatedState
+                                                        showMoodPickerPopup = false
+                                                        moodConfirmedPreviousLabel = prevBeforePick
+                                                        moodConfirmedPopup = moodItem
+                                                    }
+                                            ) {
+                                                Column(
+                                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                                    verticalArrangement = Arrangement.Center,
+                                                    modifier = Modifier.padding(vertical = 12.dp, horizontal = 4.dp)
+                                                ) {
+                                                    AnimatedMoodIcon(
+                                                        mood = moodItem,
+                                                        isActive = true,
+                                                        fontSize = 26.sp
+                                                    )
+                                                    Spacer(modifier = Modifier.height(6.dp))
+                                                    Text(
+                                                        text = moodItem.label,
+                                                        fontSize = 11.5.sp,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        color = palette.popupTextPrimary,
+                                                        maxLines = 1,
+                                                        softWrap = false,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(18.dp))
+
+                            OutlinedButton(
+                                onClick = { showMoodPickerPopup = false },
+                                shape = RoundedCornerShape(16.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(46.dp)
+                            ) {
+                                Text(
+                                    text = "Đóng",
+                                    color = palette.popupTextPrimary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Pop-up thông báo cảm xúc hiện tại (tự tắt sau ~2 giây)
+                AnimatedPopupOverlay(
+                    visible = moodConfirmedPopup != null,
+                    onDismiss = {},
+                    dismissOnBackdropClick = false
+                ) {
+                    val chosenMood = moodConfirmedPopup
+                    val prevLabel = moodConfirmedPreviousLabel
+                    LiquidGlassPopupSurface(palette = palette) {
+                        if (chosenMood != null) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.padding(24.dp)
+                            ) {
+                                if (prevLabel != null) {
+                                    val annotatedTitle = buildAnnotatedString {
+                                        append("Cảm xúc của bạn trước đó là ")
+                                        withStyle(
+                                            style = SpanStyle(
+                                                color = accentCompose,
+                                                fontWeight = FontWeight.ExtraBold
+                                            )
+                                        ) {
+                                            append(prevLabel)
+                                        }
+                                        append(". Hiện tại, bạn cảm thấy như thế nào?")
+                                    }
+                                    Text(
+                                        text = annotatedTitle,
+                                        style = MaterialTheme.typography.titleLarge,
+                                        color = palette.popupTextPrimary,
+                                        fontWeight = FontWeight.Bold,
+                                        textAlign = TextAlign.Center
+                                    )
+                                } else {
+                                    Text(
+                                        text = "Cảm xúc hiện tại của bạn là",
+                                        style = MaterialTheme.typography.titleLarge,
+                                        color = palette.popupTextPrimary,
+                                        fontWeight = FontWeight.Bold,
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(18.dp))
+
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier
+                                        .size(92.dp)
+                                        .clip(CircleShape)
+                                        .background(accentCompose.copy(alpha = 0.16f))
+                                        .border(2.dp, accentCompose.copy(alpha = 0.65f), CircleShape)
+                                ) {
+                                    AnimatedMoodIcon(
+                                        mood = chosenMood,
+                                        isActive = true,
+                                        fontSize = 42.sp
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(14.dp))
+
+                                Text(
+                                    text = chosenMood.label,
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    color = accentCompose,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    textAlign = TextAlign.Center
                                 )
                             }
                         }
