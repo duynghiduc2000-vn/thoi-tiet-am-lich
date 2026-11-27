@@ -245,6 +245,209 @@ private fun dailyWarmMessageForToday(calendar: Calendar): String {
     return "$message $icon"
 }
 
+private data class DailyLuckyData(
+    val dateKey: String,
+    val numberText: String,
+    val colorName: String,
+    val colorHex: Long,
+    val tasks: List<String>
+)
+
+private data class LuckyColorOption(
+    val name: String,
+    val hex: Long
+)
+
+private val LUCKY_COLOR_OPTIONS = listOf(
+    LuckyColorOption("Xanh ngọc trời", 0xFF4FC3F7L),
+    LuckyColorOption("Xanh ngọc bích", 0xFF26A69AL),
+    LuckyColorOption("Xanh bạc hà mát", 0xFF4DB6ACL),
+    LuckyColorOption("Xanh dương đại dương", 0xFF29B6F6L),
+    LuckyColorOption("Xanh coban dịu", 0xFF5C6BC0L),
+    LuckyColorOption("Xanh pastel trời", 0xFF81D4FAL),
+    LuckyColorOption("Xanh lá rừng", 0xFF66BB6AL),
+    LuckyColorOption("Xanh chanh tươi", 0xFF9CCC65L),
+    LuckyColorOption("Xanh rêu non", 0xFF8BC34AL),
+    LuckyColorOption("Xanh mint pastel", 0xFFA5D6A7L),
+    LuckyColorOption("Vàng nắng ấm", 0xFFFFD54FL),
+    LuckyColorOption("Vàng chanh nhẹ", 0xFFFFEE58L),
+    LuckyColorOption("Hổ phách mật ong", 0xFFFFB74DL),
+    LuckyColorOption("Cam đào dịu", 0xFFFF8A65L),
+    LuckyColorOption("Cam quýt rực rỡ", 0xFFFFA726L),
+    LuckyColorOption("San hô ấm", 0xFFFF7043L),
+    LuckyColorOption("Hồng phấn ngọt", 0xFFF48FB1L),
+    LuckyColorOption("Hồng san hô", 0xFFF06292L),
+    LuckyColorOption("Hồng dâu pastel", 0xFFF8BBD0L),
+    LuckyColorOption("Tím oải hương", 0xFFBA68C8L),
+    LuckyColorOption("Tím hoa cà", 0xFF9575CDL),
+    LuckyColorOption("Tím tử đinh hương", 0xFFCE93D8L),
+    LuckyColorOption("Đỏ gạch ấm", 0xFFEF5350L),
+    LuckyColorOption("Trắng ngà ngọc trai", 0xFFF5F5F5L)
+)
+
+private val LUCKY_SUGGESTED_TASKS = listOf(
+    "Pha một ly nước ấm, trà hoặc cà phê và nghỉ giải lao 10 phút",
+    "Dọn gọn bàn làm việc, góc học tập hoặc không gian quanh mình",
+    "Gửi một tin nhắn hỏi thăm người thân, bạn cũ hoặc đồng nghiệp",
+    "Ra ngoài hít thở không khí trong lành và đi bộ nhẹ 10–15 phút",
+    "Đọc vài trang sách yêu thích trước khi đi ngủ",
+    "Ghi lại 1–2 điều nhỏ khiến bạn thấy vui hoặc biết ơn hôm nay",
+    "Uống đủ nước và sắp xếp lại danh sách việc ưu tiên trong ngày",
+    "Nghe một bản nhạc hoặc playlist chill để thư giãn đầu óc",
+    "Duỗi người, giãn cơ vai gáy sau khi ngồi lâu một chỗ",
+    "Kiểm tra lại điện thoại, xóa bớt ảnh/file rác cho nhẹ bộ nhớ",
+    "Tự thưởng cho mình một món ăn nhẹ hoặc món uống ngon miệng",
+    "Lên kế hoạch nhỏ cho ngày mai để hôm nay bớt áp lực hơn",
+    "Chụp một bức ảnh lưu giữ khoảnh khắc đẹp hoặc bầu trời hôm nay",
+    "Ngồi yên lặng nhắm mắt thư giãn 5 phút giữa giờ bận rộn",
+    "Xem lại một mục tiêu cá nhân và hoàn thành một bước nhỏ nhất",
+    "Dọn sạch giỏ rác hoặc sắp xếp lại các thư mục trên máy/điện thoại",
+    "Chăm sóc cây xanh, thú cưng hoặc lau chùi mặt bàn gọn gàng",
+    "Viết vài dòng nhật ký ngắn về cảm xúc hiện tại của bạn",
+    "Tắt thông báo không cần thiết trong 30 phút để tập trung trọn vẹn",
+    "Học thêm một mẹo nhỏ, từ vựng mới hoặc kiến thức thú vị",
+    "Chuẩn bị sẵn quần áo hoặc đồ dùng cần thiết cho buổi tiếp theo",
+    "Mỉm cười và nói lời cảm ơn chân thành với ai đó hôm nay",
+    "Kiểm tra chi tiêu nhỏ trong ngày để giữ cân bằng ngân sách",
+    "Ngâm chân nước ấm hoặc rửa mặt bằng nước mát cho tỉnh táo",
+    "Thử một góc ngồi mới hoặc mở cửa sổ đón ánh sáng tự nhiên",
+    "Hoàn thành dứt điểm một việc lặt vặt bạn đã trì hoãn trước đó",
+    "Xem một video hài ngắn hoặc nội dung nhẹ nhàng giúp giải trí",
+    "Gọi điện ngắn hỏi thăm gia đình nếu đang ở xa",
+    "Sắp xếp lại tủ sách hoặc kệ đồ để dễ tìm khi cần",
+    "Tập vài động tác hít thở sâu 4-7-8 để giữ tâm trạng bình tĩnh",
+    "Lau sạch màn hình điện thoại, kính mắt hoặc bàn phím",
+    "Tự khen bản thân vì một điều tốt bạn đã làm trong tuần này",
+    "Nghe một podcast ngắn về chủ đề bạn quan tâm",
+    "Đi ngủ sớm hơn thường lệ một chút để hồi phục năng lượng",
+    "Khởi động nhẹ hoặc vươn vai ngay khi vừa thức dậy",
+    "Dành 15 phút làm một việc hoàn toàn vì sở thích cá nhân"
+)
+
+private object DailyLuckyHelper {
+    private const val PREFS_NAME = "daily_lucky_prefs"
+    private const val KEY_DATE = "lucky_date_key"
+    private const val KEY_NUMBER = "lucky_number_text"
+    private const val KEY_COLOR_NAME = "lucky_color_name"
+    private const val KEY_COLOR_HEX = "lucky_color_hex"
+    private const val KEY_TASKS = "lucky_tasks_joined"
+
+    fun todayKey(): String {
+        val fmt = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply {
+            timeZone = TimeZone.getTimeZone("Asia/Ho_Chi_Minh")
+        }
+        return fmt.format(Date())
+    }
+
+    fun getTodayLuckyIfExists(context: Context): DailyLuckyData? {
+        val today = todayKey()
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val savedDate = prefs.getString(KEY_DATE, null) ?: return null
+        if (savedDate != today) return null
+
+        val numberText = prefs.getString(KEY_NUMBER, null) ?: return null
+        val colorName = prefs.getString(KEY_COLOR_NAME, null) ?: return null
+        val colorHex = prefs.getLong(KEY_COLOR_HEX, 0L)
+        val rawTasks = prefs.getString(KEY_TASKS, "") ?: ""
+        val tasks = rawTasks.split("||").map { it.trim() }.filter { it.isNotEmpty() }
+        if (colorHex == 0L || tasks.isEmpty()) return null
+
+        return DailyLuckyData(
+            dateKey = savedDate,
+            numberText = numberText,
+            colorName = colorName,
+            colorHex = colorHex,
+            tasks = tasks.take(2)
+        )
+    }
+
+    fun getOrCreateTodayLucky(context: Context): DailyLuckyData {
+        getTodayLuckyIfExists(context)?.let { return it }
+
+        val today = todayKey()
+        val rng = Random(System.nanoTime())
+        val number = rng.nextInt(1, 100)
+        val numberText = number.toString().padStart(2, '0')
+        val color = LUCKY_COLOR_OPTIONS[rng.nextInt(LUCKY_COLOR_OPTIONS.size)]
+        val taskCount = rng.nextInt(1, 3)
+        val pickedTasks = LUCKY_SUGGESTED_TASKS.shuffled(rng).take(taskCount)
+
+        val data = DailyLuckyData(
+            dateKey = today,
+            numberText = numberText,
+            colorName = color.name,
+            colorHex = color.hex,
+            tasks = pickedTasks
+        )
+
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KEY_DATE, data.dateKey)
+            .putString(KEY_NUMBER, data.numberText)
+            .putString(KEY_COLOR_NAME, data.colorName)
+            .putLong(KEY_COLOR_HEX, data.colorHex)
+            .putString(KEY_TASKS, data.tasks.joinToString("||"))
+            .commit()
+
+        return data
+    }
+}
+
+@Composable
+private fun TopBarLuckyButton(
+    palette: AdaptivePalette,
+    accentColor: Color,
+    isRolling: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val scale: Float
+    if (isRolling) {
+        val transition = rememberInfiniteTransition(label = "top_lucky_btn_pulse")
+        scale = transition.animateFloat(
+            initialValue = 0.94f,
+            targetValue = 1.07f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 550, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "lucky_btn_scale"
+        ).value
+    } else {
+        scale = 1f
+    }
+
+    Surface(
+        shape = CircleShape,
+        color = palette.cardBg,
+        modifier = modifier
+            .size(36.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .clip(CircleShape)
+            .border(
+                width = 1.dp,
+                color = accentColor.copy(alpha = if (isRolling) 0.85f else 0.45f),
+                shape = CircleShape
+            )
+            .clickable(enabled = !isRolling, onClick = onClick)
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.fillMaxSize()
+        ) {
+            Text(
+                text = "🍀",
+                fontSize = 17.sp,
+                maxLines = 1,
+                softWrap = false
+            )
+        }
+    }
+}
+
 private enum class ExpandableSection {
     APP_APPEARANCE_AUDIO,
     CLOCK_THEME_BG,
@@ -1871,6 +2074,11 @@ fun ThoiTietAmLichApp() {
     var optimizationStepText by remember { mutableStateOf("Đang chuẩn bị tối ưu hóa...") }
     var optimizationProgress by remember { mutableFloatStateOf(0f) }
 
+    var isRollingLucky by remember { mutableStateOf(false) }
+    var rollingPreviewNumber by remember { mutableStateOf("01") }
+    var luckyResultPopup by remember { mutableStateOf<DailyLuckyData?>(null) }
+    var showLuckyDisclaimerPopup by remember { mutableStateOf(false) }
+
     var appThemeMode by remember { mutableIntStateOf(AppPrefs.getAppThemeMode(context)) }
     var cardBounceEnabled by remember { mutableStateOf(AppPrefs.isCardBounceEnabled(context)) }
     var topWeatherBgEnabled by remember { mutableStateOf(false) }
@@ -2071,6 +2279,20 @@ fun ThoiTietAmLichApp() {
         }
     }
 
+    LaunchedEffect(isRollingLucky) {
+        if (!isRollingLucky) return@LaunchedEffect
+        val durationMs = (2000L..4000L).random()
+        val stepMs = 90L
+        val startTime = System.currentTimeMillis()
+        while (System.currentTimeMillis() - startTime < durationMs) {
+            rollingPreviewNumber = Random.nextInt(1, 100).toString().padStart(2, '0')
+            delay(stepMs)
+        }
+        val todayLucky = DailyLuckyHelper.getOrCreateTodayLucky(appContext)
+        isRollingLucky = false
+        luckyResultPopup = todayLucky
+    }
+
     LaunchedEffect(isOptimizingBattery) {
         if (!isOptimizingBattery) return@LaunchedEffect
 
@@ -2138,6 +2360,9 @@ fun ThoiTietAmLichApp() {
 
     val hasBlockingPopup = remember(
         isOptimizingBattery,
+        isRollingLucky,
+        luckyResultPopup,
+        showLuckyDisclaimerPopup,
         showHolidayPopup,
         activeHolidayAlerts,
         activeTodoPopup,
@@ -2152,6 +2377,9 @@ fun ThoiTietAmLichApp() {
         showAdminBirthdayToday
     ) {
         isOptimizingBattery ||
+            isRollingLucky ||
+            luckyResultPopup != null ||
+            showLuckyDisclaimerPopup ||
             (showHolidayPopup && activeHolidayAlerts.isNotEmpty()) ||
             activeTodoPopup != null ||
             ageResultPopup != null ||
@@ -2384,6 +2612,20 @@ fun ThoiTietAmLichApp() {
                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                                     modifier = Modifier.padding(end = 10.dp)
                                 ) {
+                                    TopBarLuckyButton(
+                                        palette = palette,
+                                        accentColor = accentCompose,
+                                        isRolling = isRollingLucky,
+                                        onClick = {
+                                            val existingToday = DailyLuckyHelper.getTodayLuckyIfExists(appContext)
+                                            if (existingToday != null) {
+                                                luckyResultPopup = existingToday
+                                            } else if (!isRollingLucky) {
+                                                rollingPreviewNumber = Random.nextInt(1, 100).toString().padStart(2, '0')
+                                                isRollingLucky = true
+                                            }
+                                        }
+                                    )
                                     TopBarBatteryOptimizeButton(
                                         palette = palette,
                                         accentColor = accentCompose,
@@ -4551,6 +4793,295 @@ fun ThoiTietAmLichApp() {
                                     color = palette.textSecondary,
                                     textAlign = TextAlign.Center
                                 )
+                            }
+                        }
+                    }
+                }
+
+                // Pop-up 1: Đang tìm số may mắn cho bạn... (2 - 4 giây, lần đầu trong ngày)
+                AnimatedVisibility(
+                    visible = isRollingLucky,
+                    enter = fadeIn(tween(160)) + scaleIn(initialScale = 0.92f),
+                    exit = fadeOut(tween(150)) + scaleOut(targetScale = 0.92f),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    val rollTransition = rememberInfiniteTransition(label = "lucky_roll_halo")
+                    val rollAngle by rollTransition.animateFloat(
+                        initialValue = 0f,
+                        targetValue = 360f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(durationMillis = 1100, easing = LinearEasing),
+                            repeatMode = RepeatMode.Restart
+                        ),
+                        label = "lucky_roll_angle"
+                    )
+
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.72f))
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) {}
+                            .padding(horizontal = 24.dp)
+                    ) {
+                        LiquidGlassPopupSurface(palette = palette) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.padding(24.dp)
+                            ) {
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier.size(92.dp)
+                                ) {
+                                    Canvas(modifier = Modifier.fillMaxSize()) {
+                                        drawCircle(
+                                            color = accentCompose.copy(alpha = 0.14f),
+                                            radius = size.minDimension * 0.46f
+                                        )
+                                        rotate(degrees = rollAngle) {
+                                            drawArc(
+                                                color = accentCompose,
+                                                startAngle = 0f,
+                                                sweepAngle = 145f,
+                                                useCenter = false,
+                                                topLeft = Offset(3.dp.toPx(), 3.dp.toPx()),
+                                                size = Size(
+                                                    size.width - 6.dp.toPx(),
+                                                    size.height - 6.dp.toPx()
+                                                ),
+                                                style = Stroke(
+                                                    width = 3.dp.toPx(),
+                                                    cap = StrokeCap.Round
+                                                )
+                                            )
+                                        }
+                                    }
+
+                                    Box(
+                                        contentAlignment = Alignment.Center,
+                                        modifier = Modifier
+                                            .size(72.dp)
+                                            .clip(CircleShape)
+                                            .background(accentCompose.copy(alpha = 0.16f))
+                                            .border(1.5.dp, accentCompose.copy(alpha = 0.55f), CircleShape)
+                                    ) {
+                                        Text(
+                                            text = rollingPreviewNumber,
+                                            fontSize = 28.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = accentCompose,
+                                            maxLines = 1,
+                                            softWrap = false
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(16.dp))
+
+                                Text(
+                                    text = "Đang tìm số may mắn cho bạn...",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = palette.popupTextPrimary,
+                                    fontWeight = FontWeight.Bold,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Pop-up 2: Kết quả theo bản phác thảo (Số may mắn + Màu sắc + Việc nên làm + Đồng ý)
+                AnimatedVisibility(
+                    visible = luckyResultPopup != null,
+                    enter = fadeIn(tween(180)) + scaleIn(initialScale = 0.92f),
+                    exit = fadeOut(tween(150)) + scaleOut(targetScale = 0.92f),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    val luckyData = luckyResultPopup
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.72f))
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) {}
+                            .padding(horizontal = 24.dp)
+                    ) {
+                        LiquidGlassPopupSurface(palette = palette) {
+                            if (luckyData != null) {
+                                val luckyColor = Color(luckyData.colorHex)
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    modifier = Modifier.padding(22.dp)
+                                ) {
+                                    Text(
+                                        text = "Số may mắn hôm nay là",
+                                        style = MaterialTheme.typography.titleLarge,
+                                        color = palette.popupTextPrimary,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        textAlign = TextAlign.Center
+                                    )
+
+                                    Spacer(modifier = Modifier.height(14.dp))
+
+                                    Box(
+                                        contentAlignment = Alignment.Center,
+                                        modifier = Modifier
+                                            .size(94.dp)
+                                            .clip(CircleShape)
+                                            .background(luckyColor.copy(alpha = 0.18f))
+                                            .border(2.5.dp, luckyColor, CircleShape)
+                                    ) {
+                                        Text(
+                                            text = luckyData.numberText,
+                                            fontSize = 36.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = palette.popupTextPrimary,
+                                            maxLines = 1,
+                                            softWrap = false
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.height(16.dp))
+
+                                    Surface(
+                                        shape = RoundedCornerShape(16.dp),
+                                        color = palette.popupBoxBg,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(
+                                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                                            modifier = Modifier.padding(14.dp)
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                Text(
+                                                    text = "Màu sắc may mắn:",
+                                                    style = MaterialTheme.typography.bodyLarge,
+                                                    color = palette.popupTextPrimary,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(16.dp)
+                                                        .clip(CircleShape)
+                                                        .background(luckyColor)
+                                                        .border(
+                                                            1.dp,
+                                                            palette.popupTextPrimary.copy(alpha = 0.35f),
+                                                            CircleShape
+                                                        )
+                                                )
+                                                Text(
+                                                    text = luckyData.colorName,
+                                                    style = MaterialTheme.typography.bodyLarge,
+                                                    color = palette.popupTextPrimary,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+
+                                            Text(
+                                                text = "Việc nên làm:",
+                                                style = MaterialTheme.typography.bodyLarge,
+                                                color = palette.popupTextPrimary,
+                                                fontWeight = FontWeight.Bold
+                                            )
+
+                                            luckyData.tasks.forEach { taskText ->
+                                                Text(
+                                                    text = "• $taskText",
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color = palette.popupTextSecondary
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(18.dp))
+
+                                    Button(
+                                        onClick = {
+                                            luckyResultPopup = null
+                                            showLuckyDisclaimerPopup = true
+                                        },
+                                        shape = RoundedCornerShape(16.dp),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = accentCompose,
+                                            contentColor = palette.onAccentText
+                                        ),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(48.dp)
+                                    ) {
+                                        Text(
+                                            text = "Đồng ý",
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Pop-up 3: Lưu ý ngẫu nhiên + nút Ok
+                AnimatedVisibility(
+                    visible = showLuckyDisclaimerPopup,
+                    enter = fadeIn(tween(180)) + scaleIn(initialScale = 0.92f),
+                    exit = fadeOut(tween(150)) + scaleOut(targetScale = 0.92f),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.72f))
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) {}
+                            .padding(horizontal = 24.dp)
+                    ) {
+                        LiquidGlassPopupSurface(palette = palette) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.padding(22.dp)
+                            ) {
+                                Text(
+                                    text = "Đây chỉ là thông tin ngẫu nhiên, đừng quá tin vào nó nhé!",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = palette.popupTextPrimary,
+                                    fontWeight = FontWeight.SemiBold,
+                                    textAlign = TextAlign.Center
+                                )
+
+                                Spacer(modifier = Modifier.height(18.dp))
+
+                                Button(
+                                    onClick = { showLuckyDisclaimerPopup = false },
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = accentCompose,
+                                        contentColor = palette.onAccentText
+                                    ),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(48.dp)
+                                ) {
+                                    Text(
+                                        text = "Ok",
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
                         }
                     }
