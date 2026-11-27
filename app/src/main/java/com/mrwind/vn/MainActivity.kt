@@ -1163,76 +1163,6 @@ private fun Row2MoodButton(
     }
 }
 
-@Composable
-private fun Row2PlaceholderButton(
-    symbol: String,
-    palette: AdaptivePalette,
-    accentColor: Color,
-    isActive: Boolean,
-    onClick: () -> Unit = {},
-    modifier: Modifier = Modifier
-) {
-    val scale: Float
-    val tilt: Float
-    if (isActive) {
-        val transition = rememberInfiniteTransition(label = "row2_placeholder_$symbol")
-        scale = transition.animateFloat(
-            initialValue = 0.94f,
-            targetValue = 1.07f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = 1150, easing = FastOutSlowInEasing),
-                repeatMode = RepeatMode.Reverse
-            ),
-            label = "row2_ph_scale"
-        ).value
-        tilt = transition.animateFloat(
-            initialValue = -6f,
-            targetValue = 6f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = 1300, easing = FastOutSlowInEasing),
-                repeatMode = RepeatMode.Reverse
-            ),
-            label = "row2_ph_tilt"
-        ).value
-    } else {
-        scale = 1f
-        tilt = 0f
-    }
-
-    Surface(
-        shape = CircleShape,
-        color = palette.cardBg,
-        modifier = modifier
-            .size(35.dp)
-            .clip(CircleShape)
-            .border(
-                width = 1.dp,
-                color = accentColor.copy(alpha = 0.45f),
-                shape = CircleShape
-            )
-            .clickable(onClick = onClick)
-    ) {
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier.fillMaxSize()
-        ) {
-            Text(
-                text = symbol,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
-                color = accentColor,
-                maxLines = 1,
-                softWrap = false,
-                modifier = Modifier.graphicsLayer {
-                    scaleX = scale
-                    scaleY = scale
-                    rotationZ = tilt
-                }
-            )
-        }
-    }
-}
-
 private enum class ExpandableSection {
     APP_APPEARANCE_AUDIO,
     CLOCK_THEME_BG,
@@ -3894,71 +3824,16 @@ fun ThoiTietAmLichApp() {
                                             .fillMaxWidth()
                                             .padding(horizontal = 2.dp)
                                     ) {
-                                        Row(
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(end = 10.dp)
-                                        ) {
-                                            Text(
-                                                solarToday.uppercase(Locale.getDefault()),
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                letterSpacing = 1.sp,
-                                                color = accentCompose,
-                                                maxLines = 1,
-                                                softWrap = false,
-                                                overflow = TextOverflow.Ellipsis,
-                                                modifier = Modifier.weight(1f, fill = false)
-                                            )
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Row(
-                                                horizontalArrangement = Arrangement.spacedBy(5.dp, Alignment.End),
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                val currentSelectedMood = remember(dailyMoodState) {
-                                                    if (dailyMoodState.dateKey == DailyMoodHelper.todayKey()) {
-                                                        DailyMoodType.fromId(dailyMoodState.selectedMoodId)
-                                                    } else {
-                                                        null
-                                                    }
-                                                }
-                                                Row2CoinTossButton(
-                                                    palette = palette,
-                                                    accentColor = accentCompose,
-                                                    isActive = canAnimateVisuals,
-                                                    onClick = {
-                                                        if (!isTossingCoin) {
-                                                            coinOutcomePopup = null
-                                                            isTossingCoin = true
-                                                        }
-                                                    }
-                                                )
-                                                Row2MoodButton(
-                                                    palette = palette,
-                                                    accentColor = accentCompose,
-                                                    isActive = canAnimateVisuals,
-                                                    selectedMood = currentSelectedMood,
-                                                    onClick = {
-                                                        dailyMoodState = DailyMoodHelper.loadOrResetToday(context)
-                                                        showMoodPickerPopup = true
-                                                    }
-                                                )
-                                                Row2PlaceholderButton(
-                                                    symbol = "✦",
-                                                    palette = palette,
-                                                    accentColor = accentCompose,
-                                                    isActive = canAnimateVisuals
-                                                )
-                                                Row2PlaceholderButton(
-                                                    symbol = "◈",
-                                                    palette = palette,
-                                                    accentColor = accentCompose,
-                                                    isActive = canAnimateVisuals
-                                                )
-                                            }
-                                        }
+                                        Text(
+                                            solarToday.uppercase(Locale.getDefault()),
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            letterSpacing = 1.sp,
+                                            color = accentCompose,
+                                            maxLines = 1,
+                                            softWrap = false,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
                                         Text(
                                             dailyWarmMessage,
                                             fontSize = 19.sp,
@@ -6082,6 +5957,13 @@ fun ThoiTietAmLichApp() {
                         }
 
                         item(key = "bottom_contact_button_row") {
+                            val currentSelectedMood = remember(dailyMoodState) {
+                                if (dailyMoodState.dateKey == DailyMoodHelper.todayKey()) {
+                                    DailyMoodType.fromId(dailyMoodState.selectedMoodId)
+                                } else {
+                                    null
+                                }
+                            }
                             Row(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
                                 verticalAlignment = Alignment.CenterVertically,
@@ -6089,6 +5971,29 @@ fun ThoiTietAmLichApp() {
                                     .fillMaxWidth()
                                     .padding(top = 4.dp, bottom = 8.dp)
                             ) {
+                                Row2CoinTossButton(
+                                    palette = palette,
+                                    accentColor = accentCompose,
+                                    isActive = canAnimateVisuals,
+                                    onClick = {
+                                        if (!isTossingCoin) {
+                                            coinOutcomePopup = null
+                                            isTossingCoin = true
+                                        }
+                                    },
+                                    modifier = Modifier.size(36.dp)
+                                )
+                                Row2MoodButton(
+                                    palette = palette,
+                                    accentColor = accentCompose,
+                                    isActive = canAnimateVisuals,
+                                    selectedMood = currentSelectedMood,
+                                    onClick = {
+                                        dailyMoodState = DailyMoodHelper.loadOrResetToday(context)
+                                        showMoodPickerPopup = true
+                                    },
+                                    modifier = Modifier.size(36.dp)
+                                )
                                 BottomDownloadCircleButton(
                                     palette = palette,
                                     accentColor = accentCompose,
