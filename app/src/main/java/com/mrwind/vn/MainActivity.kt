@@ -187,7 +187,7 @@ private val FOOD_AND_DRINK_OPTIONS = listOf(
     "Mì xào giòn",
     "Cơm tấm sườn bì chả",
     "Bánh canh cá lóc",
-    "bánh canh bột xắt",
+    "Bánh bông lan trứng muối",
     "Hủ tiếu nam vang",
     "Pizza",
     "Bánh xèo",
@@ -224,7 +224,7 @@ private val FOOD_AND_DRINK_OPTIONS = listOf(
     "Bánh Căn Phan Thiết",
     "Mì Quảng miền Trung",
     "Mì Quảng Phan Thiết",
-    "Bún thịt xào",
+    "Bánh đa cua",
     "Mì gói",
     "Heo quay da giòn",
     "Bò né",
@@ -274,6 +274,9 @@ private val FOOD_ENJOYMENT_WISHES = listOf(
     "Chúc bạn có một bữa ngon hết sảy và thật nhiều năng lượng tích cực!",
     "Ăn ngon miệng nhé bạn ơi, nhớ uống thêm nước cho cân bằng nha!",
     "Chúc bạn có phút giây ăn uống thư giãn và thật nhiều niềm vui!",
+    "Hốc nhanh rồi còn đi làm nhé!",
+    "Chúc bạn ăn ngon và mau lên kí!",
+    "Ăn nhanh còn bán mình cho tư bản nữa kìa!",
     "Chúc bữa này của bạn thơm ngon tròn vị và ấm lòng hết mức!"
 )
 
