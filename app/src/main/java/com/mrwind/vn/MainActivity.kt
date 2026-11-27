@@ -5191,7 +5191,7 @@ fun ThoiTietAmLichApp() {
                             Text(
                                 text = "Bây giờ nên ăn gì nhỉ?",
                                 style = MaterialTheme.typography.headlineSmall,
-                                color = palette.screenBg,
+                                color = accentCompose,
                                 fontWeight = FontWeight.ExtraBold,
                                 textAlign = TextAlign.Center
                             )
