@@ -18,6 +18,7 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
@@ -46,6 +47,7 @@ import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -4474,6 +4476,9 @@ fun ThoiTietAmLichApp() {
     var shareCardSpec by remember { mutableStateOf<ShareCardSpec?>(null) }
     var shareCardBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
     var isSavingShareCard by remember { mutableStateOf(false) }
+    var shareCardPhoto by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+    var shareCardPhotoOriginal by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+    var cropSourceBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
 
     var feedbackCategory by remember { mutableStateOf(FeedbackCategory.BUG) }
     var feedbackMessageInput by remember { mutableStateOf("") }
@@ -4726,6 +4731,7 @@ fun ThoiTietAmLichApp() {
         showWeatherAlertPopup,
         activeWeatherAlerts,
         showShareCardPopup,
+        cropSourceBitmap,
         activeTodoPopup,
         ageResultPopup,
         showAgeHistoryClearedPopup,
@@ -4757,6 +4763,7 @@ fun ThoiTietAmLichApp() {
             (showRamMung1Popup && activeRamMung1Alerts.isNotEmpty()) ||
             (showWeatherAlertPopup && activeWeatherAlerts.isNotEmpty()) ||
             showShareCardPopup ||
+            cropSourceBitmap != null ||
             activeTodoPopup != null ||
             ageResultPopup != null ||
             showAgeHistoryClearedPopup ||
@@ -4947,7 +4954,7 @@ fun ThoiTietAmLichApp() {
     fun regenerateShareCard() {
         scope.launch {
             val spec = ShareCardHelper.randomSpec(weather, shareCardSpec)
-            val bmp = ShareCardHelper.renderAsync(context, weather, solarToday, lunarTodaySummary, spec)
+            val bmp = ShareCardHelper.renderAsync(context, weather, solarToday, lunarTodaySummary, spec, shareCardPhoto)
             shareCardSpec = spec
             shareCardBitmap = bmp
         }
@@ -4963,6 +4970,8 @@ fun ThoiTietAmLichApp() {
             return
         }
         shareCardBitmap = null
+        shareCardPhoto = null
+        shareCardPhotoOriginal = null
         showShareCardPopup = true
         regenerateShareCard()
     }
@@ -5001,6 +5010,23 @@ fun ThoiTietAmLichApp() {
             storagePermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
         } else {
             doSaveShareCard(bmp)
+        }
+    }
+
+    val sharePhotoPickerLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                val photo = ShareCardHelper.loadPhotoAsync(context, uri)
+                if (photo == null) {
+                    Toast.makeText(context, "Không mở được ảnh này, hãy chọn ảnh khác", Toast.LENGTH_SHORT).show()
+                } else {
+                    // Mở màn hình cắt ảnh trước khi áp dụng làm nền
+                    shareCardPhotoOriginal = photo
+                    cropSourceBitmap = photo
+                }
+            }
         }
     }
     val dailyWarmMessage = remember(nowCal) { dailyWarmMessageForToday(nowCal) }
@@ -7425,76 +7451,114 @@ fun ThoiTietAmLichApp() {
 
                         if (selectedMainTab == MainTab.REMINDERS) {
                         item(key = "weather_alert_section") {
+                            val onWeatherAlertToggle: (Boolean) -> Unit = { checked ->
+                                weatherAlertEnabled = checked
+                                AppPrefs.setWeatherAlertEnabled(context, checked)
+                                if (checked) {
+                                    scope.launch {
+                                        // Làm mới dữ liệu theo giờ để cảnh báo chính xác
+                                        syncWeatherData(refreshLocation = false)
+                                        activeWeatherAlerts = WeatherAlertHelper.getAlertsForToday(context)
+                                        if (activeWeatherAlerts.isNotEmpty()) {
+                                            WeatherAlertHelper.notifyAlertsOncePerDay(
+                                                context,
+                                                ignoreMorningWindow = true
+                                            )
+                                            showWeatherAlertPopup = true
+                                            WeatherAlertHelper.markPopupShown(context, activeWeatherAlerts)
+                                        } else {
+                                            Toast.makeText(
+                                                context,
+                                                "Hôm nay chưa có cảnh báo thời tiết đáng chú ý",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        }
+                                    }
+                                } else {
+                                    showWeatherAlertPopup = false
+                                    WeatherAlertHelper.cancelNotification(context)
+                                }
+                            }
+                            val weatherAlertSubtitle = when {
+                                !weatherAlertEnabled -> "Bật để nhận thông báo & pop-up khi có mưa, nắng nóng hoặc UV cao"
+                                activeWeatherAlerts.isEmpty() -> "Hôm nay chưa có cảnh báo đáng chú ý"
+                                else -> activeWeatherAlerts.joinToString("  •  ") { "${it.emoji} ${it.message}" }
+                            }
+
+                            // Thẻ cao 60dp, cùng kiểu với các thẻ mục khác
                             Surface(
-                                shape = RoundedCornerShape(24.dp),
+                                shape = RoundedCornerShape(20.dp),
                                 color = Color.Transparent,
                                 contentColor = palette.textPrimary,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clip(RoundedCornerShape(24.dp))
-                                    .background(palette.liquidGlassBrush)
-                                    .border(1.3.dp, accentCompose.copy(alpha = 0.65f), RoundedCornerShape(24.dp))
+                                    .height(60.dp)
+                                    .glassHeaderSurface(palette, accentCompose, weatherAlertEnabled, RoundedCornerShape(20.dp))
                             ) {
-                                Column(modifier = Modifier.padding(16.dp)) {
-                                    FlatSwitchRow(
-                                        title = "Cảnh báo thời tiết thông minh",
-                                        subtitle = if (weatherAlertEnabled)
-                                            "Đang bật: báo mưa theo giờ, nắng nóng, UV cao (thông báo buổi sáng & pop-up khi mở app)"
-                                        else
-                                            "Gạt bật để nhận thông báo & Pop-up khi hôm nay có mưa, nắng nóng hoặc UV cao",
-                                        checked = weatherAlertEnabled,
-                                        accentColor = accentCompose,
-                                        palette = palette,
-                                        onCheckedChange = { checked ->
-                                            weatherAlertEnabled = checked
-                                            AppPrefs.setWeatherAlertEnabled(context, checked)
-                                            if (checked) {
-                                                scope.launch {
-                                                    // Làm mới dữ liệu theo giờ để cảnh báo chính xác
-                                                    syncWeatherData(refreshLocation = false)
-                                                    activeWeatherAlerts = WeatherAlertHelper.getAlertsForToday(context)
-                                                    if (activeWeatherAlerts.isNotEmpty()) {
-                                                        WeatherAlertHelper.notifyAlertsOncePerDay(
-                                                            context,
-                                                            ignoreMorningWindow = true
-                                                        )
-                                                        showWeatherAlertPopup = true
-                                                        WeatherAlertHelper.markPopupShown(context, activeWeatherAlerts)
-                                                    } else {
-                                                        Toast.makeText(
-                                                            context,
-                                                            "Hôm nay chưa có cảnh báo thời tiết đáng chú ý",
-                                                            Toast.LENGTH_SHORT
-                                                        ).show()
-                                                    }
-                                                }
-                                            } else {
-                                                showWeatherAlertPopup = false
-                                                WeatherAlertHelper.cancelNotification(context)
-                                            }
-                                        }
-                                    )
-
-                                    if (weatherAlertEnabled) {
-                                        SectionHairline(palette)
-                                        Spacer(modifier = Modifier.height(8.dp))
-                                        if (activeWeatherAlerts.isEmpty()) {
-                                            Text(
-                                                "Hôm nay chưa có cảnh báo đáng chú ý.",
-                                                color = palette.textSecondary,
-                                                fontSize = 11.5.sp
-                                            )
-                                        } else {
-                                            activeWeatherAlerts.forEach { alert ->
-                                                Text(
-                                                    "${alert.emoji} ${alert.message}",
-                                                    color = palette.textPrimary,
-                                                    fontSize = 12.5.sp,
-                                                    modifier = Modifier.padding(vertical = 3.dp)
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(start = 14.dp, end = 10.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(8.dp)
+                                                .clip(CircleShape)
+                                                .background(
+                                                    if (weatherAlertEnabled) accentCompose
+                                                    else accentCompose.copy(alpha = 0.65f)
                                                 )
-                                            }
+                                        )
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = "Cảnh báo thời tiết thông minh",
+                                                fontSize = 14.5.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = palette.textPrimary,
+                                                maxLines = 1,
+                                                softWrap = false,
+                                                overflow = TextOverflow.Clip,
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clipToBounds()
+                                                    .basicMarquee(
+                                                        iterations = Int.MAX_VALUE,
+                                                        repeatDelayMillis = 1200,
+                                                        velocity = 24.dp
+                                                    )
+                                            )
+                                            Text(
+                                                text = weatherAlertSubtitle,
+                                                fontSize = 11.sp,
+                                                color = palette.textSecondary,
+                                                maxLines = 1,
+                                                softWrap = false,
+                                                overflow = TextOverflow.Clip,
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(top = 2.dp)
+                                                    .clipToBounds()
+                                                    .basicMarquee(
+                                                        iterations = Int.MAX_VALUE,
+                                                        repeatDelayMillis = 1200,
+                                                        velocity = 24.dp
+                                                    )
+                                            )
                                         }
                                     }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Switch(
+                                        checked = weatherAlertEnabled,
+                                        onCheckedChange = onWeatherAlertToggle,
+                                        colors = SwitchDefaults.colors(checkedTrackColor = accentCompose)
+                                    )
                                 }
                             }
                         }
@@ -9298,7 +9362,74 @@ fun ThoiTietAmLichApp() {
                                 }
                             }
 
-                            Spacer(modifier = Modifier.height(14.dp))
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                OutlinedButton(
+                                    onClick = {
+                                        sharePhotoPickerLauncher.launch(
+                                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                        )
+                                    },
+                                    enabled = !isSavingShareCard,
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        contentColor = palette.popupTextPrimary
+                                    ),
+                                    contentPadding = PaddingValues(horizontal = 8.dp),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(44.dp)
+                                ) {
+                                    Text(
+                                        if (shareCardPhoto == null) "📷 Ảnh của bạn" else "📷 Chọn ảnh khác",
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1
+                                    )
+                                }
+                                if (shareCardPhoto != null) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            shareCardPhoto = null
+                                            shareCardPhotoOriginal = null
+                                            regenerateShareCard()
+                                        },
+                                        enabled = !isSavingShareCard,
+                                        shape = RoundedCornerShape(16.dp),
+                                        colors = ButtonDefaults.outlinedButtonColors(
+                                            contentColor = palette.popupTextPrimary
+                                        ),
+                                        contentPadding = PaddingValues(horizontal = 8.dp),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(44.dp)
+                                    ) {
+                                        Text("Dùng nền ngẫu nhiên", fontWeight = FontWeight.Bold, maxLines = 1)
+                                    }
+                                }
+                            }
+
+                            if (shareCardPhotoOriginal != null) {
+                                Spacer(modifier = Modifier.height(10.dp))
+                                OutlinedButton(
+                                    onClick = { cropSourceBitmap = shareCardPhotoOriginal },
+                                    enabled = !isSavingShareCard,
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        contentColor = palette.popupTextPrimary
+                                    ),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(44.dp)
+                                ) {
+                                    Text("✂️ Cắt / căn lại ảnh", fontWeight = FontWeight.Bold, maxLines = 1)
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
 
                             Row(
                                 horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -9322,7 +9453,7 @@ fun ThoiTietAmLichApp() {
                                         modifier = Modifier.size(18.dp)
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Đổi nền", fontWeight = FontWeight.Bold, maxLines = 1)
+                                    Text(if (shareCardPhoto == null) "Đổi nền" else "Đổi câu chúc", fontWeight = FontWeight.Bold, maxLines = 1)
                                 }
                                 Button(
                                     onClick = { saveShareCard() },
@@ -9348,6 +9479,150 @@ fun ThoiTietAmLichApp() {
                                         fontWeight = FontWeight.Bold,
                                         maxLines = 1
                                     )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Pop-up cắt ảnh: kéo để di chuyển, chụm hai ngón để phóng to / thu nhỏ
+                AnimatedPopupOverlay(
+                    visible = cropSourceBitmap != null,
+                    onDismiss = {},
+                    dismissOnBackdropClick = false
+                ) {
+                    val cropSrc = cropSourceBitmap
+                    if (cropSrc != null) {
+                        var zoom by remember(cropSrc) { mutableStateOf(1f) }
+                        var offX by remember(cropSrc) { mutableStateOf(0f) }
+                        var offY by remember(cropSrc) { mutableStateOf(0f) }
+                        var frame by remember(cropSrc) { mutableStateOf(IntSize.Zero) }
+                        val cropImage = remember(cropSrc) { cropSrc.asImageBitmap() }
+
+                        // Hệ số phủ kín khung (cover) và giới hạn kéo theo mức phóng hiện tại
+                        fun baseScale(): Float =
+                            if (frame.width == 0) 1f
+                            else maxOf(
+                                frame.width.toFloat() / cropSrc.width,
+                                frame.height.toFloat() / cropSrc.height
+                            )
+                        fun maxOffX(z: Float): Float =
+                            ((cropSrc.width * baseScale() * z - frame.width) / 2f).coerceAtLeast(0f)
+                        fun maxOffY(z: Float): Float =
+                            ((cropSrc.height * baseScale() * z - frame.height) / 2f).coerceAtLeast(0f)
+
+                        LiquidGlassPopupSurface(palette = palette) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.padding(18.dp)
+                            ) {
+                                Text(
+                                    "Cắt ảnh",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = palette.popupTextPrimary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    "Kéo để di chuyển • Chụm hai ngón để phóng to",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = palette.popupTextSecondary,
+                                    modifier = Modifier.padding(top = 2.dp, bottom = 10.dp)
+                                )
+
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .aspectRatio(0.8f)
+                                        .clip(RoundedCornerShape(18.dp))
+                                        .background(Color.Black)
+                                        .onSizeChanged { frame = it }
+                                        .pointerInput(cropSrc) {
+                                            detectTransformGestures { _, pan, gestureZoom, _ ->
+                                                val newZoom = (zoom * gestureZoom).coerceIn(1f, 5f)
+                                                zoom = newZoom
+                                                offX = (offX + pan.x).coerceIn(-maxOffX(newZoom), maxOffX(newZoom))
+                                                offY = (offY + pan.y).coerceIn(-maxOffY(newZoom), maxOffY(newZoom))
+                                            }
+                                        }
+                                ) {
+                                    Image(
+                                        bitmap = cropImage,
+                                        contentDescription = "Ảnh cần cắt",
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .graphicsLayer {
+                                                scaleX = zoom
+                                                scaleY = zoom
+                                                translationX = offX
+                                                translationY = offY
+                                            }
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(14.dp))
+
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    OutlinedButton(
+                                        onClick = { cropSourceBitmap = null },
+                                        shape = RoundedCornerShape(16.dp),
+                                        colors = ButtonDefaults.outlinedButtonColors(
+                                            contentColor = palette.popupTextPrimary
+                                        ),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(48.dp)
+                                    ) {
+                                        Text("Hủy", fontWeight = FontWeight.Bold, maxLines = 1)
+                                    }
+                                    OutlinedButton(
+                                        onClick = {
+                                            zoom = 1f
+                                            offX = 0f
+                                            offY = 0f
+                                        },
+                                        shape = RoundedCornerShape(16.dp),
+                                        colors = ButtonDefaults.outlinedButtonColors(
+                                            contentColor = palette.popupTextPrimary
+                                        ),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(48.dp)
+                                    ) {
+                                        Text("Đặt lại", fontWeight = FontWeight.Bold, maxLines = 1)
+                                    }
+                                    Button(
+                                        onClick = {
+                                            // Quy khung hiển thị về vùng cắt trên ảnh gốc (đơn vị điểm ảnh)
+                                            val sc = baseScale() * zoom
+                                            if (sc > 0f && frame.width > 0) {
+                                                val visW = frame.width / sc
+                                                val visH = frame.height / sc
+                                                val cx = cropSrc.width / 2f - offX / sc
+                                                val cy = cropSrc.height / 2f - offY / sc
+                                                val w = visW.toInt().coerceIn(1, cropSrc.width)
+                                                val h = visH.toInt().coerceIn(1, cropSrc.height)
+                                                val l = (cx - visW / 2f).toInt().coerceIn(0, cropSrc.width - w)
+                                                val t = (cy - visH / 2f).toInt().coerceIn(0, cropSrc.height - h)
+                                                shareCardPhoto = android.graphics.Bitmap.createBitmap(cropSrc, l, t, w, h)
+                                                cropSourceBitmap = null
+                                                regenerateShareCard()
+                                            }
+                                        },
+                                        shape = RoundedCornerShape(16.dp),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = accentCompose,
+                                            contentColor = palette.onAccentText
+                                        ),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(48.dp)
+                                    ) {
+                                        Text("Xong", fontWeight = FontWeight.Bold, maxLines = 1)
+                                    }
                                 }
                             }
                         }

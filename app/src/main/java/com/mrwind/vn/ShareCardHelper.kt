@@ -3,7 +3,12 @@ package com.mrwind.vn
 import android.content.ContentValues
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
+import android.graphics.Matrix
+import android.graphics.Rect
+import android.net.Uri
+import android.media.ExifInterface
 import android.graphics.Color
 import android.graphics.LinearGradient
 import android.graphics.Paint
@@ -170,6 +175,7 @@ object ShareCardHelper {
             textSize = size
             typeface = Typeface.create("sans-serif", if (bold) Typeface.BOLD else Typeface.NORMAL)
             textAlign = Paint.Align.CENTER
+            setShadowLayer(8f, 0f, 2f, 0x80000000.toInt())
         }
 
     private fun drawCentered(canvas: Canvas, text: String, cy: Float, p: TextPaint, maxWidth: Float = 940f) {
@@ -177,13 +183,67 @@ object ShareCardHelper {
         canvas.drawText(fitted, W / 2f, cy, p)
     }
 
+    /** Ảnh người dùng: phủ kín (center-crop) + lớp tối nhẹ để chữ trắng luôn dễ đọc. */
+    private fun drawPhotoBackground(canvas: Canvas, photo: Bitmap) {
+        val scale = maxOf(W.toFloat() / photo.width, H.toFloat() / photo.height)
+        val cropW = (W / scale).toInt().coerceAtMost(photo.width)
+        val cropH = (H / scale).toInt().coerceAtMost(photo.height)
+        val left = (photo.width - cropW) / 2
+        val top = (photo.height - cropH) / 2
+        val src = Rect(left, top, left + cropW, top + cropH)
+        val dst = Rect(0, 0, W, H)
+        canvas.drawBitmap(photo, src, dst, Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG))
+        val overlay = Paint().apply {
+            shader = LinearGradient(0f, 0f, 0f, H.toFloat(), 0x59000000, 0xB3000000.toInt(), Shader.TileMode.CLAMP)
+        }
+        canvas.drawRect(0f, 0f, W.toFloat(), H.toFloat(), overlay)
+    }
+
+    /** Đọc ảnh từ thư viện, thu nhỏ nếu quá lớn và xoay đúng chiều theo EXIF. */
+    fun loadPhoto(context: Context, uri: Uri): Bitmap? {
+        return try {
+            val resolver = context.contentResolver
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+            if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+            var sample = 1
+            while (bounds.outWidth / sample > 2400 || bounds.outHeight / sample > 2400) sample *= 2
+            val opts = BitmapFactory.Options().apply { inSampleSize = sample }
+            val raw = resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, opts) }
+                ?: return null
+            val orientation = try {
+                resolver.openInputStream(uri)?.use {
+                    ExifInterface(it).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
+                } ?: ExifInterface.ORIENTATION_NORMAL
+            } catch (_: Exception) {
+                ExifInterface.ORIENTATION_NORMAL
+            }
+            val m = Matrix()
+            when (orientation) {
+                ExifInterface.ORIENTATION_ROTATE_90 -> m.postRotate(90f)
+                ExifInterface.ORIENTATION_ROTATE_180 -> m.postRotate(180f)
+                ExifInterface.ORIENTATION_ROTATE_270 -> m.postRotate(270f)
+                ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> m.postScale(-1f, 1f)
+                ExifInterface.ORIENTATION_FLIP_VERTICAL -> m.postScale(1f, -1f)
+                else -> return raw
+            }
+            Bitmap.createBitmap(raw, 0, 0, raw.width, raw.height, m, true)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    suspend fun loadPhotoAsync(context: Context, uri: Uri): Bitmap? =
+        withContext(Dispatchers.IO) { loadPhoto(context, uri) }
+
     /** Vẽ thẻ ảnh. Nên gọi ở luồng nền (Dispatchers.Default). */
     fun render(
         context: Context,
         weather: WeatherCache,
         solarLabel: String,
         lunarLabel: String,
-        spec: ShareCardSpec
+        spec: ShareCardSpec,
+        photo: Bitmap? = null
     ): Bitmap {
         val bmp = Bitmap.createBitmap(W, H, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
@@ -198,7 +258,7 @@ object ShareCardHelper {
 
         // Các vòng sáng mờ ngẫu nhiên
         val glow = Paint(Paint.ANTI_ALIAS_FLAG)
-        repeat(9) {
+        if (photo != null) drawPhotoBackground(canvas, photo) else repeat(9) {
             val r = 90f + rnd.nextFloat() * 260f
             val cx = rnd.nextFloat() * W
             val cy = rnd.nextFloat() * H
@@ -334,9 +394,10 @@ object ShareCardHelper {
         weather: WeatherCache,
         solarLabel: String,
         lunarLabel: String,
-        spec: ShareCardSpec
+        spec: ShareCardSpec,
+        photo: Bitmap? = null
     ): Bitmap = withContext(Dispatchers.Default) {
-        render(context, weather, solarLabel, lunarLabel, spec)
+        render(context, weather, solarLabel, lunarLabel, spec, photo)
     }
 
     suspend fun saveToGalleryAsync(context: Context, bitmap: Bitmap): Boolean =
