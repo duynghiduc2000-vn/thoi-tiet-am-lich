@@ -1,6 +1,8 @@
 package com.mrwind.vn
 
 import android.content.Context
+import android.media.AudioAttributes
+import android.media.SoundPool
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Animatable
@@ -11,6 +13,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -29,9 +32,12 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -50,6 +56,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
@@ -61,7 +68,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -69,6 +78,7 @@ import kotlinx.coroutines.launch
 import java.util.Calendar
 import java.util.Locale
 import java.util.TimeZone
+import kotlin.random.Random
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
@@ -78,7 +88,10 @@ import kotlin.math.sin
 // ------------------------------------------------------------
 // - MonthCalendarSection : nội dung tab "Lịch" (đặt trong LazyColumn)
 // - McTearOffSheet       : pop-up chi tiết ngày, kiểu tờ lịch xé + Liquid Glass
-// - McEngine             : tính âm lịch, rằm/mùng 1, ngày lễ, ngày giỗ, hoàng đạo
+// - McEngine             : tính âm lịch, rằm/mùng 1, ngày lễ, ngày giỗ, hoàng đạo, tiết khí
+// - Lọc chấm            : chạm từng mục ở dưới lưới để ẩn/hiện (lưu trong McPrefs)
+// - Tìm ngày tốt        : chọn việc + ngày sinh => tô sáng ngày phù hợp (dùng BirthdayHelper.scoreDayForActivity)
+// - Âm thanh xé lịch    : res/raw/calendar_tear.wav, phát khi xé tờ (bật/tắt bằng nút loa trên tờ lịch)
 // ============================================================
 
 /** Đổi thành false nếu muốn tuần bắt đầu từ Chủ nhật. */
@@ -90,6 +103,20 @@ private val MC_RED = Color(0xFFE53935)
 private val MC_GOLD = Color(0xFFFFA000)
 private val MC_PURPLE = Color(0xFFAB47BC)
 private val MC_GREEN = Color(0xFF43A047)
+private val MC_TEAL = Color(0xFF00ACC1)
+private val MC_GOOD = Color(0xFF00C853)
+
+/** Ngưỡng điểm trùng với kết luận trong BirthdayHelper.evaluateGoodBadDayForActivity. */
+private const val MC_GOOD_MIN = 60
+private const val MC_GREAT_MIN = 75
+
+private val MC_FILTERS = listOf(
+    McMarker.MOON to "Mùng 1 / Rằm",
+    McMarker.HOLIDAY to "Ngày lễ",
+    McMarker.MEMORIAL to "Giỗ / Sự kiện",
+    McMarker.HOANG_DAO to "Hoàng đạo",
+    McMarker.TIET_KHI to "Tiết khí"
+)
 
 // ---------------------------------------------------------------- Model
 
@@ -111,6 +138,8 @@ data class McDate(val year: Int, val month: Int, val day: Int) {
     /** yyyy-MM-dd (cùng định dạng khóa ghi chú ngày Âm của app) */
     fun key(): String = String.format(Locale.US, "%04d-%02d-%02d", year, month, day)
 
+    fun isBefore(other: McDate): Boolean = key() < other.key()
+
     companion object {
         fun today(): McDate {
             val c = Calendar.getInstance(MC_TZ)
@@ -119,7 +148,10 @@ data class McDate(val year: Int, val month: Int, val day: Int) {
     }
 }
 
-enum class McMarker { MOON, HOLIDAY, MEMORIAL, HOANG_DAO }
+enum class McMarker { MOON, HOLIDAY, MEMORIAL, HOANG_DAO, TIET_KHI }
+
+/** Ngày sinh + giới tính dùng để chấm điểm ngày tốt (lưu trong McPrefs). */
+data class McBirthProfile(val day: Int, val month: Int, val year: Int, val isMale: Boolean)
 
 data class McEventLine(val text: String, val marker: McMarker)
 
@@ -138,6 +170,7 @@ data class McDayInfo(
     val isRam: Boolean,
     val isHoangDao: Boolean,
     val dayStar: String,
+    val solarTerm: String?,
     val events: List<McEventLine>,
     val markers: List<McMarker>
 )
@@ -221,6 +254,97 @@ private fun mcMarkerColor(m: McMarker): Color = when (m) {
     McMarker.HOLIDAY -> MC_RED
     McMarker.MEMORIAL -> MC_PURPLE
     McMarker.HOANG_DAO -> MC_GREEN
+    McMarker.TIET_KHI -> MC_TEAL
+}
+
+// ---------------------------------------------------------------- Prefs / âm thanh / chấm điểm
+
+private object McPrefs {
+    private const val NAME = "month_calendar_prefs"
+    private const val KEY_HIDDEN = "hidden_markers"
+    private const val KEY_SOUND = "tear_sound_on"
+    private const val KEY_BIRTH = "birth_profile"
+
+    private fun sp(c: Context) = c.getSharedPreferences(NAME, Context.MODE_PRIVATE)
+
+    fun hiddenMarkers(c: Context): Set<McMarker> =
+        sp(c).getStringSet(KEY_HIDDEN, emptySet()).orEmpty()
+            .mapNotNull { n -> McMarker.entries.firstOrNull { it.name == n } }
+            .toSet()
+
+    fun setHiddenMarkers(c: Context, hidden: Set<McMarker>) {
+        sp(c).edit().putStringSet(KEY_HIDDEN, hidden.map { it.name }.toSet()).apply()
+    }
+
+    fun soundOn(c: Context): Boolean = sp(c).getBoolean(KEY_SOUND, true)
+
+    fun setSoundOn(c: Context, on: Boolean) {
+        sp(c).edit().putBoolean(KEY_SOUND, on).apply()
+    }
+
+    fun birth(c: Context): McBirthProfile? {
+        val parts = sp(c).getString(KEY_BIRTH, null)?.split("-") ?: return null
+        if (parts.size != 4) return null
+        val d = parts[0].toIntOrNull() ?: return null
+        val m = parts[1].toIntOrNull() ?: return null
+        val y = parts[2].toIntOrNull() ?: return null
+        return McBirthProfile(d, m, y, parts[3] == "1")
+    }
+
+    fun setBirth(c: Context, b: McBirthProfile) {
+        sp(c).edit()
+            .putString(KEY_BIRTH, "${b.day}-${b.month}-${b.year}-${if (b.isMale) 1 else 0}")
+            .apply()
+    }
+}
+
+private fun mcParseBirth(d: String, m: String, y: String, male: Boolean): McBirthProfile? {
+    val dd = d.toIntOrNull() ?: return null
+    val mm = m.toIntOrNull() ?: return null
+    val yy = y.toIntOrNull() ?: return null
+    if (yy !in 1900..McDate.today().year || mm !in 1..12) return null
+    if (dd !in 1..mcDaysInMonth(yy, mm)) return null
+    return McBirthProfile(dd, mm, yy, male)
+}
+
+/** Chấm điểm 1 ngày cho 1 việc, theo người sinh [birth]. Dùng lại BirthdayHelper.scoreDayForActivity. */
+private class McScorer(
+    private val engine: McEngine,
+    private val birth: McBirthProfile,
+    val activity: AuspiciousActivity
+) {
+    fun score(d: McDate): Int = engine.activityScore(d, birth, activity)
+}
+
+/**
+ * Âm thanh xé lịch: res/raw/calendar_tear.wav (~0,5 giây), phát bằng SoundPool nên gần như không trễ.
+ * Mỗi lần phát đổi tốc độ nhẹ để các lần xé nghe không giống hệt nhau.
+ * Dùng luồng âm "sonification" => tắt khi điện thoại ở chế độ im lặng.
+ */
+private class McTearSound(context: Context) {
+    private val pool: SoundPool = SoundPool.Builder()
+        .setMaxStreams(2)
+        .setAudioAttributes(
+            AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build()
+        )
+        .build()
+    private val soundId: Int
+    @Volatile private var loaded = false
+
+    init {
+        pool.setOnLoadCompleteListener { _, _, status -> loaded = (status == 0) }
+        soundId = pool.load(context.applicationContext, R.raw.calendar_tear, 1)
+    }
+
+    fun play() {
+        if (!loaded) return
+        pool.play(soundId, 1f, 1f, 1, 0, 0.92f + Random.nextFloat() * 0.22f)
+    }
+
+    fun release() = pool.release()
 }
 
 // ---------------------------------------------------------------- Engine
@@ -290,11 +414,16 @@ class McEngine(context: Context) {
             }
         }
 
+        // Tiết khí: ngày Mặt Trời đi qua mỗi 15° (24 ngày/năm)
+        val solarTerm = BirthdayHelper.solarTermStartingOn(d.day, d.month, d.year)
+        if (solarTerm != null) events.add(McEventLine("Tiết $solarTerm", McMarker.TIET_KHI))
+
         val markers = ArrayList<McMarker>()
         if (isMungMot || isRam) markers.add(McMarker.MOON)
         if (events.any { it.marker == McMarker.HOLIDAY }) markers.add(McMarker.HOLIDAY)
         if (events.any { it.marker == McMarker.MEMORIAL }) markers.add(McMarker.MEMORIAL)
         if (isHoangDao) markers.add(McMarker.HOANG_DAO)
+        if (solarTerm != null) markers.add(McMarker.TIET_KHI)
 
         return McDayInfo(
             date = d,
@@ -311,8 +440,24 @@ class McEngine(context: Context) {
             isRam = isRam,
             isHoangDao = isHoangDao,
             dayStar = star,
+            solarTerm = solarTerm,
             events = events,
             markers = markers
+        )
+    }
+
+    /** Điểm 0–100 của ngày [d] cho việc [activity] với người sinh [birth] (>=60 nên làm, >=75 rất nên). */
+    fun activityScore(d: McDate, birth: McBirthProfile, activity: AuspiciousActivity): Int {
+        val info = dayInfo(d)
+        return BirthdayHelper.scoreDayForActivity(
+            jd = mcJdFromDate(d.day, d.month, d.year),
+            lunarDay = info.lunarDay,
+            lunarMonth = info.lunarMonth,
+            birthDay = birth.day,
+            birthMonth = birth.month,
+            birthYear = birth.year,
+            gender = if (birth.isMale) AuspiciousGender.MALE else AuspiciousGender.FEMALE,
+            activity = activity
         )
     }
 
@@ -363,6 +508,29 @@ internal fun MonthCalendarSection(
     val today = remember { McDate.today() }
     var viewYear by rememberSaveable { mutableStateOf(today.year) }
     var viewMonth by rememberSaveable { mutableStateOf(today.month) }
+
+    // Lọc chấm (nhớ lại giữa các lần mở app)
+    var hidden by remember { mutableStateOf(McPrefs.hiddenMarkers(context)) }
+
+    // Tìm ngày tốt
+    var finderActivity by rememberSaveable { mutableStateOf<String?>(null) }
+    var birth by remember { mutableStateOf(McPrefs.birth(context)) }
+    val activity = AuspiciousActivity.entries.firstOrNull { it.name == finderActivity }
+    val scorer = remember(activity, birth) {
+        val b = birth
+        if (activity != null && b != null) McScorer(engine, b, activity) else null
+    }
+    val goodDays = remember(viewYear, viewMonth, scorer) {
+        if (scorer == null) {
+            emptyList<Pair<McDate, Int>>()
+        } else {
+            (1..mcDaysInMonth(viewYear, viewMonth))
+                .map { McDate(viewYear, viewMonth, it) }
+                .filter { !it.isBefore(today) }
+                .map { it to scorer.score(it) }
+                .filter { it.second >= MC_GOOD_MIN }
+        }
+    }
 
     fun shiftMonth(delta: Int) {
         val total = viewYear * 12 + (viewMonth - 1) + delta
@@ -512,25 +680,61 @@ internal fun MonthCalendarSection(
                         today = today,
                         palette = palette,
                         accent = accent,
+                        hidden = hidden,
+                        scorer = scorer,
                         onDayClick = onDayClick
                     )
                 }
             }
         }
 
-        // ---------- Chú thích ----------
-        Row(
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
+        // ---------- Lọc chấm (chạm để ẩn / hiện) ----------
+        Column(
+            verticalArrangement = Arrangement.spacedBy(4.dp),
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 6.dp)
+                .padding(horizontal = 2.dp)
         ) {
-            McLegendItem(MC_GOLD, "Mùng 1 / Rằm", palette)
-            McLegendItem(MC_RED, "Ngày lễ", palette)
-            McLegendItem(MC_PURPLE, "Giỗ / Sự kiện", palette)
-            McLegendItem(MC_GREEN, "Hoàng đạo", palette)
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+            ) {
+                MC_FILTERS.forEach { (marker, label) ->
+                    McFilterChip(
+                        color = mcMarkerColor(marker),
+                        label = label,
+                        on = marker !in hidden,
+                        palette = palette
+                    ) {
+                        hidden = if (marker in hidden) hidden - marker else hidden + marker
+                        McPrefs.setHiddenMarkers(context, hidden)
+                    }
+                }
+            }
+            Text(
+                "Chạm vào từng mục để ẩn / hiện chấm trên lưới.",
+                fontSize = 10.5.sp,
+                color = palette.textSecondary
+            )
         }
+
+        // ---------- Tìm ngày tốt theo việc ----------
+        McFinderCard(
+            palette = palette,
+            accent = accent,
+            selected = activity,
+            onSelect = { finderActivity = it?.name },
+            birth = birth,
+            onBirthSaved = {
+                birth = it
+                McPrefs.setBirth(context, it)
+            },
+            goodDays = goodDays,
+            onDayClick = onDayClick
+        )
 
         // ---------- Sự kiện trong tháng ----------
         Column(
@@ -552,7 +756,7 @@ internal fun MonthCalendarSection(
             )
             if (monthEvents.isEmpty()) {
                 Text(
-                    "Tháng này chưa có ngày lễ, ngày giỗ hay ngày Rằm / Mùng 1 nào.",
+                    "Tháng này chưa có ngày lễ, tiết khí, ngày giỗ hay ngày Rằm / Mùng 1 nào.",
                     fontSize = 12.5.sp,
                     color = palette.textSecondary
                 )
@@ -632,10 +836,15 @@ private fun McMonthGrid(
     today: McDate,
     palette: AdaptivePalette,
     accent: Color,
+    hidden: Set<McMarker>,
+    scorer: McScorer?,
     onDayClick: (McDate) -> Unit
 ) {
     val cells = remember(year, month) { mcMonthGrid(year, month) }
     val infos = remember(year, month) { cells.map { engine.dayInfo(it) } }
+    val scores = remember(year, month, scorer) {
+        if (scorer == null) null else cells.associateWith { scorer.score(it) }
+    }
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         for (r in 0 until cells.size / 7) {
             Row(
@@ -648,6 +857,9 @@ private fun McMonthGrid(
                         info = info,
                         inMonth = info.date.month == month,
                         isToday = info.date == today,
+                        isPast = info.date.isBefore(today),
+                        hidden = hidden,
+                        score = scores?.get(info.date),
                         palette = palette,
                         accent = accent,
                         onClick = { onDayClick(info.date) },
@@ -664,12 +876,24 @@ private fun McDayCell(
     info: McDayInfo,
     inMonth: Boolean,
     isToday: Boolean,
+    isPast: Boolean,
+    hidden: Set<McMarker>,
+    score: Int?,
     palette: AdaptivePalette,
     accent: Color,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val shape = RoundedCornerShape(12.dp)
+    // Tô sáng ngày phù hợp (chỉ ngày trong tháng, từ hôm nay trở đi): 2 = rất tốt, 1 = tốt
+    val finderOn = score != null
+    val level = when {
+        score == null || !inMonth || isPast -> 0
+        score >= MC_GREAT_MIN -> 2
+        score >= MC_GOOD_MIN -> 1
+        else -> 0
+    }
+    val shownMarkers = info.markers.filter { it !in hidden }
     val isSunday = info.weekday == Calendar.SUNDAY
     val solarColor = when {
         isToday -> palette.onAccentText
@@ -693,9 +917,29 @@ private fun McDayCell(
         verticalArrangement = Arrangement.Center,
         modifier = modifier
             .height(60.dp)
-            .graphicsLayer { alpha = if (inMonth) 1f else 0.35f }
+            .graphicsLayer {
+                alpha = when {
+                    !inMonth -> 0.35f
+                    finderOn && level == 0 && !isToday -> 0.55f
+                    else -> 1f
+                }
+            }
             .clip(shape)
-            .background(if (isToday) accent else palette.subtleBg.copy(alpha = 0.55f))
+            .background(
+                when {
+                    isToday -> accent
+                    level == 2 -> MC_GOOD.copy(alpha = 0.30f)
+                    level == 1 -> MC_GOOD.copy(alpha = 0.14f)
+                    else -> palette.subtleBg.copy(alpha = 0.55f)
+                }
+            )
+            .then(
+                if (level > 0) {
+                    Modifier.border(if (level == 2) 1.8.dp else 1.dp, MC_GOOD.copy(alpha = if (level == 2) 1f else 0.6f), shape)
+                } else {
+                    Modifier
+                }
+            )
             .clickable(onClick = onClick)
             .padding(vertical = 3.dp)
     ) {
@@ -720,7 +964,7 @@ private fun McDayCell(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.height(5.dp)
         ) {
-            info.markers.forEach { m ->
+            shownMarkers.forEach { m ->
                 Box(
                     modifier = Modifier
                         .size(5.dp)
@@ -732,23 +976,265 @@ private fun McDayCell(
     }
 }
 
+/** Chip bật/tắt một loại chấm trên lưới. */
 @Composable
-private fun McLegendItem(color: Color, label: String, palette: AdaptivePalette) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
+private fun McFilterChip(
+    color: Color,
+    label: String,
+    on: Boolean,
+    palette: AdaptivePalette,
+    onClick: () -> Unit
+) {
+    val shape = RoundedCornerShape(50)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .clip(shape)
+            .background(if (on) color.copy(alpha = 0.14f) else palette.subtleBg.copy(alpha = 0.5f))
+            .border(1.dp, if (on) color.copy(alpha = 0.55f) else palette.textSecondary.copy(alpha = 0.3f), shape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 6.dp)
+    ) {
         Box(
             modifier = Modifier
-                .size(7.dp)
+                .size(8.dp)
                 .clip(CircleShape)
-                .background(color)
+                .then(
+                    if (on) Modifier.background(color)
+                    else Modifier.border(1.2.dp, palette.textSecondary.copy(alpha = 0.6f), CircleShape)
+                )
         )
-        Spacer(modifier = Modifier.width(4.dp))
+        Spacer(modifier = Modifier.width(5.dp))
         Text(
             label,
-            fontSize = 10.5.sp,
-            color = palette.textSecondary,
+            fontSize = 11.sp,
+            fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal,
+            color = if (on) palette.textPrimary else palette.textSecondary.copy(alpha = 0.8f),
+            textDecoration = if (on) TextDecoration.None else TextDecoration.LineThrough,
             maxLines = 1,
             softWrap = false
         )
+    }
+}
+
+@Composable
+private fun McNumberField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    hint: String,
+    maxLen: Int,
+    palette: AdaptivePalette,
+    accent: Color,
+    modifier: Modifier = Modifier
+) {
+    val shape = RoundedCornerShape(12.dp)
+    BasicTextField(
+        value = value,
+        onValueChange = { v -> if (v.length <= maxLen && v.all { it.isDigit() }) onValueChange(v) },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        textStyle = TextStyle(
+            color = palette.textPrimary,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center
+        ),
+        cursorBrush = SolidColor(accent),
+        decorationBox = { inner ->
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(shape)
+                    .background(palette.subtleBg)
+                    .border(1.dp, accent.copy(alpha = 0.45f), shape)
+                    .padding(horizontal = 6.dp, vertical = 9.dp)
+            ) {
+                if (value.isEmpty()) {
+                    Text(hint, fontSize = 13.sp, color = palette.textSecondary.copy(alpha = 0.7f))
+                }
+                inner()
+            }
+        },
+        modifier = modifier
+    )
+}
+
+/** Thẻ "Tìm ngày tốt": chọn việc, nhập ngày sinh một lần, lưới tháng sẽ tô sáng ngày phù hợp. */
+@Composable
+private fun McFinderCard(
+    palette: AdaptivePalette,
+    accent: Color,
+    selected: AuspiciousActivity?,
+    onSelect: (AuspiciousActivity?) -> Unit,
+    birth: McBirthProfile?,
+    onBirthSaved: (McBirthProfile) -> Unit,
+    goodDays: List<Pair<McDate, Int>>,
+    onDayClick: (McDate) -> Unit
+) {
+    val cardShape = RoundedCornerShape(24.dp)
+    var editing by remember { mutableStateOf(false) }
+    var dText by remember { mutableStateOf(birth?.day?.toString() ?: "") }
+    var mText by remember { mutableStateOf(birth?.month?.toString() ?: "") }
+    var yText by remember { mutableStateOf(birth?.year?.toString() ?: "") }
+    var male by remember { mutableStateOf(birth?.isMale ?: true) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val showForm = birth == null || editing
+
+    Column(
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(cardShape)
+            .background(palette.cardBg)
+            .background(palette.liquidGlassBrush)
+            .border(1.dp, palette.liquidGlassBorder, cardShape)
+            .padding(14.dp)
+    ) {
+        Text(
+            "TÌM NGÀY TỐT THEO VIỆC",
+            fontSize = 11.sp,
+            letterSpacing = 0.8.sp,
+            color = palette.textSecondary,
+            fontWeight = FontWeight.Bold
+        )
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+        ) {
+            AuspiciousActivity.entries.forEach { a ->
+                val on = a == selected
+                McPill(
+                    text = a.label.substringBefore(" /"),
+                    color = accent,
+                    filled = on,
+                    textColor = if (on) palette.onAccentText else palette.textPrimary,
+                    onClick = { onSelect(if (on) null else a) }
+                )
+            }
+        }
+
+        if (selected == null) {
+            Text(
+                "Chọn một việc để tô sáng các ngày phù hợp trên lưới lịch.",
+                fontSize = 12.sp,
+                color = palette.textSecondary
+            )
+        } else if (showForm) {
+            Text(
+                "Nhập ngày sinh để chấm điểm theo tuổi",
+                fontSize = 12.5.sp,
+                fontWeight = FontWeight.Bold,
+                color = palette.textPrimary
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                McNumberField(dText, { dText = it }, "Ngày", 2, palette, accent, Modifier.weight(1f))
+                McNumberField(mText, { mText = it }, "Tháng", 2, palette, accent, Modifier.weight(1f))
+                McNumberField(yText, { yText = it }, "Năm", 4, palette, accent, Modifier.weight(1.4f))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                McPill("Nam", accent, male, if (male) palette.onAccentText else palette.textPrimary,
+                    { male = true }, Modifier.weight(1f))
+                McPill("Nữ", accent, !male, if (!male) palette.onAccentText else palette.textPrimary,
+                    { male = false }, Modifier.weight(1f))
+            }
+            error?.let { Text(it, fontSize = 11.5.sp, color = MC_RED) }
+            McPill(
+                text = "Lưu",
+                color = accent,
+                filled = true,
+                textColor = palette.onAccentText,
+                onClick = {
+                    val parsed = mcParseBirth(dText, mText, yText, male)
+                    if (parsed == null) {
+                        error = "Ngày sinh không hợp lệ (năm 1900–${McDate.today().year})."
+                    } else {
+                        error = null
+                        editing = false
+                        onBirthSaved(parsed)
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
+        } else if (birth != null) {
+            Row(
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    "Sinh ${birth.day}/${birth.month}/${birth.year} • ${if (birth.isMale) "Nam" else "Nữ"}",
+                    fontSize = 12.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = palette.textPrimary
+                )
+                McPill("Sửa", accent, false, accent, { editing = true })
+            }
+
+            val great = goodDays.count { it.second >= MC_GREAT_MIN }
+            if (goodDays.isEmpty()) {
+                Text(
+                    "Từ hôm nay đến hết tháng này chưa có ngày nào phù hợp cho " +
+                        "${selected.label.substringBefore(" /").lowercase()}. Thử vuốt sang tháng sau.",
+                    fontSize = 12.sp,
+                    color = palette.textSecondary
+                )
+            } else {
+                Text(
+                    "${goodDays.size} ngày phù hợp trong tháng ($great ngày rất tốt). Gợi ý nhất:",
+                    fontSize = 12.sp,
+                    color = palette.textSecondary
+                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                ) {
+                    goodDays.sortedByDescending { it.second }.take(3).forEach { (d, sc) ->
+                        McPill(
+                            text = "${d.day}/${d.month} • $sc điểm",
+                            color = MC_GOOD,
+                            filled = false,
+                            textColor = palette.textPrimary,
+                            onClick = { onDayClick(d) }
+                        )
+                    }
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(12.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(MC_GOOD.copy(alpha = 0.30f))
+                            .border(1.5.dp, MC_GOOD, RoundedCornerShape(4.dp))
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Rất tốt (≥$MC_GREAT_MIN)", fontSize = 10.5.sp, color = palette.textSecondary)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(12.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(MC_GOOD.copy(alpha = 0.14f))
+                            .border(1.dp, MC_GOOD.copy(alpha = 0.6f), RoundedCornerShape(4.dp))
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Tốt ($MC_GOOD_MIN–${MC_GREAT_MIN - 1})", fontSize = 10.5.sp, color = palette.textSecondary)
+                }
+            }
+            Text(
+                "Điểm mang tính tham khảo, tính theo ngày Hoàng/Hắc đạo, ngày Âm và tuổi.",
+                fontSize = 10.sp,
+                color = palette.textSecondary.copy(alpha = 0.8f)
+            )
+        }
     }
 }
 
@@ -830,6 +1316,13 @@ internal fun McTearOffSheet(
     var nav by remember(startDate) { mutableStateOf(McNav(startDate, 0)) }
     val tear = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
+    var soundOn by remember { mutableStateOf(McPrefs.soundOn(context)) }
+    val tearSound = remember { McTearSound(context) }
+    DisposableEffect(Unit) { onDispose { tearSound.release() } }
+    val toggleSound = {
+        soundOn = !soundOn
+        McPrefs.setSoundOn(context, soundOn)
+    }
     var sheetHeightPx by remember { mutableStateOf(1500f) }
     val thresholdPx = with(LocalDensity.current) { 70.dp.toPx() }
     val sheetH = minOf(560, (LocalConfiguration.current.screenHeightDp * 0.86f).toInt()).dp
@@ -837,6 +1330,7 @@ internal fun McTearOffSheet(
     // dir = +1: xé tờ hiện tại bay lên, lộ ngày sau.  dir = -1: tờ ngày trước rơi xuống phủ lên.
     fun go(dir: Int) {
         if (nav.dir != 0) return
+        if (dir == 1 && soundOn) tearSound.play() // chỉ phát khi XÉ (sang ngày sau)
         scope.launch {
             tear.snapTo(0f)
             nav = McNav(nav.date, dir)
@@ -901,6 +1395,8 @@ internal fun McTearOffSheet(
                 onClose = onClose,
                 onPrev = {},
                 onNext = {},
+                soundOn = soundOn,
+                onToggleSound = toggleSound,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(sheetH)
@@ -914,6 +1410,8 @@ internal fun McTearOffSheet(
             onClose = onClose,
             onPrev = { go(-1) },
             onNext = { go(1) },
+            soundOn = soundOn,
+            onToggleSound = toggleSound,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(sheetH)
@@ -937,6 +1435,8 @@ private fun McPaper(
     onClose: () -> Unit,
     onPrev: () -> Unit,
     onNext: () -> Unit,
+    soundOn: Boolean,
+    onToggleSound: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -1018,6 +1518,17 @@ private fun McPaper(
                         .weight(1f)
                         .padding(horizontal = 6.dp)
                 )
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.22f))
+                        .clickable(onClick = onToggleSound)
+                ) {
+                    Text(if (soundOn) "🔊" else "🔇", fontSize = 13.sp)
+                }
+                Spacer(modifier = Modifier.width(6.dp))
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier

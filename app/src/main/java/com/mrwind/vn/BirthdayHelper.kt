@@ -306,7 +306,35 @@ object BirthdayHelper {
     }
 
     private fun solarTermIndexFromDegrees(deg: Double): Int {
-        return (floor(((deg + 7.5) % 360.0) / 15.0).toInt()) % 24
+        // Mỗi tiết khí kéo dài 15° kinh độ Mặt Trời, bắt đầu tại bội số của 15° (Xuân phân = 0°).
+        return (floor(deg / 15.0).toInt()) % 24
+    }
+
+    /** Kinh độ Mặt Trời (độ) tại thời điểm JD chính xác [jdUt] (UT, có phần thập phân). */
+    private fun sunLongitudeDegreesAtJd(jdUt: Double): Double {
+        val t = (jdUt - 2451545.0) / 36525.0
+        val t2 = t * t
+        val dr = Math.PI / 180.0
+        val m = 357.52910 + 35999.05030 * t - 0.0001559 * t2 - 0.00000048 * t * t2
+        val l0 = 280.46645 + 36000.76983 * t + 0.0003032 * t2
+        var dl = (1.914600 - 0.004817 * t - 0.000014 * t2) * Math.sin(dr * m)
+        dl += (0.019993 - 0.000101 * t) * Math.sin(dr * 2 * m) + 0.000290 * Math.sin(dr * 3 * m)
+        val deg = (l0 + dl) % 360.0
+        return if (deg < 0) deg + 360.0 else deg
+    }
+
+    /**
+     * Tên tiết khí BẮT ĐẦU đúng vào ngày dương [day]/[month]/[year] (giờ Việt Nam, UTC+7),
+     * hoặc null nếu ngày đó không phải ngày chuyển tiết. Mỗi năm có đúng 24 ngày như vậy.
+     * Ngày chuyển tiết = ngày mà Mặt Trời đi qua một bội số của 15° trong khoảng 0h → 24h.
+     */
+    fun solarTermStartingOn(day: Int, month: Int, year: Int): String? {
+        val jd = jdFromDate(day, month, year)
+        val startDeg = sunLongitudeDegreesAtJd(jd - 0.5 - 7.0 / 24.0)
+        val endDeg = sunLongitudeDegreesAtJd(jd + 0.5 - 7.0 / 24.0)
+        val a = floor(startDeg / 15.0).toInt()
+        val b = floor(endDeg / 15.0).toInt()
+        return if (a != b) TWENTY_FOUR_SOLAR_TERMS[b % 24] else null
     }
 
     private fun sunMajorTerm(dayNumber: Int, timeZoneOffset: Double = 7.0): Int {
@@ -1048,7 +1076,7 @@ object BirthdayHelper {
     }
 
 
-    private fun scoreDayForActivity(
+    internal fun scoreDayForActivity(
         jd: Int,
         lunarDay: Int,
         lunarMonth: Int,
