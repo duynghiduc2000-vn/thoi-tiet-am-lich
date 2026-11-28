@@ -535,6 +535,36 @@ object AppPrefs {
         writeString(context, KEY_LUNAR_CUSTOM_EVENTS, arr.toString(), commitNow = true)
     }
 
+    // Cảnh báo thời tiết thông minh: mưa theo giờ, nắng nóng, UV cao (mặc định tắt)
+    fun isWeatherAlertEnabled(context: Context): Boolean =
+        prefs(context).getBoolean("weather_alert_enabled", false)
+
+    fun setWeatherAlertEnabled(context: Context, enabled: Boolean) {
+        writeBoolean(context, "weather_alert_enabled", enabled)
+    }
+
+    fun getLastWeatherAlertNotifyKey(context: Context): String =
+        prefs(context).getString("last_weather_alert_notify_key", "") ?: ""
+
+    fun setLastWeatherAlertNotifyKey(context: Context, key: String, commitNow: Boolean = true) {
+        writeString(context, "last_weather_alert_notify_key", key, commitNow = commitNow)
+    }
+
+    fun getLastWeatherAlertPopupKey(context: Context): String =
+        prefs(context).getString("last_weather_alert_popup_key", "") ?: ""
+
+    fun setLastWeatherAlertPopupKey(context: Context, key: String, commitNow: Boolean = true) {
+        writeString(context, "last_weather_alert_popup_key", key, commitNow = commitNow)
+    }
+
+    // Dự báo theo giờ (JSON, 48 giờ tới) để tính cảnh báo mưa / nóng / UV
+    fun saveHourlyForecastJson(context: Context, json: String) {
+        writeString(context, "weather_hourly_json", json)
+    }
+
+    fun getHourlyForecastJson(context: Context): String =
+        prefs(context).getString("weather_hourly_json", "[]") ?: "[]"
+
     private fun prefs(context: Context) =
         context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
 }

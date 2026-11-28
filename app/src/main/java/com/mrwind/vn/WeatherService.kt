@@ -53,7 +53,8 @@ object WeatherService {
 
     private data class CombinedForecastPayload(
         val cache: WeatherCache,
-        val dailyItems: List<DailyForecastItem>
+        val dailyItems: List<DailyForecastItem>,
+        val hourlyJson: String
     )
 
     private fun weatherEmojiForWidgetCode(code: Int): String = when (code) {
@@ -163,6 +164,9 @@ object WeatherService {
         if (payload != null) {
             AppPrefs.saveWeather(context, payload.cache)
             saveSevenDaysToPrefs(context, payload.dailyItems)
+            if (payload.hourlyJson != "[]") {
+                AppPrefs.saveHourlyForecastJson(context, payload.hourlyJson)
+            }
             WeatherLunarWidget.updateAllWidgets(context)
             payload.cache
         } else {
@@ -285,7 +289,7 @@ object WeatherService {
             val urlStr =
                 "https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon" +
                     "&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m" +
-                    "&hourly=temperature_2m,weather_code" +
+                    "&hourly=temperature_2m,weather_code,precipitation_probability,precipitation,uv_index" +
                     "&daily=weather_code,temperature_2m_max,temperature_2m_min" +
                     "&timezone=Asia%2FBangkok&forecast_days=$safeDays"
 
@@ -337,10 +341,40 @@ object WeatherService {
                 lastUpdated = System.currentTimeMillis()
             )
 
-            CombinedForecastPayload(cache = cache, dailyItems = dailyItems)
+            CombinedForecastPayload(
+                cache = cache,
+                dailyItems = dailyItems,
+                hourlyJson = buildHourlyJson(hourly)
+            )
         } catch (_: Exception) {
             null
         }
+    }
+
+    /** Rút gọn dự báo theo giờ (48 giờ đầu) thành JSON để tính cảnh báo thời tiết. */
+    private fun buildHourlyJson(hourly: JSONObject?): String {
+        if (hourly == null) return "[]"
+        val times = hourly.optJSONArray("time") ?: return "[]"
+        val temps = hourly.optJSONArray("temperature_2m")
+        val codes = hourly.optJSONArray("weather_code")
+        val pops = hourly.optJSONArray("precipitation_probability")
+        val precs = hourly.optJSONArray("precipitation")
+        val uvs = hourly.optJSONArray("uv_index")
+        val out = JSONArray()
+        for (i in 0 until minOf(times.length(), 48)) {
+            val o = JSONObject()
+            o.put("t", times.optString(i, ""))
+            val temp = temps?.optDouble(i, Double.NaN) ?: Double.NaN
+            if (!temp.isNaN()) o.put("temp", temp)
+            o.put("code", codes?.optInt(i, 0) ?: 0)
+            o.put("pop", pops?.optInt(i, 0) ?: 0)
+            val pr = precs?.optDouble(i, 0.0) ?: 0.0
+            o.put("pr", if (pr.isNaN()) 0.0 else pr)
+            val uv = uvs?.optDouble(i, 0.0) ?: 0.0
+            o.put("uv", if (uv.isNaN()) 0.0 else uv)
+            out.put(o)
+        }
+        return out.toString()
     }
 
     private fun extractNextFourHours(hourly: JSONObject?): List<String> {
@@ -417,6 +451,8 @@ class WeatherSyncWorker(
     override suspend fun doWork(): Result {
         WeatherService.syncWeather(applicationContext, refreshLocation = false)
         BirthdayHelper.runDailyBackgroundReminders(applicationContext)
+        // Dữ liệu vừa được làm mới -> gửi cảnh báo thời tiết buổi sáng (nếu đang bật)
+        WeatherAlertHelper.notifyAlertsOncePerDay(applicationContext)
         return Result.success()
     }
 }

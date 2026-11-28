@@ -184,6 +184,9 @@ import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.LocalContext
@@ -791,6 +794,69 @@ private fun TopBarQuickMenuButton(
                         cap = StrokeCap.Round
                     )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TopBarShareCardButton(
+    palette: AdaptivePalette,
+    accentColor: Color,
+    isActive: Boolean,
+    onClick: () -> Unit,
+    tooltipText: String = "Chia sẻ thẻ thời tiết",
+    modifier: Modifier = Modifier
+) {
+    val iconScale: Float
+    if (isActive) {
+        val transition = rememberInfiniteTransition(label = "share_card_idle")
+        iconScale = transition.animateFloat(
+            initialValue = 0.94f,
+            targetValue = 1.08f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 1100, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "share_card_idle_scale"
+        ).value
+    } else {
+        iconScale = 1f
+    }
+
+    CircleActionTooltipWrapper(
+        tooltipText = tooltipText,
+        palette = palette,
+        accentColor = accentColor,
+        onClick = onClick,
+        modifier = modifier.size(35.dp)
+    ) {
+        Surface(
+            shape = RoundedCornerShape(12.dp),
+            color = palette.cardBg,
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(RoundedCornerShape(12.dp))
+                .border(
+                    width = 1.dp,
+                    color = accentColor.copy(alpha = 0.45f),
+                    shape = RoundedCornerShape(12.dp)
+                )
+        ) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.fillMaxSize()
+            ) {
+                Text(
+                    text = "🖼️",
+                    fontSize = 16.sp,
+                    maxLines = 1,
+                    softWrap = false,
+                    modifier = Modifier.graphicsLayer {
+                        scaleX = iconScale
+                        scaleY = iconScale
+                    }
+                )
             }
         }
     }
@@ -1587,7 +1653,7 @@ private val MAIN_TAB_ITEM_KEYS: Map<MainTab, List<String>> = mapOf(
         "good_bad_day_section",
         "lunar_useful_info_section"
     ),
-    MainTab.REMINDERS to listOf("todo_section", "birthday_and_holiday_row_section"),
+    MainTab.REMINDERS to listOf("todo_section", "birthday_and_holiday_row_section", "weather_alert_section"),
     MainTab.SETTINGS to listOf(
         "accent_color_section",
         "app_and_widget_appearance_row_section",
@@ -1642,6 +1708,10 @@ private val FEATURE_SEARCH_TARGETS: List<FeatureSearchTarget> = listOf(
     FeatureSearchTarget(
         "Nhắc ngày lễ & kỷ niệm", MainTab.REMINDERS, ExpandableSection.HOLIDAY, "birthday_and_holiday_row_section",
         listOf("ngày lễ", "kỷ niệm", "ngày giỗ", "sự kiện âm lịch", "rằm", "mùng 1", "tết")
+    ),
+    FeatureSearchTarget(
+        "Cảnh báo thời tiết thông minh", MainTab.REMINDERS, null, "weather_alert_section",
+        listOf("cảnh báo", "mưa", "áo mưa", "nắng nóng", "uv", "tia cực tím", "thông báo thời tiết")
     ),
     FeatureSearchTarget(
         "Màu chủ đề", MainTab.SETTINGS, ExpandableSection.ACCENT_COLOR, "accent_color_section",
@@ -4394,6 +4464,17 @@ fun ThoiTietAmLichApp() {
     }
     var showRamMung1Popup by remember { mutableStateOf(false) }
 
+    var weatherAlertEnabled by remember { mutableStateOf(AppPrefs.isWeatherAlertEnabled(context)) }
+    var activeWeatherAlerts by remember {
+        mutableStateOf(WeatherAlertHelper.getAlertsForToday(context))
+    }
+    var showWeatherAlertPopup by remember { mutableStateOf(false) }
+
+    var showShareCardPopup by remember { mutableStateOf(false) }
+    var shareCardSpec by remember { mutableStateOf<ShareCardSpec?>(null) }
+    var shareCardBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+    var isSavingShareCard by remember { mutableStateOf(false) }
+
     var feedbackCategory by remember { mutableStateOf(FeedbackCategory.BUG) }
     var feedbackMessageInput by remember { mutableStateOf("") }
     var feedbackError by remember { mutableStateOf<String?>(null) }
@@ -4642,6 +4723,9 @@ fun ThoiTietAmLichApp() {
         activeHolidayAlerts,
         showRamMung1Popup,
         activeRamMung1Alerts,
+        showWeatherAlertPopup,
+        activeWeatherAlerts,
+        showShareCardPopup,
         activeTodoPopup,
         ageResultPopup,
         showAgeHistoryClearedPopup,
@@ -4671,6 +4755,8 @@ fun ThoiTietAmLichApp() {
             moodConfirmedPopup != null ||
             (showHolidayPopup && activeHolidayAlerts.isNotEmpty()) ||
             (showRamMung1Popup && activeRamMung1Alerts.isNotEmpty()) ||
+            (showWeatherAlertPopup && activeWeatherAlerts.isNotEmpty()) ||
+            showShareCardPopup ||
             activeTodoPopup != null ||
             ageResultPopup != null ||
             showAgeHistoryClearedPopup ||
@@ -4695,6 +4781,7 @@ fun ThoiTietAmLichApp() {
                 context = context,
                 refreshLocation = refreshLocation
             )
+            activeWeatherAlerts = WeatherAlertHelper.getAlertsForToday(context)
         } finally {
             isSyncing = false
         }
@@ -4797,6 +4884,14 @@ fun ThoiTietAmLichApp() {
 
         syncWeatherData(refreshLocation = false)
 
+        // Cảnh báo thời tiết thông minh: thông báo hệ thống (khung giờ sáng) + pop-up 1 lần/ngày
+        activeWeatherAlerts = WeatherAlertHelper.getAlertsForToday(context)
+        WeatherAlertHelper.notifyAlertsOncePerDay(context)
+        if (WeatherAlertHelper.shouldShowPopup(context, activeWeatherAlerts)) {
+            showWeatherAlertPopup = true
+            WeatherAlertHelper.markPopupShown(context, activeWeatherAlerts)
+        }
+
         while (true) {
             delay(60_000L)
             dailyMoodState = DailyMoodHelper.loadOrResetToday(context)
@@ -4847,6 +4942,67 @@ fun ThoiTietAmLichApp() {
     val lunarToday = remember { LunarCalendar.todayLunar() }
     val lunarTodaySummary = remember(lunarToday) { lunarToday.shortSummary() }
     val solarToday = remember { LunarCalendar.formatVietnameseSolarDate() }
+
+    // ----- Thẻ ảnh chia sẻ nhanh -----
+    fun regenerateShareCard() {
+        scope.launch {
+            val spec = ShareCardHelper.randomSpec(weather, shareCardSpec)
+            val bmp = ShareCardHelper.renderAsync(context, weather, solarToday, lunarTodaySummary, spec)
+            shareCardSpec = spec
+            shareCardBitmap = bmp
+        }
+    }
+
+    fun openShareCard() {
+        if (weather.lastUpdated == 0L) {
+            Toast.makeText(
+                context,
+                "Chưa có dữ liệu thời tiết. Hãy chạm vào nhiệt độ để cập nhật trước nhé.",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+        shareCardBitmap = null
+        showShareCardPopup = true
+        regenerateShareCard()
+    }
+
+    fun doSaveShareCard(bmp: android.graphics.Bitmap) {
+        if (isSavingShareCard) return
+        scope.launch {
+            isSavingShareCard = true
+            val ok = ShareCardHelper.saveToGalleryAsync(context, bmp)
+            isSavingShareCard = false
+            Toast.makeText(
+                context,
+                if (ok) "Đã lưu thẻ ảnh vào thư viện ảnh" else "Không lưu được thẻ ảnh, vui lòng thử lại",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+
+    val storagePermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        val bmp = shareCardBitmap
+        if (granted && bmp != null) {
+            doSaveShareCard(bmp)
+        } else if (!granted) {
+            Toast.makeText(context, "Cần cấp quyền lưu ảnh để tải thẻ về máy", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    fun saveShareCard() {
+        val bmp = shareCardBitmap ?: return
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_EXTERNAL_STORAGE) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            storagePermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        } else {
+            doSaveShareCard(bmp)
+        }
+    }
     val dailyWarmMessage = remember(nowCal) { dailyWarmMessageForToday(nowCal) }
 
     fun performLunarLookup(day: Int, month: Int, year: Int) {
@@ -5101,7 +5257,7 @@ fun ThoiTietAmLichApp() {
                                                             )
                                                         }
 
-                                                        // Hàng 2: Tối ưu hóa ứng dụng + 2 ô trống dự phòng
+                                                        // Hàng 2: Tối ưu hóa ứng dụng, Chia sẻ thẻ thời tiết + 1 ô trống dự phòng
                                                         Row(
                                                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                                                             verticalAlignment = Alignment.CenterVertically
@@ -5122,7 +5278,17 @@ fun ThoiTietAmLichApp() {
                                                                 },
                                                                 modifier = Modifier.size(38.dp)
                                                             )
-                                                            Spacer(modifier = Modifier.size(38.dp))
+                                                            TopBarShareCardButton(
+                                                                palette = palette,
+                                                                accentColor = accentCompose,
+                                                                isActive = canAnimateVisuals,
+                                                                tooltipText = "Chia sẻ thẻ thời tiết",
+                                                                onClick = {
+                                                                    showQuickToolsMenu = false
+                                                                    openShareCard()
+                                                                },
+                                                                modifier = Modifier.size(38.dp)
+                                                            )
                                                             Spacer(modifier = Modifier.size(38.dp))
                                                         }
 
@@ -7257,6 +7423,83 @@ fun ThoiTietAmLichApp() {
                         }
                         }
 
+                        if (selectedMainTab == MainTab.REMINDERS) {
+                        item(key = "weather_alert_section") {
+                            Surface(
+                                shape = RoundedCornerShape(24.dp),
+                                color = Color.Transparent,
+                                contentColor = palette.textPrimary,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(24.dp))
+                                    .background(palette.liquidGlassBrush)
+                                    .border(1.3.dp, accentCompose.copy(alpha = 0.65f), RoundedCornerShape(24.dp))
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    FlatSwitchRow(
+                                        title = "Cảnh báo thời tiết thông minh",
+                                        subtitle = if (weatherAlertEnabled)
+                                            "Đang bật: báo mưa theo giờ, nắng nóng, UV cao (thông báo buổi sáng & pop-up khi mở app)"
+                                        else
+                                            "Gạt bật để nhận thông báo & Pop-up khi hôm nay có mưa, nắng nóng hoặc UV cao",
+                                        checked = weatherAlertEnabled,
+                                        accentColor = accentCompose,
+                                        palette = palette,
+                                        onCheckedChange = { checked ->
+                                            weatherAlertEnabled = checked
+                                            AppPrefs.setWeatherAlertEnabled(context, checked)
+                                            if (checked) {
+                                                scope.launch {
+                                                    // Làm mới dữ liệu theo giờ để cảnh báo chính xác
+                                                    syncWeatherData(refreshLocation = false)
+                                                    activeWeatherAlerts = WeatherAlertHelper.getAlertsForToday(context)
+                                                    if (activeWeatherAlerts.isNotEmpty()) {
+                                                        WeatherAlertHelper.notifyAlertsOncePerDay(
+                                                            context,
+                                                            ignoreMorningWindow = true
+                                                        )
+                                                        showWeatherAlertPopup = true
+                                                        WeatherAlertHelper.markPopupShown(context, activeWeatherAlerts)
+                                                    } else {
+                                                        Toast.makeText(
+                                                            context,
+                                                            "Hôm nay chưa có cảnh báo thời tiết đáng chú ý",
+                                                            Toast.LENGTH_SHORT
+                                                        ).show()
+                                                    }
+                                                }
+                                            } else {
+                                                showWeatherAlertPopup = false
+                                                WeatherAlertHelper.cancelNotification(context)
+                                            }
+                                        }
+                                    )
+
+                                    if (weatherAlertEnabled) {
+                                        SectionHairline(palette)
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        if (activeWeatherAlerts.isEmpty()) {
+                                            Text(
+                                                "Hôm nay chưa có cảnh báo đáng chú ý.",
+                                                color = palette.textSecondary,
+                                                fontSize = 11.5.sp
+                                            )
+                                        } else {
+                                            activeWeatherAlerts.forEach { alert ->
+                                                Text(
+                                                    "${alert.emoji} ${alert.message}",
+                                                    color = palette.textPrimary,
+                                                    fontSize = 12.5.sp,
+                                                    modifier = Modifier.padding(vertical = 3.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        }
+
                         if (selectedMainTab == MainTab.SETTINGS) {
                         item(key = "bug_report_section") {
                             Column(
@@ -8866,6 +9109,246 @@ fun ThoiTietAmLichApp() {
                                     "Đã rõ!",
                                     fontWeight = FontWeight.Bold
                                 )
+                            }
+                        }
+                    }
+                }
+
+                AnimatedPopupOverlay(
+                    visible = showWeatherAlertPopup && activeWeatherAlerts.isNotEmpty(),
+                    onDismiss = { showWeatherAlertPopup = false },
+                    dismissOnBackdropClick = true
+                ) {
+                    LiquidGlassPopupSurface(palette = palette) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(22.dp)
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.End,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                IconButton(
+                                    onClick = { showWeatherAlertPopup = false },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Close,
+                                        contentDescription = "Đóng",
+                                        tint = palette.popupTextSecondary
+                                    )
+                                }
+                            }
+
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(64.dp)
+                                    .clip(CircleShape)
+                                    .background(accentCompose.copy(alpha = 0.16f))
+                                    .border(1.5.dp, accentCompose.copy(alpha = 0.55f), CircleShape)
+                            ) {
+                                Text(
+                                    text = activeWeatherAlerts.firstOrNull()?.emoji ?: "⛅",
+                                    fontSize = 30.sp
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            Text(
+                                "Cảnh báo thời tiết hôm nay",
+                                style = MaterialTheme.typography.headlineSmall,
+                                color = palette.popupTextPrimary,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center
+                            )
+
+                            Spacer(modifier = Modifier.height(6.dp))
+
+                            Surface(
+                                shape = RoundedCornerShape(999.dp),
+                                color = accentCompose.copy(alpha = 0.18f)
+                            ) {
+                                Text(
+                                    solarToday,
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = accentCompose,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                activeWeatherAlerts.forEach { alert ->
+                                    Surface(
+                                        shape = RoundedCornerShape(16.dp),
+                                        color = palette.popupBoxBg,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)
+                                        ) {
+                                            Text(
+                                                "${alert.emoji} ${alert.title}",
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.Bold,
+                                                color = palette.popupTextPrimary,
+                                                textAlign = TextAlign.Center
+                                            )
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            Text(
+                                                alert.message,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = palette.popupTextSecondary,
+                                                textAlign = TextAlign.Center
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(18.dp))
+
+                            Button(
+                                onClick = { showWeatherAlertPopup = false },
+                                shape = RoundedCornerShape(16.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = accentCompose,
+                                    contentColor = palette.onAccentText
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp)
+                            ) {
+                                Text("Đã rõ!", fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+
+                // Pop-up thẻ ảnh chia sẻ nhanh: nền + câu chúc ngẫu nhiên, nút đổi & tải về
+                AnimatedPopupOverlay(
+                    visible = showShareCardPopup,
+                    onDismiss = {},
+                    dismissOnBackdropClick = false
+                ) {
+                    LiquidGlassPopupSurface(palette = palette) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(18.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    "Chia sẻ nhanh",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = palette.popupTextPrimary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                IconButton(
+                                    onClick = { showShareCardPopup = false },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Close,
+                                        contentDescription = "Đóng",
+                                        tint = palette.popupTextSecondary
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            val cardBmp = shareCardBitmap
+                            if (cardBmp != null) {
+                                val cardImage = remember(cardBmp) { cardBmp.asImageBitmap() }
+                                Image(
+                                    bitmap = cardImage,
+                                    contentDescription = "Thẻ ảnh thời tiết",
+                                    contentScale = ContentScale.Fit,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .aspectRatio(0.8f)
+                                        .clip(RoundedCornerShape(18.dp))
+                                )
+                            } else {
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .aspectRatio(0.8f)
+                                        .clip(RoundedCornerShape(18.dp))
+                                        .background(palette.popupBoxBg)
+                                ) {
+                                    LinearProgressIndicator(
+                                        color = accentCompose,
+                                        trackColor = palette.popupBoxBg,
+                                        modifier = Modifier.width(120.dp)
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                OutlinedButton(
+                                    onClick = { regenerateShareCard() },
+                                    enabled = cardBmp != null && !isSavingShareCard,
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        contentColor = palette.popupTextPrimary
+                                    ),
+                                    contentPadding = PaddingValues(horizontal = 8.dp),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(48.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Refresh,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Đổi nền", fontWeight = FontWeight.Bold, maxLines = 1)
+                                }
+                                Button(
+                                    onClick = { saveShareCard() },
+                                    enabled = cardBmp != null && !isSavingShareCard,
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = accentCompose,
+                                        contentColor = palette.onAccentText
+                                    ),
+                                    contentPadding = PaddingValues(horizontal = 8.dp),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(48.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Download,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        if (isSavingShareCard) "Đang lưu..." else "Tải về",
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1
+                                    )
+                                }
                             }
                         }
                     }
