@@ -20,6 +20,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.MutableTransitionState
@@ -28,6 +29,7 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -44,6 +46,7 @@ import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -59,6 +62,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
@@ -72,6 +76,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddTask
@@ -80,7 +86,8 @@ import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.BatteryAlert
 import androidx.compose.material.icons.filled.Cake
 import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Celebration
@@ -144,11 +151,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -172,10 +182,12 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
@@ -199,6 +211,7 @@ import java.util.Locale
 import java.util.TimeZone
 import java.util.UUID
 import kotlin.math.PI
+import kotlin.math.abs
 import kotlin.math.floor
 import kotlin.math.roundToInt
 import kotlin.math.sin
@@ -1554,10 +1567,452 @@ private fun Row2MoodButton(
 }
 
 private enum class MainTab(val label: String, val icon: ImageVector) {
-    WEATHER("Thời tiết", Icons.Default.Cloud),
-    CALENDAR("Lịch", Icons.Default.CalendarMonth),
+    WEATHER("Trang chủ", Icons.Default.Home),
+    CALENDAR("Tính năng", Icons.Default.Build),
     REMINDERS("Nhắc nhở", Icons.Default.Notifications),
     SETTINGS("Cài đặt", Icons.Default.Settings)
+}
+
+/** Thứ tự các mục (key trong LazyColumn) của từng tab — dùng để cuộn tới đúng vị trí khi tìm kiếm. */
+private val MAIN_TAB_ITEM_KEYS: Map<MainTab, List<String>> = mapOf(
+    MainTab.WEATHER to listOf("top_bento_editorial"),
+    MainTab.CALENDAR to listOf(
+        "lunar_and_age_row_section",
+        "good_bad_day_section",
+        "lunar_useful_info_section"
+    ),
+    MainTab.REMINDERS to listOf("todo_section", "birthday_and_holiday_row_section"),
+    MainTab.SETTINGS to listOf(
+        "accent_color_section",
+        "app_and_widget_appearance_row_section",
+        "location_and_signature_section",
+        "font_scale_section",
+        "bug_report_section",
+        "bottom_contact_button_row"
+    )
+)
+
+private data class FeatureSearchTarget(
+    val label: String,
+    val tab: MainTab,
+    val section: ExpandableSection?,
+    val itemKey: String,
+    val keywords: List<String> = emptyList()
+)
+
+private val FEATURE_SEARCH_TARGETS: List<FeatureSearchTarget> = listOf(
+    FeatureSearchTarget(
+        "Cập nhật thời tiết", MainTab.WEATHER, null, "top_bento_editorial",
+        listOf("đồng bộ thời tiết", "làm mới", "xem trước widget", "thời tiết")
+    ),
+    FeatureSearchTarget(
+        "Ghim Widget", MainTab.WEATHER, null, "top_bento_editorial",
+        listOf("widget", "ghim", "ra màn hình chính")
+    ),
+    FeatureSearchTarget(
+        "Tra cứu lịch âm", MainTab.CALENDAR, ExpandableSection.LUNAR_LOOKUP, "lunar_and_age_row_section",
+        listOf("tra cứu", "lịch âm", "đổi ngày", "âm lịch", "dương lịch")
+    ),
+    FeatureSearchTarget(
+        "Tính tuổi", MainTab.CALENDAR, ExpandableSection.AGE_CALC, "lunar_and_age_row_section",
+        listOf("tuổi", "bao nhiêu tuổi", "sinh nhật")
+    ),
+    FeatureSearchTarget(
+        "Ngày tốt / xấu theo việc", MainTab.CALENDAR, ExpandableSection.GOOD_BAD_DAY, "good_bad_day_section",
+        listOf("ngày tốt", "ngày xấu", "khai trương", "ký kết", "xem ngày", "lịch sử đã xem")
+    ),
+    FeatureSearchTarget(
+        "Thông tin hữu ích theo ngày Âm lịch", MainTab.CALENDAR, ExpandableSection.LUNAR_USEFUL_INFO, "lunar_useful_info_section",
+        listOf("hoàng đạo", "hắc đạo", "giờ tốt", "thông tin hữu ích", "can chi", "ngày hôm nay")
+    ),
+    FeatureSearchTarget(
+        "Việc cần làm hôm nay", MainTab.REMINDERS, ExpandableSection.TODO, "todo_section",
+        listOf("công việc", "todo", "việc cần làm", "ghi chú", "nhắc việc")
+    ),
+    FeatureSearchTarget(
+        "Nhắc ngày sinh nhật", MainTab.REMINDERS, ExpandableSection.BIRTHDAY, "birthday_and_holiday_row_section",
+        listOf("sinh nhật", "ngày sinh")
+    ),
+    FeatureSearchTarget(
+        "Nhắc ngày lễ & kỷ niệm", MainTab.REMINDERS, ExpandableSection.HOLIDAY, "birthday_and_holiday_row_section",
+        listOf("ngày lễ", "kỷ niệm", "ngày giỗ", "sự kiện âm lịch", "rằm", "mùng 1", "tết")
+    ),
+    FeatureSearchTarget(
+        "Màu chủ đề", MainTab.SETTINGS, ExpandableSection.ACCENT_COLOR, "accent_color_section",
+        listOf("màu", "chủ đề", "màu sắc", "theme")
+    ),
+    FeatureSearchTarget(
+        "Giao diện, Hiệu ứng & Nhạc nền ứng dụng", MainTab.SETTINGS, ExpandableSection.APP_APPEARANCE_AUDIO,
+        "app_and_widget_appearance_row_section",
+        listOf("giao diện", "hiệu ứng", "nhạc nền", "âm thanh", "sáng tối", "chế độ tối", "dark mode", "nhạc")
+    ),
+    FeatureSearchTarget(
+        "Giao diện, đồng hồ và nền Widget", MainTab.SETTINGS, ExpandableSection.CLOCK_THEME_BG,
+        "app_and_widget_appearance_row_section",
+        listOf("đồng hồ", "nền widget", "giao diện widget", "hh:mm", "giờ")
+    ),
+    FeatureSearchTarget(
+        "Vị trí cập nhật thời tiết & Chữ ký trên Widget", MainTab.SETTINGS, ExpandableSection.LOCATION_SIGNATURE,
+        "location_and_signature_section",
+        listOf("vị trí", "gps", "chữ ký", "chữ kí", "địa điểm", "thành phố")
+    ),
+    FeatureSearchTarget(
+        "Kích cỡ chữ trên Widget", MainTab.SETTINGS, ExpandableSection.FONT_SCALE, "font_scale_section",
+        listOf("cỡ chữ", "kích thước chữ", "font", "phông chữ", "chữ")
+    ),
+    FeatureSearchTarget(
+        "Báo cáo lỗi và đề xuất", MainTab.SETTINGS, ExpandableSection.BUG_REPORT, "bug_report_section",
+        listOf("báo lỗi", "góp ý", "đề xuất", "phản hồi", "email", "feedback")
+    ),
+    FeatureSearchTarget(
+        "Tải xuống phiên bản mới", MainTab.SETTINGS, null, "bottom_contact_button_row",
+        listOf("tải xuống", "cập nhật ứng dụng", "phiên bản", "download")
+    ),
+    FeatureSearchTarget(
+        "Thông tin liên hệ", MainTab.SETTINGS, null, "bottom_contact_button_row",
+        listOf("liên hệ", "tác giả", "thông tin", "ủng hộ", "donate", "facebook")
+    )
+)
+
+private fun normalizeForSearch(input: String): String {
+    val lowered = input.trim().lowercase(Locale("vi", "VN"))
+    val decomposed = java.text.Normalizer.normalize(lowered, java.text.Normalizer.Form.NFD)
+    return decomposed
+        .replace(Regex("\\p{Mn}+"), "")
+        .replace('đ', 'd')
+        .replace(Regex("\\s+"), " ")
+}
+
+/**
+ * Tìm các tính năng chứa từ khóa (không phân biệt dấu / hoa thường). Chỉ cần gõ 1 từ có trong tên
+ * hoặc từ khóa liên quan. Kết quả sắp xếp theo độ khớp (khớp tên trước, từ khóa sau).
+ */
+private fun searchFeatures(query: String): List<FeatureSearchTarget> {
+    val q = normalizeForSearch(query)
+    if (q.isBlank()) return emptyList()
+    val tokens = q.split(" ").filter { it.isNotBlank() }
+    val scored = ArrayList<Pair<Int, FeatureSearchTarget>>()
+    for (t in FEATURE_SEARCH_TARGETS) {
+        val label = normalizeForSearch(t.label)
+        val keywords = t.keywords.map { normalizeForSearch(it) }
+        val haystack = (listOf(label) + keywords).joinToString(" | ")
+        val labelWords = label.split(" ", "/", "&", ",").filter { it.isNotBlank() }
+        val score = when {
+            label == q || keywords.any { it == q } -> 6
+            label.startsWith(q) -> 5
+            labelWords.any { it.startsWith(q) } -> 4
+            label.contains(q) -> 3
+            keywords.any { it.contains(q) } -> 2
+            tokens.size > 1 && tokens.all { haystack.contains(it) } -> 1
+            else -> 0
+        }
+        if (score > 0) scored.add(score to t)
+    }
+    return scored.sortedByDescending { it.first }.map { it.second }
+}
+
+@Composable
+private fun TopBarSearchButton(
+    palette: AdaptivePalette,
+    accentColor: Color,
+    isExpanded: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = palette.cardBg,
+        modifier = modifier
+            .size(35.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .border(
+                width = 1.dp,
+                color = accentColor.copy(alpha = if (isExpanded) 0.90f else 0.45f),
+                shape = RoundedCornerShape(12.dp)
+            )
+            .clickable(onClick = onClick)
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.fillMaxSize()
+        ) {
+            Icon(
+                imageVector = Icons.Default.Search,
+                contentDescription = "Tìm tính năng",
+                tint = accentColor,
+                modifier = Modifier.size(19.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun FeatureSearchCard(
+    visible: Boolean,
+    query: String,
+    onQueryChange: (String) -> Unit,
+    onSearch: () -> Unit,
+    results: List<FeatureSearchTarget>,
+    onPick: (FeatureSearchTarget) -> Unit,
+    accentColor: Color,
+    palette: AdaptivePalette,
+    modifier: Modifier = Modifier
+) {
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(visible) {
+        if (visible) {
+            delay(180)
+            try {
+                focusRequester.requestFocus()
+            } catch (_: Exception) {
+            }
+        }
+    }
+    val cardShape = RoundedCornerShape(22.dp)
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(tween(160)) +
+            scaleIn(
+                initialScale = 0.9f,
+                transformOrigin = TransformOrigin(0.85f, 0f),
+                animationSpec = spring(dampingRatio = 0.66f, stiffness = Spring.StiffnessMediumLow)
+            ) +
+            slideInVertically(
+                animationSpec = spring(dampingRatio = 0.7f, stiffness = Spring.StiffnessMediumLow)
+            ) { -it / 3 },
+        exit = fadeOut(tween(120)) +
+            scaleOut(
+                targetScale = 0.92f,
+                transformOrigin = TransformOrigin(0.85f, 0f),
+                animationSpec = tween(130)
+            ),
+        modifier = modifier
+    ) {
+        Surface(
+            shape = cardShape,
+            color = Color.Transparent,
+            shadowElevation = 14.dp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(cardShape)
+                .background(palette.cardBg)
+                .background(palette.liquidGlassBrush)
+                .border(1.2.dp, palette.liquidGlassBorder, cardShape)
+        ) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(14.dp)
+            ) {
+                Text(
+                    "Tìm tính năng",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = palette.textPrimary
+                )
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = onQueryChange,
+                    singleLine = true,
+                    placeholder = {
+                        Text(
+                            "Gõ 1 từ khóa (VD: tuổi, màu, nhắc...)",
+                            color = palette.textSecondary,
+                            fontSize = 13.5.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    },
+                    trailingIcon = {
+                        IconButton(onClick = onSearch) {
+                            Icon(
+                                Icons.Default.Search,
+                                contentDescription = "Tìm kiếm",
+                                tint = accentColor
+                            )
+                        }
+                    },
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = { onSearch() }),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = palette.textPrimary,
+                        unfocusedTextColor = palette.textPrimary,
+                        focusedBorderColor = accentColor,
+                        unfocusedBorderColor = palette.border,
+                        cursorColor = accentColor,
+                        unfocusedContainerColor = palette.subtleBg,
+                        focusedContainerColor = palette.subtleBg
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(focusRequester)
+                )
+                if (results.isNotEmpty()) {
+                    Text(
+                        if (results.size == 1) "Tìm thấy 1 tính năng — bấm để mở"
+                        else "Tìm thấy ${results.size} tính năng — bấm vào tính năng bạn muốn",
+                        fontSize = 12.sp,
+                        color = palette.textSecondary
+                    )
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 260.dp)
+                    ) {
+                        items(results, key = { it.label }) { target ->
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = palette.subtleBg,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .border(0.8.dp, palette.border, RoundedCornerShape(12.dp))
+                                    .clickable { onPick(target) }
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 12.dp, vertical = 9.dp)
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            target.label,
+                                            fontSize = 13.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = palette.textPrimary,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            "Trong tab ${target.tab.label}",
+                                            fontSize = 11.5.sp,
+                                            color = accentColor
+                                        )
+                                    }
+                                    Icon(
+                                        imageVector = target.tab.icon,
+                                        contentDescription = null,
+                                        tint = accentColor,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Icon tĩnh khi chưa chọn; khi tab được chọn thì chuyển động nhẹ nhàng. */
+@Composable
+private fun AnimatedTabIcon(
+    tab: MainTab,
+    tint: Color,
+    active: Boolean,
+    modifier: Modifier = Modifier
+) {
+    if (!active) {
+        Icon(imageVector = tab.icon, contentDescription = tab.label, tint = tint, modifier = modifier)
+        return
+    }
+    val transition = rememberInfiniteTransition(label = "tab_icon_${tab.name}")
+    when (tab) {
+        MainTab.WEATHER -> {
+            // Ngôi nhà nhún nhẹ lên xuống
+            val bob by transition.animateFloat(
+                initialValue = 0f,
+                targetValue = 1f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(1300, easing = FastOutSlowInEasing),
+                    repeatMode = RepeatMode.Reverse
+                ),
+                label = "home_bob"
+            )
+            Icon(
+                imageVector = tab.icon,
+                contentDescription = tab.label,
+                tint = tint,
+                modifier = modifier.graphicsLayer {
+                    translationY = -3.dp.toPx() * bob
+                    val sc = 1f + 0.05f * bob
+                    scaleX = sc
+                    scaleY = sc
+                }
+            )
+        }
+        MainTab.CALENDAR -> {
+            // Cờ lê xoay qua lại nhẹ nhàng
+            val swing by transition.animateFloat(
+                initialValue = -16f,
+                targetValue = 16f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(1000, easing = FastOutSlowInEasing),
+                    repeatMode = RepeatMode.Reverse
+                ),
+                label = "wrench_swing"
+            )
+            Icon(
+                imageVector = tab.icon,
+                contentDescription = tab.label,
+                tint = tint,
+                modifier = modifier.graphicsLayer { rotationZ = swing }
+            )
+        }
+        MainTab.REMINDERS -> {
+            // Chuông lắc rồi nghỉ một nhịp
+            val ring by transition.animateFloat(
+                initialValue = 0f,
+                targetValue = 0f,
+                animationSpec = infiniteRepeatable(
+                    animation = keyframes {
+                        durationMillis = 2000
+                        0f at 0
+                        14f at 160
+                        -12f at 320
+                        9f at 480
+                        -6f at 640
+                        3f at 800
+                        0f at 960
+                        0f at 2000
+                    },
+                    repeatMode = RepeatMode.Restart
+                ),
+                label = "bell_ring"
+            )
+            Icon(
+                imageVector = tab.icon,
+                contentDescription = tab.label,
+                tint = tint,
+                modifier = modifier.graphicsLayer {
+                    transformOrigin = TransformOrigin(0.5f, 0.1f)
+                    rotationZ = ring
+                }
+            )
+        }
+        MainTab.SETTINGS -> {
+            // Bánh răng quay chậm
+            val rot by transition.animateFloat(
+                initialValue = 0f,
+                targetValue = 360f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(6000, easing = LinearEasing),
+                    repeatMode = RepeatMode.Restart
+                ),
+                label = "gear_rotate"
+            )
+            Icon(
+                imageVector = tab.icon,
+                contentDescription = tab.label,
+                tint = tint,
+                modifier = modifier.graphicsLayer { rotationZ = rot }
+            )
+        }
+    }
 }
 
 @Composable
@@ -1565,66 +2020,136 @@ private fun MainBottomTabBar(
     selected: MainTab,
     onSelect: (MainTab) -> Unit,
     accentColor: Color,
-    palette: AdaptivePalette
+    palette: AdaptivePalette,
+    animateIcons: Boolean = true,
+    modifier: Modifier = Modifier
 ) {
-    val barShape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp)
-    Surface(
-        shape = barShape,
-        color = palette.cardBg,
-        shadowElevation = 12.dp,
-        modifier = Modifier
+    val tabs = MainTab.entries
+    val lastIndex = tabs.size - 1
+    val density = LocalDensity.current
+    val scope = rememberCoroutineScope()
+    val pos = remember { Animatable(selected.ordinal.toFloat()) }
+    var dragging by remember { mutableStateOf(false) }
+    var userInteracted by remember { mutableStateOf(false) }
+    var areaWidthPx by remember { mutableFloatStateOf(0f) }
+    val tabWidthPx = if (areaWidthPx > 0f) areaWidthPx / tabs.size else 1f
+    val capsule = RoundedCornerShape(50)
+    val snapSpec = spring<Float>(dampingRatio = 0.72f, stiffness = Spring.StiffnessMedium)
+
+    LaunchedEffect(selected) {
+        if (!dragging) pos.animateTo(selected.ordinal.toFloat(), snapSpec)
+    }
+
+    fun posFromX(x: Float): Float =
+        (x / tabWidthPx - 0.5f).coerceIn(0f, lastIndex.toFloat())
+
+    fun commitToNearest() {
+        val idx = pos.value.roundToInt().coerceIn(0, lastIndex)
+        dragging = false
+        userInteracted = true
+        scope.launch { pos.animateTo(idx.toFloat(), snapSpec) }
+        onSelect(tabs[idx])
+    }
+
+    val sheenTop = if (palette.isDark) 0.12f else 0.45f
+    Box(
+        modifier = modifier
             .fillMaxWidth()
-            .border(1.dp, palette.border, barShape)
+            .shadow(elevation = 16.dp, shape = capsule)
+            .clip(capsule)
+            .background(palette.cardBg.copy(alpha = if (palette.isDark) 0.55f else 0.35f))
+            .background(palette.liquidGlassBrush)
+            .background(
+                Brush.verticalGradient(
+                    listOf(Color.White.copy(alpha = sheenTop), Color.Transparent)
+                )
+            )
+            .border(1.2.dp, palette.liquidGlassBorder, capsule)
+            .padding(6.dp)
     ) {
-        Row(
-            horizontalArrangement = Arrangement.SpaceAround,
-            verticalAlignment = Alignment.CenterVertically,
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(horizontal = 8.dp, vertical = 8.dp)
+                .height(62.dp)
+                .onSizeChanged { areaWidthPx = it.width.toFloat() }
+                .pointerInput(tabWidthPx) {
+                    detectTapGestures { offset ->
+                        val idx = (offset.x / tabWidthPx).toInt().coerceIn(0, lastIndex)
+                        userInteracted = true
+                        scope.launch { pos.animateTo(idx.toFloat(), snapSpec) }
+                        onSelect(tabs[idx])
+                    }
+                }
+                .pointerInput(tabWidthPx) {
+                    detectHorizontalDragGestures(
+                        onDragStart = { offset ->
+                            dragging = true
+                            scope.launch { pos.snapTo(posFromX(offset.x)) }
+                        },
+                        onDragEnd = { commitToNearest() },
+                        onDragCancel = { commitToNearest() },
+                        onHorizontalDrag = { change, _ ->
+                            change.consume()
+                            scope.launch { pos.snapTo(posFromX(change.position.x)) }
+                        }
+                    )
+                }
         ) {
-            MainTab.entries.forEach { tab ->
-                val isSel = tab == selected
-                val pillBg by animateFloatAsState(
-                    targetValue = if (isSel) 1f else 0f,
-                    animationSpec = spring(dampingRatio = 0.6f, stiffness = Spring.StiffnessMediumLow),
-                    label = "tab_pill_${tab.name}"
-                )
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(16.dp))
-                        .clickable { onSelect(tab) }
-                        .padding(vertical = 2.dp)
-                ) {
-                    Box(
-                        contentAlignment = Alignment.Center,
+            // Viên kính trượt theo ngón tay / theo tab đang chọn
+            Box(
+                modifier = Modifier
+                    .offset { IntOffset((pos.value * tabWidthPx).roundToInt(), 0) }
+                    .width(with(density) { tabWidthPx.toDp() })
+                    .fillMaxHeight()
+                    .padding(2.dp)
+                    .clip(capsule)
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                Color.White.copy(alpha = if (palette.isDark) 0.22f else 0.60f),
+                                accentColor.copy(alpha = 0.16f)
+                            )
+                        )
+                    )
+                    .border(0.9.dp, Color.White.copy(alpha = if (palette.isDark) 0.28f else 0.70f), capsule)
+            )
+
+            Row(modifier = Modifier.fillMaxSize()) {
+                tabs.forEachIndexed { i, tab ->
+                    val prox = (1f - abs(pos.value - i)).coerceIn(0f, 1f)
+                    val tint = androidx.compose.ui.graphics.lerp(
+                        palette.textPrimary.copy(alpha = 0.72f),
+                        accentColor,
+                        prox
+                    )
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
                         modifier = Modifier
-                            .graphicsLayer {
-                                val sc = 1f + 0.12f * pillBg
-                                scaleX = sc
-                                scaleY = sc
-                            }
-                            .size(width = 52.dp, height = 32.dp)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(accentColor.copy(alpha = 0.22f * pillBg))
+                            .weight(1f)
+                            .fillMaxHeight()
                     ) {
-                        Icon(
-                            imageVector = tab.icon,
-                            contentDescription = tab.label,
-                            tint = if (isSel) accentColor else palette.textSecondary,
-                            modifier = Modifier.size(22.dp)
+                        AnimatedTabIcon(
+                            tab = tab,
+                            tint = tint,
+                            active = animateIcons && userInteracted && tab == selected,
+                            modifier = Modifier
+                                .size(24.dp)
+                                .graphicsLayer {
+                                    val sc = 1f + 0.14f * prox
+                                    scaleX = sc
+                                    scaleY = sc
+                                }
+                        )
+                        Spacer(modifier = Modifier.height(3.dp))
+                        Text(
+                            tab.label,
+                            fontSize = 11.5.sp,
+                            fontWeight = if (prox > 0.5f) FontWeight.ExtraBold else FontWeight.Medium,
+                            color = tint,
+                            maxLines = 1
                         )
                     }
-                    Text(
-                        tab.label,
-                        fontSize = 11.5.sp,
-                        fontWeight = if (isSel) FontWeight.ExtraBold else FontWeight.Medium,
-                        color = if (isSel) accentColor else palette.textSecondary,
-                        maxLines = 1
-                    )
                 }
             }
         }
@@ -3867,9 +4392,47 @@ fun ThoiTietAmLichApp() {
 
     var selectedMainTab by rememberSaveable { mutableStateOf(MainTab.WEATHER) }
     val mainListState = rememberLazyListState()
+    val focusManager = LocalFocusManager.current
+    var showFeatureSearch by remember { mutableStateOf(false) }
+    var featureSearchQuery by remember { mutableStateOf("") }
+    var pendingSearchTarget by remember { mutableStateOf<FeatureSearchTarget?>(null) }
+
+    val featureSearchResults = remember(featureSearchQuery) {
+        if (featureSearchQuery.isBlank()) emptyList() else searchFeatures(featureSearchQuery)
+    }
+
+    fun navigateToFeature(target: FeatureSearchTarget) {
+        focusManager.clearFocus()
+        showFeatureSearch = false
+        featureSearchQuery = ""
+        pendingSearchTarget = target
+    }
+
+    fun performFeatureSearch() {
+        val results = searchFeatures(featureSearchQuery)
+        when {
+            results.isEmpty() ->
+                Toast.makeText(context, "Không có tính năng cần tìm", Toast.LENGTH_SHORT).show()
+            results.size == 1 -> navigateToFeature(results.first())
+            else -> focusManager.clearFocus()
+        }
+    }
+
     LaunchedEffect(selectedMainTab) {
-        expandedSection = null
-        mainListState.scrollToItem(0)
+        if (pendingSearchTarget == null) {
+            expandedSection = null
+            mainListState.scrollToItem(0)
+        }
+    }
+    LaunchedEffect(pendingSearchTarget) {
+        val t = pendingSearchTarget ?: return@LaunchedEffect
+        selectedMainTab = t.tab
+        delay(140)
+        expandedSection = t.section
+        delay(160)
+        val idx = (MAIN_TAB_ITEM_KEYS[t.tab]?.indexOf(t.itemKey) ?: 0).coerceAtLeast(0)
+        mainListState.animateScrollToItem(idx)
+        pendingSearchTarget = null
     }
 
     val lookupSectionBringIntoView = remember { BringIntoViewRequester() }
@@ -4296,13 +4859,10 @@ fun ThoiTietAmLichApp() {
             ) {
                 Scaffold(
                     containerColor = Color.Transparent,
-                    snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
-                    bottomBar = {
-                        MainBottomTabBar(
-                            selected = selectedMainTab,
-                            onSelect = { selectedMainTab = it },
-                            accentColor = accentCompose,
-                            palette = palette
+                    snackbarHost = {
+                        SnackbarHost(
+                            hostState = snackbarHostState,
+                            modifier = Modifier.padding(bottom = 92.dp)
                         )
                     },
                     topBar = {
@@ -4344,6 +4904,13 @@ fun ThoiTietAmLichApp() {
                                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                                     modifier = Modifier.padding(end = 8.dp)
                                 ) {
+                                    TopBarSearchButton(
+                                        palette = palette,
+                                        accentColor = accentCompose,
+                                        isExpanded = showFeatureSearch,
+                                        onClick = { showFeatureSearch = !showFeatureSearch }
+                                    )
+
                                     Box {
                                         TopBarQuickMenuButton(
                                             palette = palette,
@@ -4535,13 +5102,14 @@ fun ThoiTietAmLichApp() {
                         )
                     }
                 ) { innerPadding ->
+                    Box(modifier = Modifier.fillMaxSize()) {
                     LazyColumn(
                         state = mainListState,
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(innerPadding)
                             .imePadding(),
-                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
+                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 112.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         if (selectedMainTab == MainTab.WEATHER) {
@@ -5138,7 +5706,7 @@ fun ThoiTietAmLichApp() {
                         }
                         }
 
-                        if (selectedMainTab == MainTab.WEATHER) {
+                        if (selectedMainTab == MainTab.SETTINGS) {
                         item(key = "location_and_signature_section") {
                             CollapsibleSectionCard(
                                 title = "Vị trí cập nhật thời tiết & Chữ ký trên Widget",
@@ -6772,7 +7340,36 @@ fun ThoiTietAmLichApp() {
                         }
                         }
                     }
-                }
+                
+                        FeatureSearchCard(
+                            visible = showFeatureSearch,
+                            query = featureSearchQuery,
+                            onQueryChange = { featureSearchQuery = it },
+                            onSearch = { performFeatureSearch() },
+                            results = featureSearchResults,
+                            onPick = { navigateToFeature(it) },
+                            accentColor = accentCompose,
+                            palette = palette,
+                            modifier = Modifier
+                                .align(Alignment.TopCenter)
+                                .padding(innerPadding)
+                                .padding(horizontal = 16.dp, vertical = 6.dp)
+                        )
+                    }
+}
+
+                // Thanh tab nổi kiểu Liquid Glass (bấm hoặc kéo để chọn)
+                MainBottomTabBar(
+                    selected = selectedMainTab,
+                    onSelect = { selectedMainTab = it },
+                    accentColor = accentCompose,
+                    palette = palette,
+                    animateIcons = canAnimateVisuals,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .navigationBarsPadding()
+                        .padding(start = 20.dp, end = 20.dp, bottom = 10.dp)
+                )
 
                 // Pop-up tải xuống phiên bản mới (tự tắt sau 2 - 4 giây rồi mở trang tải về)
                 AnimatedPopupOverlay(
