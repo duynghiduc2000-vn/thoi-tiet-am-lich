@@ -7,6 +7,10 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -59,6 +63,9 @@ import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.pointerInput
@@ -289,6 +296,10 @@ private object McPrefs {
         val m = parts[1].toIntOrNull() ?: return null
         val y = parts[2].toIntOrNull() ?: return null
         return McBirthProfile(d, m, y, parts[3] == "1")
+    }
+
+    fun clearBirth(c: Context) {
+        sp(c).edit().remove(KEY_BIRTH).apply()
     }
 
     fun setBirth(c: Context, b: McBirthProfile) {
@@ -733,6 +744,11 @@ internal fun MonthCalendarSection(
                 McPrefs.setBirth(context, it)
             },
             goodDays = goodDays,
+            onClear = {
+                finderActivity = null
+                birth = null
+                McPrefs.clearBirth(context)
+            },
             onDayClick = onDayClick
         )
 
@@ -1070,6 +1086,7 @@ private fun McFinderCard(
     birth: McBirthProfile?,
     onBirthSaved: (McBirthProfile) -> Unit,
     goodDays: List<Pair<McDate, Int>>,
+    onClear: () -> Unit,
     onDayClick: (McDate) -> Unit
 ) {
     val cardShape = RoundedCornerShape(24.dp)
@@ -1080,6 +1097,16 @@ private fun McFinderCard(
     var male by remember { mutableStateOf(birth?.isMale ?: true) }
     var error by remember { mutableStateOf<String?>(null) }
     val showForm = birth == null || editing
+    // Xóa kết quả đã tìm: bỏ chọn việc (hết tô sáng) + xóa ngày sinh đã lưu + xóa ô nhập
+    val clearAll = {
+        dText = ""
+        mText = ""
+        yText = ""
+        male = true
+        error = null
+        editing = false
+        onClear()
+    }
 
     Column(
         verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -1123,6 +1150,21 @@ private fun McFinderCard(
                 fontSize = 12.sp,
                 color = palette.textSecondary
             )
+            if (birth != null) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        "Đã lưu: sinh ${birth.day}/${birth.month}/${birth.year} • ${if (birth.isMale) "Nam" else "Nữ"}",
+                        fontSize = 12.sp,
+                        color = palette.textSecondary,
+                        modifier = Modifier.weight(1f)
+                    )
+                    McPill("Xóa", MC_RED, false, MC_RED, clearAll)
+                }
+            }
         } else if (showForm) {
             Text(
                 "Nhập ngày sinh để chấm điểm theo tuổi",
@@ -1142,6 +1184,7 @@ private fun McFinderCard(
                     { male = false }, Modifier.weight(1f))
             }
             error?.let { Text(it, fontSize = 11.5.sp, color = MC_RED) }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             McPill(
                 text = "Lưu",
                 color = accent,
@@ -1157,8 +1200,17 @@ private fun McFinderCard(
                         onBirthSaved(parsed)
                     }
                 },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.weight(1f)
             )
+            McPill(
+                text = "Xóa",
+                color = MC_RED,
+                filled = false,
+                textColor = MC_RED,
+                onClick = clearAll,
+                modifier = Modifier.weight(1f)
+            )
+            }
         } else if (birth != null) {
             Row(
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -1169,9 +1221,13 @@ private fun McFinderCard(
                     "Sinh ${birth.day}/${birth.month}/${birth.year} • ${if (birth.isMale) "Nam" else "Nữ"}",
                     fontSize = 12.5.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = palette.textPrimary
+                    color = palette.textPrimary,
+                    modifier = Modifier.weight(1f)
                 )
-                McPill("Sửa", accent, false, accent, { editing = true })
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    McPill("Sửa", accent, false, accent, { editing = true })
+                    McPill("Xóa", MC_RED, false, MC_RED, clearAll)
+                }
             }
 
             val great = goodDays.count { it.second >= MC_GREAT_MIN }
@@ -1317,6 +1373,8 @@ internal fun McTearOffSheet(
     val tear = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
     var soundOn by remember { mutableStateOf(McPrefs.soundOn(context)) }
+    // Mỗi lần mở pop-up đổi 'hạt giống' => nền, hiệu ứng và bó hoa mỗi tờ mỗi khác
+    val salt = remember { Random.nextInt() }
     val tearSound = remember { McTearSound(context) }
     DisposableEffect(Unit) { onDispose { tearSound.release() } }
     val toggleSound = {
@@ -1397,6 +1455,7 @@ internal fun McTearOffSheet(
                 onNext = {},
                 soundOn = soundOn,
                 onToggleSound = toggleSound,
+                salt = salt,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(sheetH)
@@ -1412,6 +1471,7 @@ internal fun McTearOffSheet(
             onNext = { go(1) },
             soundOn = soundOn,
             onToggleSound = toggleSound,
+            salt = salt,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(sheetH)
@@ -1437,9 +1497,21 @@ private fun McPaper(
     onNext: () -> Unit,
     soundOn: Boolean,
     onToggleSound: () -> Unit,
+    salt: Int,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val jd = remember(date) { mcJdFromDate(date.day, date.month, date.year) }
+    val theme = remember(date, salt) { mcThemeFor(date, salt) }
+    val variantSeed = remember(date, salt) { mcMix(salt xor 0x5bd1e995, jd) }
+    val particles = remember(variantSeed) { mcParticles(variantSeed xor 0x1234567, 34) }
+    val fx = rememberInfiniteTransition(label = "paper_fx")
+    val phase by fx.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(durationMillis = 16000, easing = LinearEasing)),
+        label = "paper_phase"
+    )
     val info = remember(date) { engine.dayInfo(date) }
     val lunarTag = remember(date) { engine.lunarMonthTag(date) }
     val hours = remember(date) { engine.goodHours(info.dayChi) }
@@ -1472,6 +1544,13 @@ private fun McPaper(
                 indication = null
             ) {}
     ) {
+        // Nền + hiệu ứng riêng của từng tờ (nằm dưới chữ)
+        if (theme != McPaperTheme.CLASSIC) {
+            Canvas(modifier = Modifier.matchParentSize()) {
+                mcDrawPaperTheme(theme, phase, particles, palette.isDark)
+            }
+        }
+
         Column(modifier = Modifier.fillMaxSize()) {
             // ---------- Dải đỏ đầu tờ lịch ----------
             Row(
@@ -1658,6 +1737,7 @@ private fun McPaper(
                     }
                     McBouquet(
                         color = numColor,
+                        seed = variantSeed,
                         modifier = Modifier.size(width = 96.dp, height = 74.dp)
                     )
                 }
@@ -1856,36 +1936,294 @@ private fun McCanChiLine(label: String, value: String, color: Color, palette: Ad
     }
 }
 
-/** Bó hoa vẽ bằng Canvas (3 bông, màu theo thứ trong tuần). */
+// ============================================================
+//  NỀN + HIỆU ỨNG NGẪU NHIÊN CHO TỜ LỊCH
+// ============================================================
+
+private enum class McPaperTheme(val tint: Color) {
+    CLASSIC(Color.Transparent),      // kính trong, chỉ có vệt sáng chéo
+    SAKURA(Color(0xFFF48FB1)),       // cánh hoa anh đào rơi
+    STARS(Color(0xFF5C6BC0)),        // sao nhấp nháy
+    BOKEH(Color(0xFF26C6DA)),        // bong bóng sáng bay lên
+    WAVES(Color(0xFF29B6F6)),        // sóng nước nhẹ dưới chân tờ lịch
+    SUNBURST(Color(0xFFFFB300)),     // tia nắng đung đưa
+    LATTICE(Color(0xFFE53935))       // hoa văn ô trám + ánh kim quét ngang
+}
+
+private data class McParticle(
+    val x: Float,
+    val y: Float,
+    val s: Float,
+    val r: Float,
+    val k: Int,    // 1 hoặc 2: số vòng lặp nguyên => hiệu ứng lặp liền mạch
+    val hue: Int
+)
+
+private fun mcMix(a: Int, b: Int): Int {
+    var h = a * -1640531535 + b
+    h = h xor (h ushr 15)
+    h *= 0x2c1b3c6d
+    h = h xor (h ushr 12)
+    return h
+}
+
+/** Chọn kiểu nền cho ngày [d]; ngày liền kề luôn khác kiểu để mỗi lần xé thấy đổi hẳn. */
+private fun mcThemeFor(d: McDate, salt: Int): McPaperTheme {
+    val n = McPaperTheme.entries.size
+    fun raw(x: McDate) = Math.floorMod(mcMix(salt, mcJdFromDate(x.day, x.month, x.year)), n)
+    val t = raw(d)
+    return McPaperTheme.entries[if (t == raw(d.plusDays(-1))) (t + 1) % n else t]
+}
+
+private fun mcParticles(seed: Int, n: Int): List<McParticle> {
+    val rng = Random(seed)
+    return List(n) {
+        McParticle(
+            x = rng.nextFloat(), y = rng.nextFloat(), s = rng.nextFloat(), r = rng.nextFloat(),
+            k = 1 + rng.nextInt(2), hue = rng.nextInt(3)
+        )
+    }
+}
+
+/** Cánh hoa/lá hình giọt nước, mũi chỉ lên trên, gốc tại (cx, cy). */
+private fun DrawScope.mcPetal(cx: Float, cy: Float, len: Float, wid: Float, color: Color) {
+    val path = Path().apply {
+        moveTo(cx, cy)
+        cubicTo(cx - wid, cy - len * 0.45f, cx - wid * 0.6f, cy - len, cx, cy - len)
+        cubicTo(cx + wid * 0.6f, cy - len, cx + wid, cy - len * 0.45f, cx, cy)
+        close()
+    }
+    drawPath(path, color)
+}
+
+private fun DrawScope.mcDrawPaperTheme(
+    theme: McPaperTheme,
+    phase: Float,
+    ps: List<McParticle>,
+    dark: Boolean
+) {
+    val w = size.width
+    val h = size.height
+    val tau = (2 * PI).toFloat()
+    val dp1 = density
+
+    // Lớp màu nền chuyển sắc nhẹ theo chủ đề
+    drawRect(
+        Brush.verticalGradient(
+            listOf(
+                theme.tint.copy(alpha = if (dark) 0.26f else 0.20f),
+                Color.Transparent,
+                theme.tint.copy(alpha = if (dark) 0.14f else 0.10f)
+            )
+        )
+    )
+
+    when (theme) {
+        McPaperTheme.CLASSIC -> Unit
+
+        McPaperTheme.SAKURA -> for (p in ps.take(16)) {
+            val prog = (p.y + phase * p.k) % 1f
+            val x = (p.x + 0.05f * sin(tau * (prog * 2f + p.r))) * w
+            val y = prog * h
+            val len = (6f + 7f * p.s) * dp1
+            rotate(360f * ((p.r + phase * p.k) % 1f), Offset(x, y)) {
+                mcPetal(x, y, len, len * 0.55f, Color(0xFFF48FB1).copy(alpha = 0.60f))
+            }
+        }
+
+        McPaperTheme.STARS -> {
+            val starColor = if (dark) Color(0xFFFFF3C4) else Color(0xFFFFB300)
+            for (p in ps) {
+                val tw = 0.35f + 0.65f * (0.5f + 0.5f * sin(tau * (phase * (1 + p.k) + p.r)))
+                val cx = p.x * w
+                val cy = p.y * h * 0.92f
+                val r = (1.2f + 2.4f * p.s) * dp1
+                val c = starColor.copy(alpha = tw)
+                drawCircle(c, r * 0.55f, Offset(cx, cy))
+                if (p.s > 0.45f) {
+                    drawLine(c, Offset(cx - r * 1.8f, cy), Offset(cx + r * 1.8f, cy), strokeWidth = dp1)
+                    drawLine(c, Offset(cx, cy - r * 1.8f), Offset(cx, cy + r * 1.8f), strokeWidth = dp1)
+                }
+            }
+        }
+
+        McPaperTheme.BOKEH -> {
+            val cols = listOf(Color(0xFFFF80AB), Color(0xFF4DD0E1), Color(0xFFFFD54F))
+            for (p in ps.take(12)) {
+                val prog = (p.y + phase * p.k) % 1f
+                val c = Offset((p.x + 0.03f * sin(tau * (prog * 3f + p.r))) * w, (1f - prog) * h)
+                val r = (8f + 20f * p.s) * dp1
+                val col = cols[p.hue]
+                drawCircle(col.copy(alpha = 0.13f), r, c)
+                drawCircle(col.copy(alpha = 0.30f), r, c, style = Stroke(1.2f * dp1))
+            }
+        }
+
+        McPaperTheme.WAVES -> {
+            val layers = listOf(Triple(0.74f, 0.030f, 1), Triple(0.80f, 0.026f, -1), Triple(0.86f, 0.022f, 2))
+            layers.forEachIndexed { i, (base, amp, k) ->
+                val path = Path()
+                path.moveTo(0f, h)
+                val step = w / 48f
+                var x = 0f
+                while (x <= w + 0.1f) {
+                    val y = h * base + h * amp * sin(tau * (x / w * (1.3f + i * 0.4f) + phase * k))
+                    path.lineTo(x, y)
+                    x += step
+                }
+                path.lineTo(w, h)
+                path.close()
+                drawPath(path, Color(0xFF29B6F6).copy(alpha = 0.10f + 0.04f * i))
+            }
+        }
+
+        McPaperTheme.SUNBURST -> {
+            val origin = Offset(w * 0.8f, -h * 0.05f)
+            val sway = 6.0 * sin(tau * phase)
+            val rays = 14
+            val radius = h * 1.6f
+            for (i in 0 until rays step 2) {
+                val a0 = Math.toRadians(i * 360.0 / rays + sway)
+                val a1 = Math.toRadians((i + 1) * 360.0 / rays + sway)
+                val path = Path().apply {
+                    moveTo(origin.x, origin.y)
+                    lineTo(origin.x + radius * cos(a0).toFloat(), origin.y + radius * sin(a0).toFloat())
+                    lineTo(origin.x + radius * cos(a1).toFloat(), origin.y + radius * sin(a1).toFloat())
+                    close()
+                }
+                drawPath(path, Color(0xFFFFC107).copy(alpha = if (dark) 0.10f else 0.14f))
+            }
+        }
+
+        McPaperTheme.LATTICE -> {
+            val gap = 30f * dp1
+            val lc = Color(0xFFE53935).copy(alpha = if (dark) 0.12f else 0.10f)
+            var d = -h
+            while (d < w + h) {
+                drawLine(lc, Offset(d, 0f), Offset(d + h, h), strokeWidth = dp1)
+                drawLine(lc, Offset(d + h, 0f), Offset(d, h), strokeWidth = dp1)
+                d += gap
+            }
+            // Dải ánh kim quét ngang qua tờ lịch
+            val bandX = phase * (w + h) - h * 0.5f
+            drawRect(
+                Brush.linearGradient(
+                    colors = listOf(Color.Transparent, Color.White.copy(alpha = 0.16f), Color.Transparent),
+                    start = Offset(bandX - 120f * dp1, 0f),
+                    end = Offset(bandX + 120f * dp1, h * 0.4f)
+                )
+            )
+        }
+    }
+}
+
+// ============================================================
+//  BÓ HOA NGẪU NHIÊN (6 loài hoa, bố cục + lá khác nhau mỗi tờ)
+// ============================================================
+
+private fun DrawScope.mcDrawFlower(style: Int, c: Offset, r: Float, col: Color) {
+    val yellow = Color(0xFFFFE082)
+    when (style) {
+        0 -> { // Cúc: 6 cánh tròn
+            for (i in 0 until 6) {
+                val a = (i * 60.0 - 90.0) * PI / 180.0
+                drawCircle(
+                    col.copy(alpha = 0.92f), r * 0.5f,
+                    Offset(c.x + cos(a).toFloat() * r * 0.55f, c.y + sin(a).toFloat() * r * 0.55f)
+                )
+            }
+            drawCircle(yellow, r * 0.32f, c)
+        }
+        1 -> { // Anh đào: 5 cánh bầu + nhụy
+            for (i in 0 until 5) {
+                rotate(i * 72f, c) { mcPetal(c.x, c.y, r, r * 0.62f, col.copy(alpha = 0.95f)) }
+            }
+            drawCircle(yellow, r * 0.18f, c)
+            for (i in 0 until 5) {
+                val a = (i * 72.0 - 90.0) * PI / 180.0
+                drawCircle(
+                    Color(0xFFFFB300), r * 0.05f,
+                    Offset(c.x + cos(a).toFloat() * r * 0.3f, c.y + sin(a).toFloat() * r * 0.3f)
+                )
+            }
+        }
+        2 -> { // Sen: 2 lớp cánh nhọn
+            for (i in 0 until 8) {
+                rotate(i * 45f, c) { mcPetal(c.x, c.y, r * 1.05f, r * 0.38f, col.copy(alpha = 0.85f)) }
+            }
+            for (i in 0 until 8) {
+                rotate(i * 45f + 22.5f, c) { mcPetal(c.x, c.y, r * 0.72f, r * 0.30f, lerp(col, Color.White, 0.35f)) }
+            }
+            drawCircle(yellow, r * 0.2f, c)
+        }
+        3 -> { // Hướng dương: nhiều cánh mảnh + nhụy nâu
+            for (i in 0 until 14) {
+                rotate(i * (360f / 14f), c) { mcPetal(c.x, c.y, r * 1.05f, r * 0.2f, col.copy(alpha = 0.95f)) }
+            }
+            drawCircle(Color(0xFF5D4037), r * 0.38f, c)
+            drawCircle(Color(0xFF8D6E63), r * 0.38f, c, style = Stroke(r * 0.07f))
+        }
+        4 -> { // Hồng: các vòng cánh cuộn vào trong
+            drawCircle(col, r * 0.9f, c)
+            for (i in 1..4) {
+                drawCircle(
+                    lerp(col, Color.Black, 0.10f * i), r * (0.9f - 0.18f * i),
+                    Offset(c.x + r * 0.03f * i, c.y - r * 0.02f * i), style = Stroke(r * 0.07f)
+                )
+            }
+        }
+        else -> { // Tulip: 3 cánh úp lại
+            val b = Offset(c.x, c.y + r * 0.55f)
+            rotate(-24f, b) { mcPetal(b.x, b.y, r * 1.25f, r * 0.5f, lerp(col, Color.Black, 0.10f)) }
+            rotate(24f, b) { mcPetal(b.x, b.y, r * 1.25f, r * 0.5f, lerp(col, Color.Black, 0.10f)) }
+            mcPetal(b.x, b.y, r * 1.35f, r * 0.55f, col)
+        }
+    }
+}
+
+/**
+ * Bó 3 bông vẽ bằng Canvas. [seed] quyết định: loài hoa (6 loại, hoặc mỗi bông một loại),
+ * vị trí hơi lệch, số lá. Màu chủ đạo vẫn theo thứ trong tuần.
+ */
 @Composable
-private fun McBouquet(color: Color, modifier: Modifier = Modifier) {
+private fun McBouquet(color: Color, seed: Int, modifier: Modifier = Modifier) {
     Canvas(modifier = modifier) {
+        val rng = Random(seed)
         val w = size.width
         val h = size.height
         val stem = Color(0xFF2E7D32)
         val stemW = 2.5.dp.toPx()
 
-        fun flower(cx: Float, cy: Float, r: Float, petal: Color) {
-            for (i in 0 until 6) {
-                val a = (i * 60.0 - 90.0) * PI / 180.0
-                drawCircle(
-                    color = petal.copy(alpha = 0.92f),
-                    radius = r * 0.5f,
-                    center = Offset(cx + cos(a).toFloat() * r * 0.55f, cy + sin(a).toFloat() * r * 0.55f)
-                )
-            }
-            drawCircle(color = Color(0xFFFFE082), radius = r * 0.32f, center = Offset(cx, cy))
-        }
+        val style = rng.nextInt(7) // 0..5: cả bó một loài; 6: mỗi bông một loài
+        fun jit() = (rng.nextFloat() - 0.5f) * 0.08f
 
         val base = Offset(w * 0.5f, h)
-        val c1 = Offset(w * 0.50f, h * 0.30f)
-        val c2 = Offset(w * 0.22f, h * 0.58f)
-        val c3 = Offset(w * 0.78f, h * 0.52f)
-        drawLine(stem, base, c1, strokeWidth = stemW, cap = StrokeCap.Round)
-        drawLine(stem, base, c2, strokeWidth = stemW, cap = StrokeCap.Round)
-        drawLine(stem, base, c3, strokeWidth = stemW, cap = StrokeCap.Round)
-        flower(c2.x, c2.y, w * 0.20f, lerp(color, Color.White, 0.30f))
-        flower(c3.x, c3.y, w * 0.20f, lerp(color, Color.Black, 0.12f))
-        flower(c1.x, c1.y, w * 0.26f, color)
+        val heads = listOf(
+            Offset(w * (0.50f + jit()), h * (0.30f + jit())),
+            Offset(w * (0.22f + jit()), h * (0.58f + jit())),
+            Offset(w * (0.78f + jit()), h * (0.52f + jit()))
+        )
+        val radii = listOf(0.26f * w, 0.20f * w, 0.20f * w)
+        val tones = listOf(color, lerp(color, Color.White, 0.30f), lerp(color, Color.Black, 0.12f))
+
+        heads.forEach { drawLine(stem, base, it, strokeWidth = stemW, cap = StrokeCap.Round) }
+
+        // Lá: 1–2 chiếc mọc từ cuống hai bông bên
+        val leafCount = 1 + rng.nextInt(2)
+        for (j in 0 until leafCount) {
+            val head = heads[1 + j]
+            val t = 0.40f + rng.nextFloat() * 0.25f
+            val anchor = Offset(base.x + (head.x - base.x) * t, base.y + (head.y - base.y) * t)
+            val angle = if (head.x < base.x) -55f else 55f
+            rotate(angle, anchor) {
+                mcPetal(anchor.x, anchor.y, h * (0.26f + rng.nextFloat() * 0.08f), h * 0.11f, Color(0xFF388E3C))
+            }
+        }
+
+        // Vẽ hai bông bên trước, bông giữa sau cùng
+        for (i in intArrayOf(1, 2, 0)) {
+            val st = if (style == 6) rng.nextInt(6) else style
+            mcDrawFlower(st, heads[i], radii[i], tones[i])
+        }
     }
 }
