@@ -104,6 +104,7 @@ import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PersonSearch
@@ -1608,6 +1609,7 @@ private fun MoodDayScreen(
     onDateChange: (String) -> Unit,
     onOpenChart: () -> Unit,
     onOpenReview: () -> Unit,
+    onBackToPicker: () -> Unit,
     onClose: () -> Unit,
     palette: AdaptivePalette,
     accent: Color
@@ -1739,12 +1741,23 @@ private fun MoodDayScreen(
             )
         }
         Spacer(modifier = Modifier.height(8.dp))
-        MoodMarqueeButton(
-            text = "Đóng",
-            onClick = onClose,
-            palette = palette,
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.fillMaxWidth()
-        )
+        ) {
+            MoodMarqueeButton(
+                text = "Quay về",
+                onClick = onBackToPicker,
+                palette = palette,
+                modifier = Modifier.weight(1f)
+            )
+            MoodMarqueeButton(
+                text = "Đóng",
+                onClick = onClose,
+                palette = palette,
+                modifier = Modifier.weight(1f)
+            )
+        }
     }
 }
 
@@ -2108,6 +2121,7 @@ private fun MoodReviewScreen(
 private fun MoodJournalPopupContent(
     screen: Int,
     onScreenChange: (Int) -> Unit,
+    onBackToPicker: () -> Unit,
     palette: AdaptivePalette,
     accent: Color
 ) {
@@ -2174,6 +2188,7 @@ private fun MoodJournalPopupContent(
                         viewMonthKey = viewDateKey.substring(0, 7)
                         onScreenChange(3)
                     },
+                    onBackToPicker = onBackToPicker,
                     onClose = { onScreenChange(0) },
                     palette = palette,
                     accent = accent
@@ -2731,12 +2746,24 @@ private val MAIN_TAB_ITEM_KEYS: Map<MainTab, List<String>> = mapOf(
     )
 )
 
+/** Các nút ở thanh trên cùng: nằm trong menu ba gạch (≡) hoặc nằm riêng trên thanh. */
+private enum class QuickToolAction(val inMenu: Boolean, val emoji: String? = null) {
+    FOOD(true),
+    LUCKY(true),
+    COIN(true),
+    OPTIMIZE(true),
+    SHARE_CARD(true),
+    MOOD(false, "😊"),
+    GREETING(false, "🌤️")
+}
+
 private data class FeatureSearchTarget(
     val label: String,
     val tab: MainTab,
     val section: ExpandableSection?,
     val itemKey: String,
-    val keywords: List<String> = emptyList()
+    val keywords: List<String> = emptyList(),
+    val action: QuickToolAction? = null
 )
 
 private val FEATURE_SEARCH_TARGETS: List<FeatureSearchTarget> = listOf(
@@ -2818,6 +2845,41 @@ private val FEATURE_SEARCH_TARGETS: List<FeatureSearchTarget> = listOf(
     FeatureSearchTarget(
         "Thông tin liên hệ", MainTab.SETTINGS, null, "bottom_contact_button_row",
         listOf("liên hệ", "tác giả", "thông tin", "ủng hộ", "donate", "facebook")
+    ),
+    FeatureSearchTarget(
+        "Gợi ý món ăn", MainTab.WEATHER, null, "",
+        listOf("món ăn", "ăn gì", "uống gì", "thức uống", "đồ uống", "ăn uống", "chọn món", "bữa ăn"),
+        QuickToolAction.FOOD
+    ),
+    FeatureSearchTarget(
+        "Số may mắn", MainTab.WEATHER, null, "",
+        listOf("may mắn", "con số", "quay số", "số hôm nay", "xổ số"),
+        QuickToolAction.LUCKY
+    ),
+    FeatureSearchTarget(
+        "Tung đồng xu", MainTab.WEATHER, null, "",
+        listOf("đồng xu", "tung xu", "sấp ngửa", "có hay không", "quyết định", "may rủi"),
+        QuickToolAction.COIN
+    ),
+    FeatureSearchTarget(
+        "Tối ưu hóa ứng dụng", MainTab.WEATHER, null, "",
+        listOf("tối ưu", "tối ưu pin", "tiết kiệm pin", "pin", "chạy nền", "đồng bộ", "báo thức"),
+        QuickToolAction.OPTIMIZE
+    ),
+    FeatureSearchTarget(
+        "Chia sẻ thẻ thời tiết", MainTab.WEATHER, null, "",
+        listOf("chia sẻ", "thẻ thời tiết", "ảnh thời tiết", "gửi thời tiết", "share", "tạo thẻ", "lưu ảnh"),
+        QuickToolAction.SHARE_CARD
+    ),
+    FeatureSearchTarget(
+        "Cảm xúc hiện tại", MainTab.WEATHER, null, "",
+        listOf("cảm xúc", "tâm trạng", "nhật ký tâm trạng", "biểu đồ tâm trạng", "đánh giá cảm xúc", "emoji", "mood", "vui", "buồn"),
+        QuickToolAction.MOOD
+    ),
+    FeatureSearchTarget(
+        "Chào ngày mới", MainTab.WEATHER, null, "",
+        listOf("chào", "lời chào", "lời chúc", "chúc", "chào buổi sáng", "chào buổi tối", "ngày mới", "ngủ ngon"),
+        QuickToolAction.GREETING
     )
 )
 
@@ -3038,17 +3100,24 @@ private fun FeatureSearchCard(
                                             overflow = TextOverflow.Ellipsis
                                         )
                                         Text(
-                                            "Trong tab ${target.tab.label}",
+                                            if (target.action == null) "Trong tab ${target.tab.label}"
+                                            else if (target.action.inMenu) "Nút trong menu ba gạch (≡) ở thanh trên"
+                                            else "Nút ở thanh trên cùng",
                                             fontSize = 11.5.sp,
                                             color = accentColor
                                         )
                                     }
-                                    Icon(
-                                        imageVector = target.tab.icon,
-                                        contentDescription = null,
-                                        tint = accentColor,
-                                        modifier = Modifier.size(18.dp)
-                                    )
+                                    val rowEmoji = target.action?.emoji
+                                    if (rowEmoji != null) {
+                                        Text(text = rowEmoji, fontSize = 17.sp)
+                                    } else {
+                                        Icon(
+                                            imageVector = if (target.action != null) Icons.Default.Menu else target.tab.icon,
+                                            contentDescription = null,
+                                            tint = accentColor,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -5577,6 +5646,7 @@ fun ThoiTietAmLichApp() {
     var searchCardBounds by remember { mutableStateOf(Rect.Zero) }
     var searchButtonBounds by remember { mutableStateOf(Rect.Zero) }
     var pendingSearchTarget by remember { mutableStateOf<FeatureSearchTarget?>(null) }
+    var pendingQuickToolAction by remember { mutableStateOf<QuickToolAction?>(null) }
 
     val featureSearchResults = remember(featureSearchQuery) {
         if (featureSearchQuery.isBlank()) emptyList() else searchFeatures(featureSearchQuery)
@@ -5586,7 +5656,13 @@ fun ThoiTietAmLichApp() {
         focusManager.clearFocus()
         showFeatureSearch = false
         featureSearchQuery = ""
-        pendingSearchTarget = target
+        val toolAction = target.action
+        if (toolAction != null) {
+            // Tính năng dạng nút trong menu ba gạch: chạy luôn như khi bấm nút
+            pendingQuickToolAction = toolAction
+        } else {
+            pendingSearchTarget = target
+        }
     }
 
     fun performFeatureSearch() {
@@ -6100,6 +6176,47 @@ fun ThoiTietAmLichApp() {
         shareCardCustomGreeting = null
         showShareCardPopup = true
         regenerateShareCard()
+    }
+
+    // Chạy tính năng nút (menu ba gạch) được chọn từ ô tìm kiếm
+    LaunchedEffect(pendingQuickToolAction) {
+        val toolAction = pendingQuickToolAction ?: return@LaunchedEffect
+        delay(260L) // chờ thẻ tìm kiếm đóng xong
+        when (toolAction) {
+            QuickToolAction.FOOD -> startFoodRandomizer()
+            QuickToolAction.LUCKY -> {
+                val existingToday = DailyLuckyHelper.getTodayLuckyIfExists(appContext)
+                if (existingToday != null) {
+                    luckyResultPopup = existingToday
+                } else if (!isRollingLucky) {
+                    rollingPreviewNumber = Random.nextInt(1, 100).toString().padStart(2, '0')
+                    isRollingLucky = true
+                }
+            }
+            QuickToolAction.COIN -> {
+                if (!isTossingCoin) {
+                    coinOutcomePopup = null
+                    isTossingCoin = true
+                }
+            }
+            QuickToolAction.OPTIMIZE -> {
+                if (!isOptimizingBattery) {
+                    optimizationProgress = 0.05f
+                    optimizationStepText = "Đang khởi động tối ưu hóa..."
+                    isOptimizingBattery = true
+                }
+            }
+            QuickToolAction.SHARE_CARD -> openShareCard()
+            QuickToolAction.MOOD -> {
+                dailyMoodState = DailyMoodHelper.loadOrResetToday(context)
+                showMoodPickerPopup = true
+            }
+            QuickToolAction.GREETING -> {
+                greetingPopupText = pickRandomGreetingForNow()
+                showGreetingPopup = true
+            }
+        }
+        pendingQuickToolAction = null
     }
 
     fun doSaveShareCard(bmp: android.graphics.Bitmap) {
@@ -9515,6 +9632,11 @@ fun ThoiTietAmLichApp() {
                     MoodJournalPopupContent(
                         screen = moodJournalScreen,
                         onScreenChange = { moodJournalScreen = it },
+                        onBackToPicker = {
+                            moodJournalScreen = 0
+                            dailyMoodState = DailyMoodHelper.loadOrResetToday(context)
+                            showMoodPickerPopup = true
+                        },
                         palette = palette,
                         accent = accentCompose
                     )
