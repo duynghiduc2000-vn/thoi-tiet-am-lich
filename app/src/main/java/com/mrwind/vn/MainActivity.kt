@@ -2721,6 +2721,7 @@ private fun Row2MoodButton(
 
 private enum class MainTab(val label: String, val icon: ImageVector) {
     WEATHER("Trang chủ", Icons.Default.Home),
+    MONTH_GRID("Lịch", Icons.Default.CalendarMonth),
     CALENDAR("Tính năng", Icons.Default.Build),
     REMINDERS("Nhắc nhở", Icons.Default.Notifications),
     SETTINGS("Cài đặt", Icons.Default.Settings)
@@ -2729,6 +2730,7 @@ private enum class MainTab(val label: String, val icon: ImageVector) {
 /** Thứ tự các mục (key trong LazyColumn) của từng tab — dùng để cuộn tới đúng vị trí khi tìm kiếm. */
 private val MAIN_TAB_ITEM_KEYS: Map<MainTab, List<String>> = mapOf(
     MainTab.WEATHER to listOf("top_bento_editorial"),
+    MainTab.MONTH_GRID to listOf("month_calendar_section"),
     MainTab.CALENDAR to listOf(
         "lunar_and_age_row_section",
         "good_bad_day_section",
@@ -2774,6 +2776,10 @@ private val FEATURE_SEARCH_TARGETS: List<FeatureSearchTarget> = listOf(
     FeatureSearchTarget(
         "Ghim Widget", MainTab.WEATHER, null, "top_bento_editorial",
         listOf("widget", "ghim", "ra màn hình chính")
+    ),
+    FeatureSearchTarget(
+        "Lịch tháng", MainTab.MONTH_GRID, null, "month_calendar_section",
+        listOf("lịch", "lịch tháng", "lịch âm", "tờ lịch", "xé lịch", "rằm", "mùng 1", "ngày giỗ", "ngày lễ", "hoàng đạo", "xem ngày")
     ),
     FeatureSearchTarget(
         "Tra cứu lịch âm", MainTab.CALENDAR, ExpandableSection.LUNAR_LOOKUP, "lunar_and_age_row_section",
@@ -3165,6 +3171,34 @@ private fun AnimatedTabIcon(
                 }
             )
         }
+        MainTab.MONTH_GRID -> {
+            // Tờ lịch lật nhẹ như sắp xé, rồi nghỉ một nhịp
+            val flip by transition.animateFloat(
+                initialValue = 0f,
+                targetValue = 0f,
+                animationSpec = infiniteRepeatable(
+                    animation = keyframes {
+                        durationMillis = 2200
+                        0f at 0
+                        -38f at 260
+                        0f at 620
+                        0f at 2200
+                    },
+                    repeatMode = RepeatMode.Restart
+                ),
+                label = "calendar_flip"
+            )
+            Icon(
+                imageVector = tab.icon,
+                contentDescription = tab.label,
+                tint = tint,
+                modifier = modifier.graphicsLayer {
+                    transformOrigin = TransformOrigin(0.5f, 0f)
+                    rotationX = flip
+                    cameraDistance = 12f * density
+                }
+            )
+        }
         MainTab.CALENDAR -> {
             // Cờ lê xoay qua lại nhẹ nhàng
             val swing by transition.animateFloat(
@@ -3364,7 +3398,7 @@ private fun MainBottomTabBar(
                         Spacer(modifier = Modifier.height(3.dp))
                         Text(
                             tab.label,
-                            fontSize = 11.5.sp,
+                            fontSize = if (tabs.size > 4) 10.5.sp else 11.5.sp,
                             fontWeight = if (prox > 0.5f) FontWeight.ExtraBold else FontWeight.Medium,
                             color = tint,
                             maxLines = 1
@@ -3404,7 +3438,7 @@ private enum class FeedbackCategory(val label: String) {
     SUGGESTION("Đề xuất")
 }
 
-private data class AdaptivePalette(
+internal data class AdaptivePalette(
     val isDark: Boolean,
     val screenBg: Color,
     val screenBrush: Brush,
@@ -5735,6 +5769,8 @@ fun ThoiTietAmLichApp() {
     val todayBirthdays = remember(birthdays) { BirthdayHelper.getTodayBirthdays(context) }
     val showAdminBirthdayToday = remember { BirthdayHelper.isAdminBirthdayToday() }
     var showBirthdayPopup by remember { mutableStateOf(false) }
+    var showMonthDetail by remember { mutableStateOf(false) }
+    var monthDetailDate by remember { mutableStateOf(McDate.today()) }
 
     fun refreshTodosAndCheckDueTasks() {
         val currentList = TodoHelper.ensureCurrentDayOrReset(context)
@@ -5933,7 +5969,8 @@ fun ThoiTietAmLichApp() {
         pendingBatteryWarningTarget,
         showBirthdayPopup,
         todayBirthdays,
-        showAdminBirthdayToday
+        showAdminBirthdayToday,
+        showMonthDetail
     ) {
         isOptimizingBattery ||
             isSearchingFood ||
@@ -5966,7 +6003,8 @@ fun ThoiTietAmLichApp() {
             showHistoryClearedPopup ||
             showSecondsWarningPopup ||
             pendingBatteryWarningTarget != null ||
-            (showBirthdayPopup && (todayBirthdays.isNotEmpty() || showAdminBirthdayToday))
+            (showBirthdayPopup && (todayBirthdays.isNotEmpty() || showAdminBirthdayToday)) ||
+            showMonthDetail
     }
 
     val canAnimateVisuals = isAppResumed && !hasBlockingPopup
@@ -6834,6 +6872,19 @@ fun ThoiTietAmLichApp() {
                                     }
                                 }
                             }
+                        }
+                        }
+
+                        if (selectedMainTab == MainTab.MONTH_GRID) {
+                        item(key = "month_calendar_section") {
+                            MonthCalendarSection(
+                                palette = palette,
+                                accent = accentCompose,
+                                onDayClick = { date ->
+                                    monthDetailDate = date
+                                    showMonthDetail = true
+                                }
+                            )
                         }
                         }
 
@@ -9131,6 +9182,20 @@ fun ThoiTietAmLichApp() {
                         .navigationBarsPadding()
                         .padding(start = 20.dp, end = 20.dp, bottom = 10.dp)
                 )
+
+                // Pop-up chi tiết ngày: tờ lịch xé kiểu Liquid Glass
+                AnimatedPopupOverlay(
+                    visible = showMonthDetail,
+                    onDismiss = { showMonthDetail = false },
+                    dismissOnBackdropClick = true
+                ) {
+                    McTearOffSheet(
+                        startDate = monthDetailDate,
+                        palette = palette,
+                        accent = accentCompose,
+                        onClose = { showMonthDetail = false }
+                    )
+                }
 
                 // Pop-up tải xuống phiên bản mới (tự tắt sau 2 - 4 giây rồi mở trang tải về)
                 AnimatedPopupOverlay(
