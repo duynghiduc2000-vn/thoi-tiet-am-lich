@@ -60,6 +60,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -67,6 +68,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.CircleShape
@@ -78,6 +80,9 @@ import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.BatteryAlert
 import androidx.compose.material.icons.filled.Cake
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Celebration
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CheckCircleOutline
@@ -130,6 +135,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.TransformOrigin
@@ -160,6 +166,7 @@ import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
@@ -735,15 +742,15 @@ private fun TopBarQuickMenuButton(
     modifier: Modifier = Modifier
 ) {
     Surface(
-        shape = CircleShape,
+        shape = RoundedCornerShape(12.dp),
         color = palette.cardBg,
         modifier = modifier
             .size(35.dp)
-            .clip(CircleShape)
+            .clip(RoundedCornerShape(12.dp))
             .border(
                 width = 1.dp,
                 color = accentColor.copy(alpha = if (isExpanded) 0.90f else 0.45f),
-                shape = CircleShape
+                shape = RoundedCornerShape(12.dp)
             )
             .clickable(onClick = onClick)
     ) {
@@ -814,15 +821,15 @@ private fun TopBarFoodChoiceButton(
         modifier = modifier.size(35.dp)
     ) {
         Surface(
-            shape = CircleShape,
+            shape = RoundedCornerShape(12.dp),
             color = palette.cardBg,
             modifier = Modifier
                 .fillMaxSize()
-                .clip(CircleShape)
+                .clip(RoundedCornerShape(12.dp))
                 .border(
                     width = 1.dp,
                     color = accentColor.copy(alpha = 0.45f),
-                    shape = CircleShape
+                    shape = RoundedCornerShape(12.dp)
                 )
         ) {
             Box(
@@ -911,15 +918,15 @@ private fun TopBarLuckyButton(
         modifier = modifier.size(35.dp)
     ) {
         Surface(
-            shape = CircleShape,
+            shape = RoundedCornerShape(12.dp),
             color = palette.cardBg,
             modifier = Modifier
                 .fillMaxSize()
-                .clip(CircleShape)
+                .clip(RoundedCornerShape(12.dp))
                 .border(
                     width = 1.dp,
                     color = accentColor.copy(alpha = if (isRolling) 0.85f else 0.45f),
-                    shape = CircleShape
+                    shape = RoundedCornerShape(12.dp)
                 )
         ) {
             Box(
@@ -1452,15 +1459,15 @@ private fun Row2CoinTossButton(
         modifier = modifier.size(35.dp)
     ) {
         Surface(
-            shape = CircleShape,
+            shape = RoundedCornerShape(12.dp),
             color = palette.cardBg,
             modifier = Modifier
                 .fillMaxSize()
-                .clip(CircleShape)
+                .clip(RoundedCornerShape(12.dp))
                 .border(
                     width = 1.dp,
                     color = accentColor.copy(alpha = 0.45f),
-                    shape = CircleShape
+                    shape = RoundedCornerShape(12.dp)
                 )
         ) {
             Box(
@@ -1511,15 +1518,15 @@ private fun Row2MoodButton(
         modifier = modifier.size(35.dp)
     ) {
         Surface(
-            shape = CircleShape,
+            shape = RoundedCornerShape(12.dp),
             color = palette.cardBg,
             modifier = Modifier
                 .fillMaxSize()
-                .clip(CircleShape)
+                .clip(RoundedCornerShape(12.dp))
                 .border(
                     width = 1.dp,
                     color = accentColor.copy(alpha = 0.45f),
-                    shape = CircleShape
+                    shape = RoundedCornerShape(12.dp)
                 )
         ) {
             Box(
@@ -1539,6 +1546,84 @@ private fun Row2MoodButton(
                         fontSize = 16.sp,
                         maxLines = 1,
                         softWrap = false
+                    )
+                }
+            }
+        }
+    }
+}
+
+private enum class MainTab(val label: String, val icon: ImageVector) {
+    WEATHER("Thời tiết", Icons.Default.Cloud),
+    CALENDAR("Lịch", Icons.Default.CalendarMonth),
+    REMINDERS("Nhắc nhở", Icons.Default.Notifications),
+    SETTINGS("Cài đặt", Icons.Default.Settings)
+}
+
+@Composable
+private fun MainBottomTabBar(
+    selected: MainTab,
+    onSelect: (MainTab) -> Unit,
+    accentColor: Color,
+    palette: AdaptivePalette
+) {
+    val barShape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp)
+    Surface(
+        shape = barShape,
+        color = palette.cardBg,
+        shadowElevation = 12.dp,
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, palette.border, barShape)
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.SpaceAround,
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 8.dp, vertical = 8.dp)
+        ) {
+            MainTab.entries.forEach { tab ->
+                val isSel = tab == selected
+                val pillBg by animateFloatAsState(
+                    targetValue = if (isSel) 1f else 0f,
+                    animationSpec = spring(dampingRatio = 0.6f, stiffness = Spring.StiffnessMediumLow),
+                    label = "tab_pill_${tab.name}"
+                )
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(16.dp))
+                        .clickable { onSelect(tab) }
+                        .padding(vertical = 2.dp)
+                ) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .graphicsLayer {
+                                val sc = 1f + 0.12f * pillBg
+                                scaleX = sc
+                                scaleY = sc
+                            }
+                            .size(width = 52.dp, height = 32.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(accentColor.copy(alpha = 0.22f * pillBg))
+                    ) {
+                        Icon(
+                            imageVector = tab.icon,
+                            contentDescription = tab.label,
+                            tint = if (isSel) accentColor else palette.textSecondary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                    Text(
+                        tab.label,
+                        fontSize = 11.5.sp,
+                        fontWeight = if (isSel) FontWeight.ExtraBold else FontWeight.Medium,
+                        color = if (isSel) accentColor else palette.textSecondary,
+                        maxLines = 1
                     )
                 }
             }
@@ -1889,15 +1974,15 @@ private fun TopBarBatteryOptimizeButton(
         modifier = modifier.size(35.dp)
     ) {
         Surface(
-            shape = CircleShape,
+            shape = RoundedCornerShape(12.dp),
             color = palette.cardBg,
             modifier = Modifier
                 .fillMaxSize()
-                .clip(CircleShape)
+                .clip(RoundedCornerShape(12.dp))
                 .border(
                     width = 1.dp,
                     color = accentColor.copy(alpha = if (isOptimizing) 0.80f else 0.45f),
-                    shape = CircleShape
+                    shape = RoundedCornerShape(12.dp)
                 )
         ) {
             Box(
@@ -2017,15 +2102,15 @@ private fun TopBarDayNightIndicator(
         modifier = modifier.size(35.dp)
     ) {
         Surface(
-            shape = CircleShape,
+            shape = RoundedCornerShape(12.dp),
             color = palette.cardBg,
             modifier = Modifier
                 .fillMaxSize()
-                .clip(CircleShape)
+                .clip(RoundedCornerShape(12.dp))
                 .border(
                     width = 1.dp,
                     color = if (isDay) Color(0xFFFFB74D).copy(alpha = 0.45f) else moonGoldColor.copy(alpha = 0.45f),
-                    shape = CircleShape
+                    shape = RoundedCornerShape(12.dp)
                 )
         ) {
         Box(
@@ -2126,15 +2211,15 @@ private fun BottomContactCircleButton(
         modifier = modifier.size(36.dp)
     ) {
         Surface(
-            shape = CircleShape,
+            shape = RoundedCornerShape(12.dp),
             color = palette.cardBg,
             modifier = Modifier
                 .fillMaxSize()
-                .clip(CircleShape)
+                .clip(RoundedCornerShape(12.dp))
                 .border(
                     width = 1.dp,
                     color = accentColor.copy(alpha = 0.45f),
-                    shape = CircleShape
+                    shape = RoundedCornerShape(12.dp)
                 )
         ) {
             Box(
@@ -2202,15 +2287,15 @@ private fun BottomDownloadCircleButton(
         modifier = modifier.size(36.dp)
     ) {
         Surface(
-            shape = CircleShape,
+            shape = RoundedCornerShape(12.dp),
             color = palette.cardBg,
             modifier = Modifier
                 .fillMaxSize()
-                .clip(CircleShape)
+                .clip(RoundedCornerShape(12.dp))
                 .border(
                     width = 1.dp,
                     color = accentColor.copy(alpha = 0.45f),
-                    shape = CircleShape
+                    shape = RoundedCornerShape(12.dp)
                 )
         ) {
             Box(
@@ -3780,6 +3865,13 @@ fun ThoiTietAmLichApp() {
         expandedSection = if (expandedSection == section) null else section
     }
 
+    var selectedMainTab by rememberSaveable { mutableStateOf(MainTab.WEATHER) }
+    val mainListState = rememberLazyListState()
+    LaunchedEffect(selectedMainTab) {
+        expandedSection = null
+        mainListState.scrollToItem(0)
+    }
+
     val lookupSectionBringIntoView = remember { BringIntoViewRequester() }
     val lunarUsefulBringIntoView = remember { BringIntoViewRequester() }
     val ageSectionBringIntoView = remember { BringIntoViewRequester() }
@@ -4205,6 +4297,14 @@ fun ThoiTietAmLichApp() {
                 Scaffold(
                     containerColor = Color.Transparent,
                     snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+                    bottomBar = {
+                        MainBottomTabBar(
+                            selected = selectedMainTab,
+                            onSelect = { selectedMainTab = it },
+                            accentColor = accentCompose,
+                            palette = palette
+                        )
+                    },
                     topBar = {
                         TopAppBar(
                             colors = TopAppBarDefaults.topAppBarColors(
@@ -4436,13 +4536,15 @@ fun ThoiTietAmLichApp() {
                     }
                 ) { innerPadding ->
                     LazyColumn(
+                        state = mainListState,
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(innerPadding)
                             .imePadding(),
-                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 120.dp),
+                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
+                        if (selectedMainTab == MainTab.WEATHER) {
                         item(key = "top_bento_editorial") {
                             Box(modifier = Modifier.fillMaxWidth()) {
                                 if (topWeatherBgEnabled) {
@@ -4625,7 +4727,9 @@ fun ThoiTietAmLichApp() {
                                 }
                             }
                         }
+                        }
 
+                        if (selectedMainTab == MainTab.SETTINGS) {
                         item(key = "accent_color_section") {
                             CollapsibleSectionCard(
                                 title = "Màu chủ đề (Áp dụng App & Widget)",
@@ -4673,7 +4777,9 @@ fun ThoiTietAmLichApp() {
                                 }
                             }
                         }
+                        }
 
+                        if (selectedMainTab == MainTab.SETTINGS) {
                         item(key = "app_and_widget_appearance_row_section") {
                             val themeLabels = listOf("Hệ thống", "Sáng", "Tối")
                             val currentThemeLabel = themeLabels.getOrElse(appThemeMode) { "Hệ thống" }
@@ -5030,7 +5136,9 @@ fun ThoiTietAmLichApp() {
                                 }
                             }
                         }
+                        }
 
+                        if (selectedMainTab == MainTab.WEATHER) {
                         item(key = "location_and_signature_section") {
                             CollapsibleSectionCard(
                                 title = "Vị trí cập nhật thời tiết & Chữ ký trên Widget",
@@ -5184,7 +5292,9 @@ fun ThoiTietAmLichApp() {
                                 }
                             }
                         }
+                        }
 
+                        if (selectedMainTab == MainTab.SETTINGS) {
                         item(key = "font_scale_section") {
                             CollapsibleSectionCard(
                                 title = "Kích cỡ chữ trên Widget",
@@ -5253,7 +5363,9 @@ fun ThoiTietAmLichApp() {
                                 )
                             }
                         }
+                        }
 
+                        if (selectedMainTab == MainTab.REMINDERS) {
                         item(key = "todo_section") {
                             Column(
                                 modifier = Modifier
@@ -5462,7 +5574,9 @@ fun ThoiTietAmLichApp() {
                                 }
                             }
                         }
+                        }
 
+                        if (selectedMainTab == MainTab.CALENDAR) {
                         item(key = "lunar_and_age_row_section") {
                             Column(
                                 verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -5975,7 +6089,9 @@ fun ThoiTietAmLichApp() {
                                 }
                             }
                         }
+                        }
 
+                        if (selectedMainTab == MainTab.CALENDAR) {
                         item(key = "good_bad_day_section") {
                             GoodBadDayExpandableSection(
                                 expanded = expandedSection == ExpandableSection.GOOD_BAD_DAY,
@@ -5986,7 +6102,9 @@ fun ThoiTietAmLichApp() {
                                 onShowAdvicePopup = { advice -> goodBadAdvicePopup = advice }
                             )
                         }
+                        }
 
+                        if (selectedMainTab == MainTab.CALENDAR) {
                         item(key = "lunar_useful_info_section") {
                             Column(
                                 modifier = Modifier
@@ -6121,7 +6239,9 @@ fun ThoiTietAmLichApp() {
                                 }
                             }
                         }
+                        }
 
+                        if (selectedMainTab == MainTab.REMINDERS) {
                         item(key = "birthday_and_holiday_row_section") {
                             val activeHolidayCount = if (holidayReminderEnabled) enabledHolidayIds.size else 0
 
@@ -6486,7 +6606,9 @@ fun ThoiTietAmLichApp() {
                                 }
                             }
                         }
+                        }
 
+                        if (selectedMainTab == MainTab.SETTINGS) {
                         item(key = "bug_report_section") {
                             Column(
                                 modifier = Modifier
@@ -6621,7 +6743,9 @@ fun ThoiTietAmLichApp() {
                                 }
                             }
                         }
+                        }
 
+                        if (selectedMainTab == MainTab.SETTINGS) {
                         item(key = "bottom_contact_button_row") {
                             Row(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
@@ -6645,6 +6769,7 @@ fun ThoiTietAmLichApp() {
                                     onClick = { showContactPopup = true }
                                 )
                             }
+                        }
                         }
                     }
                 }
