@@ -1762,7 +1762,8 @@ private fun FeatureSearchCard(
     onPick: (FeatureSearchTarget) -> Unit,
     accentColor: Color,
     palette: AdaptivePalette,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    originFraction: Float = 0.62f
 ) {
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(visible) {
@@ -1777,21 +1778,24 @@ private fun FeatureSearchCard(
     val cardShape = RoundedCornerShape(22.dp)
     AnimatedVisibility(
         visible = visible,
-        enter = fadeIn(tween(160)) +
+        enter = fadeIn(tween(180)) +
             scaleIn(
-                initialScale = 0.9f,
-                transformOrigin = TransformOrigin(0.85f, 0f),
-                animationSpec = spring(dampingRatio = 0.66f, stiffness = Spring.StiffnessMediumLow)
+                initialScale = 0.5f,
+                transformOrigin = TransformOrigin(originFraction, 0f),
+                animationSpec = spring(dampingRatio = 0.62f, stiffness = Spring.StiffnessMediumLow)
             ) +
             slideInVertically(
-                animationSpec = spring(dampingRatio = 0.7f, stiffness = Spring.StiffnessMediumLow)
-            ) { -it / 3 },
-        exit = fadeOut(tween(120)) +
+                animationSpec = tween(durationMillis = 260, easing = FastOutSlowInEasing)
+            ) { fullHeight -> -fullHeight / 5 },
+        exit = fadeOut(tween(200, easing = FastOutSlowInEasing)) +
             scaleOut(
-                targetScale = 0.92f,
-                transformOrigin = TransformOrigin(0.85f, 0f),
-                animationSpec = tween(130)
-            ),
+                targetScale = 0.5f,
+                transformOrigin = TransformOrigin(originFraction, 0f),
+                animationSpec = tween(durationMillis = 240, easing = FastOutSlowInEasing)
+            ) +
+            slideOutVertically(
+                animationSpec = tween(durationMillis = 240, easing = FastOutSlowInEasing)
+            ) { fullHeight -> -fullHeight / 6 },
         modifier = modifier
     ) {
         Surface(
@@ -3005,7 +3009,8 @@ private fun TopWeatherCanvasEffect(
     accentColor: Color,
     isDark: Boolean,
     isActive: Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    fullScreen: Boolean = false
 ) {
     val progress: Float
     if (isActive) {
@@ -3028,12 +3033,12 @@ private fun TopWeatherCanvasEffect(
     val isFog = weatherCode in listOf(45, 48)
     val isCloudy = weatherCode in listOf(1, 2, 3)
 
-    Box(modifier = modifier.clip(RoundedCornerShape(28.dp))) {
+    Box(modifier = if (fullScreen) modifier else modifier.clip(RoundedCornerShape(28.dp))) {
         Canvas(modifier = Modifier.fillMaxSize()) {
             val w = size.width
             val h = size.height
 
-            val sparkleCount = 14
+            val sparkleCount = if (fullScreen) 22 else 14
             val sparkleColor = if (isDark) {
                 accentColor.copy(alpha = 0.20f)
             } else {
@@ -3131,7 +3136,7 @@ private fun TopWeatherCanvasEffect(
                     Color(0xFF0288D1).copy(alpha = 0.25f)
                 }
                 val rainCycle = (progress * 4f) % 1f
-                val dropCount = 22
+                val dropCount = if (fullScreen) 36 else 22
                 val dropLen = 15.dp.toPx()
                 for (i in 0 until dropCount) {
                     val lane = ((i + 0.4f) / dropCount) * w
@@ -3178,13 +3183,15 @@ private fun TopWeatherCanvasEffect(
                 }
             }
 
-            drawRect(
-                brush = Brush.verticalGradient(
-                    0.0f to Color.Transparent,
-                    0.76f to Color.Transparent,
-                    1.0f to (if (isDark) Color(0xFF09090B) else Color(0xFFF4F5F7))
+            if (!fullScreen) {
+                drawRect(
+                    brush = Brush.verticalGradient(
+                        0.0f to Color.Transparent,
+                        0.76f to Color.Transparent,
+                        1.0f to (if (isDark) Color(0xFF09090B) else Color(0xFFF4F5F7))
+                    )
                 )
-            )
+            }
         }
     }
 }
@@ -4908,6 +4915,18 @@ fun ThoiTietAmLichApp() {
                         }
                     }
             ) {
+                // Hiệu ứng thời tiết nền: phủ toàn màn hình, dùng chung cho mọi tab
+                if (topWeatherBgEnabled) {
+                    TopWeatherCanvasEffect(
+                        weatherCode = weather.weatherCode,
+                        accentColor = accentCompose,
+                        isDark = palette.isDark,
+                        isActive = canAnimateVisuals,
+                        fullScreen = true,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+
                 Scaffold(
                     containerColor = Color.Transparent,
                     snackbarHost = {
@@ -5004,12 +5023,15 @@ fun ThoiTietAmLichApp() {
                                                         slideInVertically(
                                                             animationSpec = tween(durationMillis = 260, easing = FastOutSlowInEasing)
                                                         ) { fullHeight -> -fullHeight / 5 },
-                                                    exit = fadeOut(animationSpec = tween(durationMillis = 130)) +
+                                                    exit = fadeOut(animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing)) +
                                                         scaleOut(
-                                                            targetScale = 0.7f,
+                                                            targetScale = 0.5f,
                                                             transformOrigin = TransformOrigin(0.5f, 0f),
-                                                            animationSpec = tween(durationMillis = 150, easing = FastOutSlowInEasing)
-                                                        )
+                                                            animationSpec = tween(durationMillis = 240, easing = FastOutSlowInEasing)
+                                                        ) +
+                                                        slideOutVertically(
+                                                            animationSpec = tween(durationMillis = 240, easing = FastOutSlowInEasing)
+                                                        ) { fullHeight -> -fullHeight / 6 }
                                                 ) {
                                                 Surface(
                                                     shape = RoundedCornerShape(20.dp),
@@ -5169,16 +5191,6 @@ fun ThoiTietAmLichApp() {
                         if (selectedMainTab == MainTab.WEATHER) {
                         item(key = "top_bento_editorial") {
                             Box(modifier = Modifier.fillMaxWidth()) {
-                                if (topWeatherBgEnabled) {
-                                    TopWeatherCanvasEffect(
-                                        weatherCode = weather.weatherCode,
-                                        accentColor = accentCompose,
-                                        isDark = palette.isDark,
-                                        isActive = canAnimateVisuals,
-                                        modifier = Modifier.matchParentSize()
-                                    )
-                                }
-
                                 Column(
                                     verticalArrangement = Arrangement.spacedBy(12.dp),
                                     modifier = Modifier
@@ -7410,6 +7422,12 @@ fun ThoiTietAmLichApp() {
                         }
                     }
                 
+                        // Điểm gốc của hiệu ứng = vị trí nút kính lúp (tính theo bề rộng thẻ)
+                        val searchOriginFraction = if (searchButtonBounds.width > 0f) {
+                            val sidePad = with(LocalDensity.current) { 16.dp.toPx() }
+                            val cardW = (context.resources.displayMetrics.widthPixels - 2 * sidePad).coerceAtLeast(1f)
+                            ((searchButtonBounds.center.x - sidePad) / cardW).coerceIn(0.05f, 0.95f)
+                        } else 0.62f
                         FeatureSearchCard(
                             visible = showFeatureSearch,
                             query = featureSearchQuery,
@@ -7423,7 +7441,8 @@ fun ThoiTietAmLichApp() {
                                 .align(Alignment.TopCenter)
                                 .padding(innerPadding)
                                 .padding(horizontal = 16.dp, vertical = 6.dp)
-                                .onGloballyPositioned { searchCardBounds = it.boundsInRoot() }
+                                .onGloballyPositioned { searchCardBounds = it.boundsInRoot() },
+                            originFraction = searchOriginFraction
                         )
                     }
 }
