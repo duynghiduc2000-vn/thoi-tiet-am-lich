@@ -59,6 +59,39 @@ data class ActiveRamMung1Alert(
         }
 }
 
+enum class AuspiciousGender {
+    MALE,
+    FEMALE
+}
+
+enum class AuspiciousActivity(val label: String) {
+    WEDDING("Cưới hỏi / Hỷ sự"),
+    GROUNDBREAKING("Khởi công / Động thổ"),
+    TRAVEL("Xuất hành / Đi xa"),
+    BUSINESS("Khai trương / Ký kết"),
+    MOVING("Nhập trạch / Chuyển nhà"),
+    FINANCE("Giao dịch / Cầu tài"),
+    REPAIR("Sửa chữa / Lắp đặt"),
+    REST_HEALTH("Nghỉ ngơi / Chăm sóc sức khỏe")
+}
+
+data class SuggestedBetterDay(
+    val solarDateStr: String,
+    val lunarDateStr: String,
+    val dayCanChi: String,
+    val score: Int
+)
+
+data class GoodBadDayAdvice(
+    val verdictTitle: String,
+    val isGoodDay: Boolean,
+    val activityLabel: String,
+    val todayLunarInfo: String,
+    val adviceText: String,
+    val betterDays: List<SuggestedBetterDay>
+)
+
+
 data class LunarUsefulInsight(
     val lunarDateKey: String,
     val lunarDateLabel: String,
@@ -756,14 +789,34 @@ object BirthdayHelper {
         return "$dayKey|$sig"
     }
 
-    fun getActiveHolidaysForToday(context: Context): List<ActiveHolidayAlert> {
-        if (!isHolidayReminderEnabled(context)) return emptyList()
-        val enabledIds = getEnabledHolidayIds(context)
-        val holidays = if (enabledIds == null) {
-            DEFAULT_VIETNAM_AND_INTERNATIONAL_HOLIDAYS
-        } else {
-            DEFAULT_VIETNAM_AND_INTERNATIONAL_HOLIDAYS.filter { it.id in enabledIds }
+    fun customEventsAsHolidays(context: Context): List<HolidayDefinition> {
+        return AppPrefs.getLunarCustomEvents(context).map { item ->
+            val leapSuffix = if (item.isLeapMonth) " nhuận" else ""
+            HolidayDefinition(
+                id = "custom_lunar_${item.id}",
+                title = "${item.title} (${item.lunarDay}/${item.lunarMonth}$leapSuffix Âm lịch)",
+                day = item.lunarDay,
+                month = item.lunarMonth,
+                calendarType = HolidayCalendarType.LUNAR,
+                isLunarLeapMonth = item.isLeapMonth
+            )
         }
+    }
+
+    fun getActiveHolidaysForToday(context: Context): List<ActiveHolidayAlert> {
+        val customHolidays = customEventsAsHolidays(context)
+        val baseHolidays = if (!isHolidayReminderEnabled(context)) {
+            emptyList()
+        } else {
+            val enabledIds = getEnabledHolidayIds(context)
+            if (enabledIds == null) {
+                DEFAULT_VIETNAM_AND_INTERNATIONAL_HOLIDAYS
+            } else {
+                DEFAULT_VIETNAM_AND_INTERNATIONAL_HOLIDAYS.filter { it.id in enabledIds }
+            }
+        }
+        val holidays = baseHolidays + customHolidays
+        if (holidays.isEmpty()) return emptyList()
 
         val todayCal = vietnamCalendarAtOffset(0)
         val tomorrowCal = vietnamCalendarAtOffset(1)
@@ -992,6 +1045,130 @@ object BirthdayHelper {
             }
             manager.createNotificationChannel(channel)
         }
+    }
+
+
+    private fun scoreDayForActivity(
+        jd: Int,
+        lunarDay: Int,
+        lunarMonth: Int,
+        birthDay: Int,
+        birthMonth: Int,
+        birthYear: Int,
+        gender: AuspiciousGender,
+        activity: AuspiciousActivity
+    ): Int {
+        val dayChiIdx = ((jd + 1) % 12 + 12) % 12
+        val monthChiIdx = ((lunarMonth + 1) % 12 + 12) % 12
+        val isHoangDao = HOANG_DAO_DAY_CHI_BY_MONTH_CHI[monthChiIdx]?.contains(dayChiIdx) == true
+        val birthChiIdx = ((birthYear + 8) % 12 + 12) % 12
+        val genderOffset = if (gender == AuspiciousGender.MALE) 1 else 2
+        val harmonyOffset = ((jd * 7 + lunarDay * 13 + lunarMonth * 5 + birthDay * 3 + birthMonth * 11 + birthChiIdx * 17 + genderOffset + activity.ordinal * 19) % 11) - 5
+
+        var score = if (isHoangDao) 72 else 44
+        when (activity) {
+            AuspiciousActivity.WEDDING,
+            AuspiciousActivity.BUSINESS,
+            AuspiciousActivity.MOVING -> {
+                if (lunarDay in listOf(2, 6, 8, 9, 14, 16, 18, 24, 26, 28)) score += 12
+                if (lunarDay in listOf(5, 13, 23)) score -= 14
+            }
+            AuspiciousActivity.GROUNDBREAKING,
+            AuspiciousActivity.REPAIR -> {
+                if (isHoangDao) score += 8
+                if (lunarDay == 1 || lunarDay == 15) score -= 10
+            }
+            AuspiciousActivity.TRAVEL,
+            AuspiciousActivity.FINANCE -> {
+                if (dayChiIdx % 2 == 0) score += 6
+                if (lunarDay in listOf(4, 10, 16, 22, 28)) score += 8
+            }
+            AuspiciousActivity.REST_HEALTH -> {
+                if (!isHoangDao) score += 10
+                score += 6
+            }
+        }
+        score += harmonyOffset * 2
+        return score.coerceIn(15, 96)
+    }
+
+    fun evaluateGoodBadDayForActivity(
+        birthDay: Int,
+        birthMonth: Int,
+        birthYear: Int,
+        gender: AuspiciousGender,
+        activity: AuspiciousActivity
+    ): GoodBadDayAdvice {
+        val todayCal = vietnamCalendarAtOffset(0)
+        val tDay = todayCal.get(Calendar.DAY_OF_MONTH)
+        val tMonth = todayCal.get(Calendar.MONTH) + 1
+        val tYear = todayCal.get(Calendar.YEAR)
+        val todayJd = jdFromDate(tDay, tMonth, tYear)
+        val (tLunarDay, tLunarMonth, tLunarYear) = solarToLunarYmd(tDay, tMonth, tYear)
+        val todayCanChi = dayCanChiFromJd(todayJd)
+
+        val todayScore = scoreDayForActivity(
+            jd = todayJd,
+            lunarDay = tLunarDay,
+            lunarMonth = tLunarMonth,
+            birthDay = birthDay,
+            birthMonth = birthMonth,
+            birthYear = birthYear,
+            gender = gender,
+            activity = activity
+        )
+
+        val isGood = todayScore >= 60
+        val verdictTitle = when {
+            todayScore >= 75 -> "Hôm nay RẤT NÊN làm (${activity.label})"
+            todayScore >= 60 -> "Hôm nay NÊN làm (${activity.label})"
+            todayScore >= 45 -> "Hôm nay CÂN NHẮC kỹ trước khi làm"
+            else -> "Hôm nay KHÔNG NÊN làm việc lớn"
+        }
+
+        val genderLabel = if (gender == AuspiciousGender.MALE) "nam" else "nữ"
+        val adviceText = when {
+            todayScore >= 75 ->
+                "Mức độ thuận lợi cao ($todayScore/100) cho ${activity.label.lowercase()} với người sinh $birthDay/$birthMonth/$birthYear ($genderLabel). Bạn có thể tiến hành, ưu tiên khung giờ đẹp và chuẩn bị chu đáo."
+            todayScore >= 60 ->
+                "Hôm nay khá thuận lợi ($todayScore/100) để ${activity.label.lowercase()}. Nên thực hiện gọn gàng trong khung giờ phù hợp, tránh nóng vội."
+            todayScore >= 45 ->
+                "Mức độ hôm nay ở mức trung bình ($todayScore/100) cho ${activity.label.lowercase()}. Nếu việc nhỏ có thể làm bình thường, còn việc quan trọng nên chọn ngày tốt hơn bên dưới."
+            else ->
+                "Hôm nay chưa thật sự thuận lợi ($todayScore/100) để ${activity.label.lowercase()}. Nên ưu tiên chuẩn bị kế hoạch và dời sang một trong các ngày phù hợp hơn bên dưới."
+        }
+
+        val candidates = mutableListOf<SuggestedBetterDay>()
+        for (offset in 1..14) {
+            val c = vietnamCalendarAtOffset(offset)
+            val d = c.get(Calendar.DAY_OF_MONTH)
+            val m = c.get(Calendar.MONTH) + 1
+            val y = c.get(Calendar.YEAR)
+            val jd = jdFromDate(d, m, y)
+            val (ld, lm, _) = solarToLunarYmd(d, m, y)
+            val sc = scoreDayForActivity(jd, ld, lm, birthDay, birthMonth, birthYear, gender, activity)
+            candidates.add(
+                SuggestedBetterDay(
+                    solarDateStr = "${d.toString().padStart(2, '0')}/${m.toString().padStart(2, '0')}/$y",
+                    lunarDateStr = "$ld/$lm Âm lịch",
+                    dayCanChi = dayCanChiFromJd(jd),
+                    score = sc
+                )
+            )
+        }
+
+        val topBetterDays = candidates
+            .sortedByDescending { it.score }
+            .take(3)
+
+        return GoodBadDayAdvice(
+            verdictTitle = verdictTitle,
+            isGoodDay = isGood,
+            activityLabel = activity.label,
+            todayLunarInfo = "Hôm nay: ${tDay.toString().padStart(2, '0')}/${tMonth.toString().padStart(2, '0')}/$tYear • Âm $tLunarDay/$tLunarMonth/$tLunarYear ($todayCanChi)",
+            adviceText = adviceText,
+            betterDays = topBetterDays
+        )
     }
 
     private fun createChannelIfNeeded(context: Context) {

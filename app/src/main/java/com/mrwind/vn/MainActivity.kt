@@ -1551,6 +1551,7 @@ private enum class ExpandableSection {
     LUNAR_LOOKUP,
     LUNAR_USEFUL_INFO,
     AGE_CALC,
+    GOOD_BAD_DAY,
     BIRTHDAY,
     HOLIDAY,
     BUG_REPORT
@@ -3578,6 +3579,16 @@ fun ThoiTietAmLichApp() {
     var rollingPreviewNumber by remember { mutableStateOf("01") }
     var luckyResultPopup by remember { mutableStateOf<DailyLuckyData?>(null) }
     var showLuckyDisclaimerPopup by remember { mutableStateOf(false) }
+
+    var goodBadAdvicePopup by remember { mutableStateOf<GoodBadDayAdvice?>(null) }
+    var showGoodBadDisclaimerPopup by remember { mutableStateOf(false) }
+
+    var lunarCustomEvents by remember { mutableStateOf(AppPrefs.getLunarCustomEvents(context)) }
+    var customLunarEventTitleInput by remember { mutableStateOf("") }
+    var customLunarEventDayInput by remember { mutableStateOf("") }
+    var customLunarEventMonthInput by remember { mutableStateOf("") }
+    var customLunarEventLeap by remember { mutableStateOf(false) }
+    var customLunarEventError by remember { mutableStateOf<String?>(null) }
     var showContactPopup by remember { mutableStateOf(false) }
     var showDonateQrPopup by remember { mutableStateOf(false) }
     var showDownloadPopup by remember { mutableStateOf(false) }
@@ -3942,6 +3953,8 @@ fun ThoiTietAmLichApp() {
         isRollingLucky,
         luckyResultPopup,
         showLuckyDisclaimerPopup,
+        goodBadAdvicePopup,
+        showGoodBadDisclaimerPopup,
         showContactPopup,
         showDownloadPopup,
         showGreetingPopup,
@@ -3970,6 +3983,8 @@ fun ThoiTietAmLichApp() {
             isRollingLucky ||
             luckyResultPopup != null ||
             showLuckyDisclaimerPopup ||
+            goodBadAdvicePopup != null ||
+            showGoodBadDisclaimerPopup ||
             showContactPopup ||
             showDonateQrPopup ||
             showDownloadPopup ||
@@ -5954,6 +5969,17 @@ fun ThoiTietAmLichApp() {
                             }
                         }
 
+                        item(key = "good_bad_day_section") {
+                            GoodBadDayExpandableSection(
+                                expanded = expandedSection == ExpandableSection.GOOD_BAD_DAY,
+                                onToggle = { toggleSection(ExpandableSection.GOOD_BAD_DAY) },
+                                accentColor = accentCompose,
+                                palette = palette,
+                                bounceEnabled = cardBounceEnabled,
+                                onShowAdvicePopup = { advice -> goodBadAdvicePopup = advice }
+                            )
+                        }
+
                         item(key = "lunar_useful_info_section") {
                             Column(
                                 modifier = Modifier
@@ -6334,6 +6360,32 @@ fun ThoiTietAmLichApp() {
                                                     if (checked && activeRamMung1Alerts.isNotEmpty()) {
                                                         showRamMung1Popup = true
                                                     }
+                                                }
+                                            )
+
+                                            SectionHairline(palette)
+                                            Spacer(modifier = Modifier.height(10.dp))
+
+                                            LunarCustomEventsManagerCard(
+                                                events = lunarCustomEvents,
+                                                onEventsChange = { lunarCustomEvents = it },
+                                                titleInput = customLunarEventTitleInput,
+                                                onTitleInputChange = { customLunarEventTitleInput = it },
+                                                dayInput = customLunarEventDayInput,
+                                                onDayInputChange = { customLunarEventDayInput = it },
+                                                monthInput = customLunarEventMonthInput,
+                                                onMonthInputChange = { customLunarEventMonthInput = it },
+                                                isLeapMonth = customLunarEventLeap,
+                                                onLeapMonthChange = { customLunarEventLeap = it },
+                                                errorText = customLunarEventError,
+                                                onErrorChange = { customLunarEventError = it },
+                                                accentColor = accentCompose,
+                                                palette = palette,
+                                                scope = scope,
+                                                snackbarHostState = snackbarHostState,
+                                                onPersist = { updated ->
+                                                    AppPrefs.saveLunarCustomEvents(context, updated)
+                                                    activeHolidayAlerts = BirthdayHelper.getActiveHolidaysForToday(context)
                                                 }
                                             )
 
@@ -8001,6 +8053,18 @@ fun ThoiTietAmLichApp() {
                     }
                 }
 
+                GoodBadDayDualPopups(
+                    advicePopup = goodBadAdvicePopup,
+                    showDisclaimerPopup = showGoodBadDisclaimerPopup,
+                    onCloseAdviceAndOpenDisclaimer = {
+                        goodBadAdvicePopup = null
+                        showGoodBadDisclaimerPopup = true
+                    },
+                    onCloseDisclaimer = { showGoodBadDisclaimerPopup = false },
+                    accentColor = accentCompose,
+                    palette = palette
+                )
+
                 AnimatedPopupOverlay(
                     visible = showRamMung1Popup && activeRamMung1Alerts.isNotEmpty(),
                     onDismiss = {
@@ -9317,3 +9381,705 @@ private fun ScaleSliderRow(
         )
     }
 }
+
+@Composable
+private fun GenderSymbolIcon(
+    gender: AuspiciousGender,
+    tint: Color,
+    modifier: Modifier = Modifier
+) {
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+        val stroke = w * 0.12f
+        if (gender == AuspiciousGender.MALE) {
+            val circleCenter = Offset(w * 0.42f, h * 0.58f)
+            val radius = w * 0.25f
+            drawCircle(
+                color = tint,
+                radius = radius,
+                center = circleCenter,
+                style = Stroke(width = stroke)
+            )
+            val start = Offset(circleCenter.x + radius * 0.70f, circleCenter.y - radius * 0.70f)
+            val end = Offset(w * 0.84f, h * 0.16f)
+            drawLine(tint, start, end, strokeWidth = stroke, cap = StrokeCap.Round)
+            drawLine(tint, end, Offset(end.x - w * 0.18f, end.y), strokeWidth = stroke, cap = StrokeCap.Round)
+            drawLine(tint, end, Offset(end.x, end.y + h * 0.18f), strokeWidth = stroke, cap = StrokeCap.Round)
+        } else {
+            val circleCenter = Offset(w * 0.50f, h * 0.38f)
+            val radius = w * 0.25f
+            drawCircle(
+                color = tint,
+                radius = radius,
+                center = circleCenter,
+                style = Stroke(width = stroke)
+            )
+            val stemBottom = Offset(w * 0.50f, h * 0.88f)
+            drawLine(tint, Offset(w * 0.50f, circleCenter.y + radius), stemBottom, strokeWidth = stroke, cap = StrokeCap.Round)
+            drawLine(
+                tint,
+                Offset(w * 0.32f, h * 0.72f),
+                Offset(w * 0.68f, h * 0.72f),
+                strokeWidth = stroke,
+                cap = StrokeCap.Round
+            )
+        }
+    }
+}
+
+@Composable
+private fun GoodBadDayExpandableSection(
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    accentColor: Color,
+    palette: AdaptivePalette,
+    bounceEnabled: Boolean,
+    onShowAdvicePopup: (GoodBadDayAdvice) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val bringIntoView = remember { BringIntoViewRequester() }
+    val scope = rememberCoroutineScope()
+
+    var birthDayText by remember { mutableStateOf("1") }
+    var birthMonthText by remember { mutableStateOf("1") }
+    var birthYearText by remember { mutableStateOf("2000") }
+    var selectedGender by remember { mutableStateOf(AuspiciousGender.MALE) }
+    var selectedActivity by remember { mutableStateOf(AuspiciousActivity.BUSINESS) }
+    var activityDropdownOpen by remember { mutableStateOf(false) }
+    var formError by remember { mutableStateOf<String?>(null) }
+
+    Column(
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .bringIntoViewRequester(bringIntoView)
+    ) {
+        CollapsibleSectionCard(
+            title = "Ngày tốt / xấu theo việc",
+            badgeText = selectedActivity.label.substringBefore(" /"),
+            accentColor = accentColor,
+            palette = palette,
+            bounceEnabled = bounceEnabled,
+            expanded = expanded,
+            onToggle = {
+                activityDropdownOpen = false
+                onToggle()
+            }
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        "Nhập ngày tháng năm sinh",
+                        fontSize = 13.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = palette.textPrimary
+                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        ModernTextField(
+                            value = birthDayText,
+                            onValueChange = {
+                                birthDayText = it.filter { ch -> ch.isDigit() }.take(2)
+                                formError = null
+                            },
+                            label = "Ngày",
+                            accentColor = accentColor,
+                            palette = palette,
+                            modifier = Modifier.weight(1f)
+                        )
+                        ModernTextField(
+                            value = birthMonthText,
+                            onValueChange = {
+                                birthMonthText = it.filter { ch -> ch.isDigit() }.take(2)
+                                formError = null
+                            },
+                            label = "Tháng",
+                            accentColor = accentColor,
+                            palette = palette,
+                            modifier = Modifier.weight(1f)
+                        )
+                        ModernTextField(
+                            value = birthYearText,
+                            onValueChange = {
+                                birthYearText = it.filter { ch -> ch.isDigit() }.take(4)
+                                formError = null
+                            },
+                            label = "Năm",
+                            accentColor = accentColor,
+                            palette = palette,
+                            modifier = Modifier.weight(1.3f)
+                        )
+                    }
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        "Chọn giới tính",
+                        fontSize = 13.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = palette.textPrimary
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        listOf(AuspiciousGender.MALE, AuspiciousGender.FEMALE).forEach { g ->
+                            val isSel = selectedGender == g
+                            val iconTint = if (isSel) palette.onAccentText else accentColor
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(46.dp)
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(if (isSel) accentColor else palette.subtleBg)
+                                    .border(
+                                        width = 1.2.dp,
+                                        color = if (isSel) accentColor else palette.border,
+                                        shape = RoundedCornerShape(14.dp)
+                                    )
+                                    .clickable {
+                                        selectedGender = g
+                                        formError = null
+                                    }
+                            ) {
+                                GenderSymbolIcon(
+                                    gender = g,
+                                    tint = iconTint,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        "Chọn việc cần xem",
+                        fontSize = 13.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = palette.textPrimary
+                    )
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = palette.subtleBg,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .border(1.1.dp, accentColor.copy(alpha = 0.45f), RoundedCornerShape(16.dp))
+                            .clickable {
+                                activityDropdownOpen = !activityDropdownOpen
+                                if (activityDropdownOpen) {
+                                    scope.launch { delay(120); bringIntoView.bringIntoView() }
+                                }
+                            }
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 12.dp)
+                        ) {
+                            Text(
+                                selectedActivity.label,
+                                color = palette.textPrimary,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                            val arrowAngle by animateFloatAsState(
+                                targetValue = if (activityDropdownOpen) 180f else 0f,
+                                animationSpec = spring(
+                                    dampingRatio = 0.62f,
+                                    stiffness = Spring.StiffnessMediumLow
+                                ),
+                                label = "activity_arrow"
+                            )
+                            Icon(
+                                Icons.Default.ExpandMore,
+                                contentDescription = null,
+                                tint = accentColor,
+                                modifier = Modifier.rotate(arrowAngle)
+                            )
+                        }
+                    }
+
+                    AnimatedVisibility(
+                        visible = expanded && activityDropdownOpen,
+                        enter = fadeIn(tween(150)) +
+                            scaleIn(
+                                initialScale = 0.86f,
+                                transformOrigin = TransformOrigin(0.5f, 0f),
+                                animationSpec = spring(
+                                    dampingRatio = 0.62f,
+                                    stiffness = Spring.StiffnessMediumLow
+                                )
+                            ) +
+                            slideInVertically(
+                                animationSpec = spring(
+                                    dampingRatio = 0.68f,
+                                    stiffness = Spring.StiffnessMediumLow
+                                )
+                            ) { -it / 4 },
+                        exit = fadeOut(tween(130)) +
+                            scaleOut(
+                                targetScale = 0.88f,
+                                transformOrigin = TransformOrigin(0.5f, 0f),
+                                animationSpec = tween(140)
+                            )
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(18.dp),
+                            color = Color.Transparent,
+                            shadowElevation = 8.dp,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(205.dp)
+                                .clip(RoundedCornerShape(18.dp))
+                                .background(palette.liquidGlassBrush)
+                                .border(1.2.dp, palette.liquidGlassBorder, RoundedCornerShape(18.dp))
+                        ) {
+                            LazyColumn(
+                                contentPadding = PaddingValues(vertical = 6.dp),
+                                modifier = Modifier.fillMaxSize()
+                            ) {
+                                items(AuspiciousActivity.entries, key = { it.name }) { item ->
+                                    val chosen = item == selectedActivity
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                selectedActivity = item
+                                                activityDropdownOpen = false
+                                                formError = null
+                                            }
+                                            .background(
+                                                if (chosen) accentColor.copy(alpha = 0.16f) else Color.Transparent
+                                            )
+                                            .padding(horizontal = 14.dp, vertical = 11.dp)
+                                    ) {
+                                        Text(
+                                            item.label,
+                                            color = if (chosen) accentColor else palette.textPrimary,
+                                            fontWeight = if (chosen) FontWeight.Bold else FontWeight.Medium,
+                                            fontSize = 14.sp
+                                        )
+                                        if (chosen) {
+                                            Icon(
+                                                Icons.Default.CheckCircle,
+                                                contentDescription = null,
+                                                tint = accentColor,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (formError != null) {
+                    Text(
+                        formError!!,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+
+                Button(
+                    onClick = {
+                        val d = birthDayText.toIntOrNull() ?: 0
+                        val m = birthMonthText.toIntOrNull() ?: 0
+                        val y = birthYearText.toIntOrNull() ?: 0
+                        val curYear = Calendar.getInstance(TimeZone.getTimeZone("Asia/Ho_Chi_Minh"))
+                            .get(Calendar.YEAR)
+                        if (y !in 1900..curYear || m !in 1..12 || d !in 1..31) {
+                            formError = "Vui lòng nhập ngày sinh hợp lệ (1900–$curYear)."
+                            return@Button
+                        }
+                        try {
+                            val cal = Calendar.getInstance(TimeZone.getTimeZone("Asia/Ho_Chi_Minh")).apply {
+                                isLenient = false
+                                set(Calendar.YEAR, y)
+                                set(Calendar.MONTH, m - 1)
+                                set(Calendar.DAY_OF_MONTH, d)
+                            }
+                            cal.timeInMillis
+                            activityDropdownOpen = false
+                            formError = null
+                            onShowAdvicePopup(
+                                BirthdayHelper.evaluateGoodBadDayForActivity(
+                                    birthDay = d,
+                                    birthMonth = m,
+                                    birthYear = y,
+                                    gender = selectedGender,
+                                    activity = selectedActivity
+                                )
+                            )
+                        } catch (_: Exception) {
+                            formError = "Ngày tháng năm sinh không tồn tại."
+                        }
+                    },
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = accentColor,
+                        contentColor = palette.onAccentText
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                ) {
+                    Text("Xem", fontWeight = FontWeight.ExtraBold, fontSize = 15.sp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun GoodBadDayDualPopups(
+    advicePopup: GoodBadDayAdvice?,
+    showDisclaimerPopup: Boolean,
+    onCloseAdviceAndOpenDisclaimer: () -> Unit,
+    onCloseDisclaimer: () -> Unit,
+    accentColor: Color,
+    palette: AdaptivePalette
+) {
+    AnimatedPopupOverlay(
+        visible = advicePopup != null,
+        onDismiss = {},
+        dismissOnBackdropClick = false
+    ) {
+        LiquidGlassPopupSurface(palette = palette) {
+            if (advicePopup != null) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.padding(22.dp)
+                ) {
+                    Text(
+                        text = advicePopup.verdictTitle,
+                        style = MaterialTheme.typography.titleLarge,
+                        color = if (advicePopup.isGoodDay) accentColor else Color(0xFFFF8A65),
+                        fontWeight = FontWeight.ExtraBold,
+                        textAlign = TextAlign.Center
+                    )
+                    Text(
+                        text = advicePopup.todayLunarInfo,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = palette.popupTextSecondary,
+                        textAlign = TextAlign.Center
+                    )
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = palette.popupBoxBg,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = advicePopup.adviceText,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = palette.popupTextPrimary,
+                            modifier = Modifier.padding(14.dp)
+                        )
+                    }
+                    if (advicePopup.betterDays.isNotEmpty()) {
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = palette.popupBoxBg,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(6.dp),
+                                modifier = Modifier.padding(14.dp)
+                            ) {
+                                Text(
+                                    text = "Ngày phù hợp hơn để ${advicePopup.activityLabel.lowercase()}:",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = accentColor,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                advicePopup.betterDays.forEach { dayItem ->
+                                    Text(
+                                        text = "• ${dayItem.solarDateStr} (${dayItem.lunarDateStr} • ${dayItem.dayCanChi} • ${dayItem.score}đ)",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = palette.popupTextPrimary
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    Button(
+                        onClick = onCloseAdviceAndOpenDisclaimer,
+                        shape = RoundedCornerShape(16.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = accentColor,
+                            contentColor = palette.onAccentText
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                    ) {
+                        Text("Ok", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+
+    AnimatedPopupOverlay(
+        visible = showDisclaimerPopup,
+        onDismiss = {},
+        dismissOnBackdropClick = false
+    ) {
+        LiquidGlassPopupSurface(palette = palette) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(18.dp),
+                modifier = Modifier.padding(22.dp)
+            ) {
+                Text(
+                    text = "Thông tin ứng dụng đưa ra chỉ để bạn tham khảo! Đừng quá tin vào nó nhé.",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = palette.popupTextPrimary,
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Center
+                )
+                Button(
+                    onClick = onCloseDisclaimer,
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = accentColor,
+                        contentColor = palette.onAccentText
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                ) {
+                    Text("Ok", fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LunarCustomEventsManagerCard(
+    events: List<LunarCustomEventItem>,
+    onEventsChange: (List<LunarCustomEventItem>) -> Unit,
+    titleInput: String,
+    onTitleInputChange: (String) -> Unit,
+    dayInput: String,
+    onDayInputChange: (String) -> Unit,
+    monthInput: String,
+    onMonthInputChange: (String) -> Unit,
+    isLeapMonth: Boolean,
+    onLeapMonthChange: (Boolean) -> Unit,
+    errorText: String?,
+    onErrorChange: (String?) -> Unit,
+    accentColor: Color,
+    palette: AdaptivePalette,
+    scope: CoroutineScope,
+    snackbarHostState: SnackbarHostState,
+    onPersist: (List<LunarCustomEventItem>) -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = palette.subtleBg,
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, accentColor.copy(alpha = 0.25f), RoundedCornerShape(16.dp))
+    ) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.padding(12.dp)
+        ) {
+            Text(
+                "Ngày giỗ / sự kiện Âm lịch riêng",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = palette.textPrimary
+            )
+            Text(
+                "Tự động nhắc trước 1 ngày và đúng ngày Âm lịch hằng năm",
+                fontSize = 12.sp,
+                color = palette.textSecondary
+            )
+            ModernTextField(
+                value = titleInput,
+                onValueChange = {
+                    onTitleInputChange(it)
+                    onErrorChange(null)
+                },
+                label = "Tên sự kiện (VD: Giỗ Ông Nội, Kỷ niệm...)",
+                accentColor = accentColor,
+                palette = palette,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                ModernTextField(
+                    value = dayInput,
+                    onValueChange = {
+                        onDayInputChange(it.filter { ch -> ch.isDigit() }.take(2))
+                        onErrorChange(null)
+                    },
+                    label = "Ngày (Âm)",
+                    accentColor = accentColor,
+                    palette = palette,
+                    modifier = Modifier.weight(1f)
+                )
+                ModernTextField(
+                    value = monthInput,
+                    onValueChange = {
+                        onMonthInputChange(it.filter { ch -> ch.isDigit() }.take(2))
+                        onErrorChange(null)
+                    },
+                    label = "Tháng (Âm)",
+                    accentColor = accentColor,
+                    palette = palette,
+                    modifier = Modifier.weight(1f)
+                )
+                Button(
+                    onClick = {
+                        val title = titleInput.trim()
+                        val d = dayInput.toIntOrNull() ?: 0
+                        val m = monthInput.toIntOrNull() ?: 0
+                        if (title.isEmpty()) {
+                            onErrorChange("Vui lòng nhập tên ngày giỗ hoặc sự kiện.")
+                            return@Button
+                        }
+                        if (d !in 1..30 || m !in 1..12) {
+                            onErrorChange("Ngày âm (1–30) và tháng âm (1–12) chưa hợp lệ.")
+                            return@Button
+                        }
+                        val newItem = LunarCustomEventItem(
+                            id = System.currentTimeMillis().toString(),
+                            title = title,
+                            lunarDay = d,
+                            lunarMonth = m,
+                            isLeapMonth = isLeapMonth
+                        )
+                        val updated = events + newItem
+                        onEventsChange(updated)
+                        onPersist(updated)
+                        onTitleInputChange("")
+                        onDayInputChange("")
+                        onMonthInputChange("")
+                        onLeapMonthChange(false)
+                        onErrorChange(null)
+                        scope.launch {
+                            snackbarHostState.showSnackbar("Đã thêm sự kiện Âm lịch: $title ($d/$m ÂL)")
+                        }
+                    },
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = accentColor,
+                        contentColor = palette.onAccentText
+                    ),
+                    modifier = Modifier.height(52.dp)
+                ) {
+                    Text("Thêm", fontWeight = FontWeight.Bold)
+                }
+            }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    "Tháng Âm lịch nhuận",
+                    fontSize = 13.sp,
+                    color = palette.textSecondary
+                )
+                Switch(
+                    checked = isLeapMonth,
+                    onCheckedChange = onLeapMonthChange,
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = palette.onAccentText,
+                        checkedTrackColor = accentColor
+                    )
+                )
+            }
+
+            if (errorText != null) {
+                Text(
+                    errorText,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+
+            if (events.isEmpty()) {
+                Text(
+                    "Chưa có ngày giỗ hoặc sự kiện Âm lịch riêng nào.",
+                    fontSize = 12.sp,
+                    color = palette.textSecondary
+                )
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    events.forEach { ev ->
+                        val leapStr = if (ev.isLeapMonth) " nhuận" else ""
+                        Surface(
+                            shape = RoundedCornerShape(14.dp),
+                            color = palette.cardBg.copy(alpha = 0.72f),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .border(0.8.dp, palette.border, RoundedCornerShape(14.dp))
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(start = 12.dp, end = 4.dp, top = 6.dp, bottom = 6.dp)
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        ev.title,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.5.sp,
+                                        color = palette.textPrimary
+                                    )
+                                    Text(
+                                        "Mùng ${ev.lunarDay} tháng ${ev.lunarMonth}$leapStr Âm lịch",
+                                        fontSize = 12.sp,
+                                        color = accentColor
+                                    )
+                                }
+                                IconButton(
+                                    onClick = {
+                                        val updated = events.filterNot { it.id == ev.id }
+                                        onEventsChange(updated)
+                                        onPersist(updated)
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar("Đã xóa: ${ev.title}")
+                                        }
+                                    }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = "Xóa sự kiện âm lịch",
+                                        tint = MaterialTheme.colorScheme.error
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
