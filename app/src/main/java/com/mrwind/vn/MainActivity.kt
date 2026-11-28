@@ -143,6 +143,10 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.graphicsLayer
@@ -544,12 +548,149 @@ private object DailyLuckyHelper {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun CircleActionTooltipWrapper(
+    tooltipText: String,
+    palette: AdaptivePalette,
+    accentColor: Color,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    var showTooltip by remember { mutableStateOf(false) }
+    val currentEnabled by rememberUpdatedState(enabled)
+    val currentOnClick by rememberUpdatedState(onClick)
+
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = modifier.pointerInput(Unit) {
+            detectTapGestures(
+                onPress = {
+                    val longPressJob = kotlinx.coroutines.coroutineScope {
+                        // Track long-press vs quick tap cleanly
+                        var longPressed = false
+                        val timerJob = kotlinx.coroutines.launch {
+                            delay(260L)
+                            longPressed = true
+                            showTooltip = true
+                        }
+                        val released = tryAwaitRelease()
+                        timerJob.cancel()
+                        showTooltip = false
+                        if (released && !longPressed && currentEnabled) {
+                            currentOnClick()
+                        }
+                    }
+                }
+            )
+        }
+    ) {
+        content()
+
+        if (showTooltip && tooltipText.isNotBlank()) {
+            Popup(
+                alignment = Alignment.TopCenter,
+                offset = IntOffset(x = 0, y = -92),
+                properties = PopupProperties(
+                    focusable = false,
+                    dismissOnBackPress = false,
+                    dismissOnClickOutside = false,
+                    clippingEnabled = false
+                )
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = Color.Transparent,
+                    shadowElevation = 6.dp,
+                    modifier = Modifier
+                        .width(104.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(palette.liquidGlassBrush)
+                        .border(
+                            width = 1.dp,
+                            brush = palette.liquidGlassBorder,
+                            shape = RoundedCornerShape(10.dp)
+                        )
+                ) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 5.dp)
+                    ) {
+                        Text(
+                            text = tooltipText,
+                            color = palette.textPrimary,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            softWrap = false,
+                            modifier = Modifier.basicMarquee(
+                                iterations = Int.MAX_VALUE,
+                                initialDelayMillis = 250,
+                                velocity = 28.dp
+                            )
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TopBarQuickMenuButton(
+    palette: AdaptivePalette,
+    accentColor: Color,
+    isExpanded: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        shape = CircleShape,
+        color = palette.cardBg,
+        modifier = modifier
+            .size(35.dp)
+            .clip(CircleShape)
+            .border(
+                width = 1.dp,
+                color = accentColor.copy(alpha = if (isExpanded) 0.90f else 0.45f),
+                shape = CircleShape
+            )
+            .clickable(onClick = onClick)
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.fillMaxSize()
+        ) {
+            Canvas(modifier = Modifier.size(16.dp)) {
+                val w = size.width
+                val h = size.height
+                val strokeW = 1.8.dp.toPx()
+                val ys = listOf(h * 0.24f, h * 0.50f, h * 0.76f)
+                ys.forEach { y ->
+                    drawLine(
+                        color = accentColor,
+                        start = Offset(w * 0.14f, y),
+                        end = Offset(w * 0.86f, y),
+                        strokeWidth = strokeW,
+                        cap = StrokeCap.Round
+                    )
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun TopBarFoodChoiceButton(
     palette: AdaptivePalette,
     accentColor: Color,
     isActive: Boolean,
     onClick: () -> Unit,
+    tooltipText: String = "Gợi ý món ăn",
     modifier: Modifier = Modifier
 ) {
     val scale: Float
@@ -579,34 +720,41 @@ private fun TopBarFoodChoiceButton(
         tilt = 0f
     }
 
-    Surface(
-        shape = CircleShape,
-        color = palette.cardBg,
-        modifier = modifier
-            .size(35.dp)
-            .clip(CircleShape)
-            .border(
-                width = 1.dp,
-                color = accentColor.copy(alpha = 0.45f),
-                shape = CircleShape
-            )
-            .clickable(onClick = onClick)
+    CircleActionTooltipWrapper(
+        tooltipText = tooltipText,
+        palette = palette,
+        accentColor = accentColor,
+        onClick = onClick,
+        modifier = modifier.size(35.dp)
     ) {
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier.fillMaxSize()
+        Surface(
+            shape = CircleShape,
+            color = palette.cardBg,
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(CircleShape)
+                .border(
+                    width = 1.dp,
+                    color = accentColor.copy(alpha = 0.45f),
+                    shape = CircleShape
+                )
         ) {
-            Text(
-                text = "🍽️",
-                fontSize = 16.sp,
-                maxLines = 1,
-                softWrap = false,
-                modifier = Modifier.graphicsLayer {
-                    scaleX = scale
-                    scaleY = scale
-                    rotationZ = tilt
-                }
-            )
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.fillMaxSize()
+            ) {
+                Text(
+                    text = "🍽️",
+                    fontSize = 16.sp,
+                    maxLines = 1,
+                    softWrap = false,
+                    modifier = Modifier.graphicsLayer {
+                        scaleX = scale
+                        scaleY = scale
+                        rotationZ = tilt
+                    }
+                )
+            }
         }
     }
 }
@@ -618,6 +766,7 @@ private fun TopBarLuckyButton(
     isActive: Boolean,
     isRolling: Boolean,
     onClick: () -> Unit,
+    tooltipText: String = "Số may mắn",
     modifier: Modifier = Modifier
 ) {
     val iconScale: Float
@@ -667,34 +816,42 @@ private fun TopBarLuckyButton(
         iconTilt = 0f
     }
 
-    Surface(
-        shape = CircleShape,
-        color = palette.cardBg,
-        modifier = modifier
-            .size(35.dp)
-            .clip(CircleShape)
-            .border(
-                width = 1.dp,
-                color = accentColor.copy(alpha = if (isRolling) 0.85f else 0.45f),
-                shape = CircleShape
-            )
-            .clickable(enabled = !isRolling, onClick = onClick)
+    CircleActionTooltipWrapper(
+        tooltipText = tooltipText,
+        palette = palette,
+        accentColor = accentColor,
+        enabled = !isRolling,
+        onClick = onClick,
+        modifier = modifier.size(35.dp)
     ) {
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier.fillMaxSize()
+        Surface(
+            shape = CircleShape,
+            color = palette.cardBg,
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(CircleShape)
+                .border(
+                    width = 1.dp,
+                    color = accentColor.copy(alpha = if (isRolling) 0.85f else 0.45f),
+                    shape = CircleShape
+                )
         ) {
-            Text(
-                text = "🍀",
-                fontSize = 16.sp,
-                maxLines = 1,
-                softWrap = false,
-                modifier = Modifier.graphicsLayer {
-                    scaleX = iconScale
-                    scaleY = iconScale
-                    rotationZ = iconTilt
-                }
-            )
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.fillMaxSize()
+            ) {
+                Text(
+                    text = "🍀",
+                    fontSize = 16.sp,
+                    maxLines = 1,
+                    softWrap = false,
+                    modifier = Modifier.graphicsLayer {
+                        scaleX = iconScale
+                        scaleY = iconScale
+                        rotationZ = iconTilt
+                    }
+                )
+            }
         }
     }
 }
@@ -1171,6 +1328,7 @@ private fun Row2CoinTossButton(
     accentColor: Color,
     isActive: Boolean,
     onClick: () -> Unit,
+    tooltipText: String = "Tung đồng xu",
     modifier: Modifier = Modifier
 ) {
     val coinScale: Float
@@ -1200,34 +1358,41 @@ private fun Row2CoinTossButton(
         coinTilt = 0f
     }
 
-    Surface(
-        shape = CircleShape,
-        color = palette.cardBg,
-        modifier = modifier
-            .size(35.dp)
-            .clip(CircleShape)
-            .border(
-                width = 1.dp,
-                color = accentColor.copy(alpha = 0.45f),
-                shape = CircleShape
-            )
-            .clickable(onClick = onClick)
+    CircleActionTooltipWrapper(
+        tooltipText = tooltipText,
+        palette = palette,
+        accentColor = accentColor,
+        onClick = onClick,
+        modifier = modifier.size(35.dp)
     ) {
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier.fillMaxSize()
+        Surface(
+            shape = CircleShape,
+            color = palette.cardBg,
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(CircleShape)
+                .border(
+                    width = 1.dp,
+                    color = accentColor.copy(alpha = 0.45f),
+                    shape = CircleShape
+                )
         ) {
-            Text(
-                text = "🪙",
-                fontSize = 16.sp,
-                maxLines = 1,
-                softWrap = false,
-                modifier = Modifier.graphicsLayer {
-                    scaleX = coinScale
-                    scaleY = coinScale
-                    rotationZ = coinTilt
-                }
-            )
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.fillMaxSize()
+            ) {
+                Text(
+                    text = "🪙",
+                    fontSize = 16.sp,
+                    maxLines = 1,
+                    softWrap = false,
+                    modifier = Modifier.graphicsLayer {
+                        scaleX = coinScale
+                        scaleY = coinScale
+                        rotationZ = coinTilt
+                    }
+                )
+            }
         }
     }
 }
@@ -1239,6 +1404,7 @@ private fun Row2MoodButton(
     isActive: Boolean,
     selectedMood: DailyMoodType?,
     onClick: () -> Unit,
+    tooltipText: String = "Cảm xúc hiện tại",
     modifier: Modifier = Modifier
 ) {
     var randomIdx by remember { mutableIntStateOf(0) }
@@ -1251,37 +1417,44 @@ private fun Row2MoodButton(
         }
     }
 
-    Surface(
-        shape = CircleShape,
-        color = palette.cardBg,
-        modifier = modifier
-            .size(35.dp)
-            .clip(CircleShape)
-            .border(
-                width = 1.dp,
-                color = accentColor.copy(alpha = 0.45f),
-                shape = CircleShape
-            )
-            .clickable(onClick = onClick)
+    CircleActionTooltipWrapper(
+        tooltipText = tooltipText,
+        palette = palette,
+        accentColor = accentColor,
+        onClick = onClick,
+        modifier = modifier.size(35.dp)
     ) {
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier.fillMaxSize()
+        Surface(
+            shape = CircleShape,
+            color = palette.cardBg,
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(CircleShape)
+                .border(
+                    width = 1.dp,
+                    color = accentColor.copy(alpha = 0.45f),
+                    shape = CircleShape
+                )
         ) {
-            if (selectedMood != null) {
-                AnimatedMoodIcon(
-                    mood = selectedMood,
-                    isActive = isActive,
-                    fontSize = 16.sp
-                )
-            } else {
-                val staticMood = DailyMoodType.entries[randomIdx.coerceIn(0, DailyMoodType.entries.lastIndex)]
-                Text(
-                    text = staticMood.emoji,
-                    fontSize = 16.sp,
-                    maxLines = 1,
-                    softWrap = false
-                )
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.fillMaxSize()
+            ) {
+                if (selectedMood != null) {
+                    AnimatedMoodIcon(
+                        mood = selectedMood,
+                        isActive = isActive,
+                        fontSize = 16.sp
+                    )
+                } else {
+                    val staticMood = DailyMoodType.entries[randomIdx.coerceIn(0, DailyMoodType.entries.lastIndex)]
+                    Text(
+                        text = staticMood.emoji,
+                        fontSize = 16.sp,
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                }
             }
         }
     }
@@ -1585,6 +1758,7 @@ private fun TopBarBatteryOptimizeButton(
     isActive: Boolean,
     isOptimizing: Boolean,
     onClick: () -> Unit,
+    tooltipText: String = "Tối ưu hóa ứng dụng",
     modifier: Modifier = Modifier
 ) {
     val ringRotation: Float
@@ -1619,47 +1793,55 @@ private fun TopBarBatteryOptimizeButton(
         idleTilt = 0f
     }
 
-    Surface(
-        shape = CircleShape,
-        color = palette.cardBg,
-        modifier = modifier
-            .size(35.dp)
-            .clip(CircleShape)
-            .border(
-                width = 1.dp,
-                color = accentColor.copy(alpha = if (isOptimizing) 0.80f else 0.45f),
-                shape = CircleShape
-            )
-            .clickable(enabled = !isOptimizing, onClick = onClick)
+    CircleActionTooltipWrapper(
+        tooltipText = tooltipText,
+        palette = palette,
+        accentColor = accentColor,
+        enabled = !isOptimizing,
+        onClick = onClick,
+        modifier = modifier.size(35.dp)
     ) {
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier.fillMaxSize()
+        Surface(
+            shape = CircleShape,
+            color = palette.cardBg,
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(CircleShape)
+                .border(
+                    width = 1.dp,
+                    color = accentColor.copy(alpha = if (isOptimizing) 0.80f else 0.45f),
+                    shape = CircleShape
+                )
         ) {
-            if (isOptimizing) {
-                Canvas(modifier = Modifier.fillMaxSize()) {
-                    rotate(degrees = ringRotation) {
-                        drawArc(
-                            color = accentColor,
-                            startAngle = 0f,
-                            sweepAngle = 115f,
-                            useCenter = false,
-                            topLeft = Offset(2.dp.toPx(), 2.dp.toPx()),
-                            size = Size(size.width - 4.dp.toPx(), size.height - 4.dp.toPx()),
-                            style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round)
-                        )
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.fillMaxSize()
+            ) {
+                if (isOptimizing) {
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        rotate(degrees = ringRotation) {
+                            drawArc(
+                                color = accentColor,
+                                startAngle = 0f,
+                                sweepAngle = 115f,
+                                useCenter = false,
+                                topLeft = Offset(2.dp.toPx(), 2.dp.toPx()),
+                                size = Size(size.width - 4.dp.toPx(), size.height - 4.dp.toPx()),
+                                style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round)
+                            )
+                        }
                     }
                 }
+                BatteryOptimizationIconGlyph(
+                    tint = accentColor,
+                    isAnimated = isOptimizing || isActive,
+                    modifier = Modifier
+                        .size(19.dp)
+                        .graphicsLayer {
+                            rotationZ = idleTilt
+                        }
+                )
             }
-            BatteryOptimizationIconGlyph(
-                tint = accentColor,
-                isAnimated = isOptimizing || isActive,
-                modifier = Modifier
-                    .size(19.dp)
-                    .graphicsLayer {
-                        rotationZ = idleTilt
-                    }
-            )
         }
     }
 }
@@ -1670,6 +1852,7 @@ private fun TopBarDayNightIndicator(
     accentColor: Color,
     isActive: Boolean,
     onClick: () -> Unit = {},
+    tooltipText: String = "Chào ngày mới",
     modifier: Modifier = Modifier
 ) {
     var isDay by remember {
@@ -1739,19 +1922,25 @@ private fun TopBarDayNightIndicator(
         cloudBobPx = 0f
     }
 
-    Surface(
-        shape = CircleShape,
-        color = palette.cardBg,
-        modifier = modifier
-            .size(35.dp)
-            .clip(CircleShape)
-            .border(
-                width = 1.dp,
-                color = if (isDay) Color(0xFFFFB74D).copy(alpha = 0.45f) else moonGoldColor.copy(alpha = 0.45f),
-                shape = CircleShape
-            )
-            .clickable(onClick = onClick)
+    CircleActionTooltipWrapper(
+        tooltipText = tooltipText,
+        palette = palette,
+        accentColor = accentColor,
+        onClick = onClick,
+        modifier = modifier.size(35.dp)
     ) {
+        Surface(
+            shape = CircleShape,
+            color = palette.cardBg,
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(CircleShape)
+                .border(
+                    width = 1.dp,
+                    color = if (isDay) Color(0xFFFFB74D).copy(alpha = 0.45f) else moonGoldColor.copy(alpha = 0.45f),
+                    shape = CircleShape
+                )
+        ) {
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier.fillMaxSize()
@@ -1811,6 +2000,7 @@ private fun BottomContactCircleButton(
     accentColor: Color,
     isActive: Boolean,
     onClick: () -> Unit,
+    tooltipText: String = "Thông tin",
     modifier: Modifier = Modifier
 ) {
     val gentleScale: Float
@@ -1840,35 +2030,42 @@ private fun BottomContactCircleButton(
         gentleTilt = 0f
     }
 
-    Surface(
-        shape = CircleShape,
-        color = palette.cardBg,
-        modifier = modifier
-            .size(36.dp)
-            .clip(CircleShape)
-            .border(
-                width = 1.dp,
-                color = accentColor.copy(alpha = 0.45f),
-                shape = CircleShape
-            )
-            .clickable(onClick = onClick)
+    CircleActionTooltipWrapper(
+        tooltipText = tooltipText,
+        palette = palette,
+        accentColor = accentColor,
+        onClick = onClick,
+        modifier = modifier.size(36.dp)
     ) {
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier.fillMaxSize()
+        Surface(
+            shape = CircleShape,
+            color = palette.cardBg,
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(CircleShape)
+                .border(
+                    width = 1.dp,
+                    color = accentColor.copy(alpha = 0.45f),
+                    shape = CircleShape
+                )
         ) {
-            Icon(
-                imageVector = Icons.Default.Person,
-                contentDescription = "Thông tin liên hệ",
-                tint = accentColor,
-                modifier = Modifier
-                    .size(20.dp)
-                    .graphicsLayer {
-                        scaleX = gentleScale
-                        scaleY = gentleScale
-                        rotationZ = gentleTilt
-                    }
-            )
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.fillMaxSize()
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = "Thông tin liên hệ",
+                    tint = accentColor,
+                    modifier = Modifier
+                        .size(20.dp)
+                        .graphicsLayer {
+                            scaleX = gentleScale
+                            scaleY = gentleScale
+                            rotationZ = gentleTilt
+                        }
+                )
+            }
         }
     }
 }
@@ -1879,6 +2076,7 @@ private fun BottomDownloadCircleButton(
     accentColor: Color,
     isActive: Boolean,
     onClick: () -> Unit,
+    tooltipText: String = "Tải xuống",
     modifier: Modifier = Modifier
 ) {
     val bobY: Float
@@ -1908,35 +2106,42 @@ private fun BottomDownloadCircleButton(
         pulse = 1f
     }
 
-    Surface(
-        shape = CircleShape,
-        color = palette.cardBg,
-        modifier = modifier
-            .size(36.dp)
-            .clip(CircleShape)
-            .border(
-                width = 1.dp,
-                color = accentColor.copy(alpha = 0.45f),
-                shape = CircleShape
-            )
-            .clickable(onClick = onClick)
+    CircleActionTooltipWrapper(
+        tooltipText = tooltipText,
+        palette = palette,
+        accentColor = accentColor,
+        onClick = onClick,
+        modifier = modifier.size(36.dp)
     ) {
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier.fillMaxSize()
+        Surface(
+            shape = CircleShape,
+            color = palette.cardBg,
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(CircleShape)
+                .border(
+                    width = 1.dp,
+                    color = accentColor.copy(alpha = 0.45f),
+                    shape = CircleShape
+                )
         ) {
-            Icon(
-                imageVector = Icons.Default.Download,
-                contentDescription = "Tải về phiên bản mới",
-                tint = accentColor,
-                modifier = Modifier
-                    .size(20.dp)
-                    .graphicsLayer {
-                        translationY = bobY.dp.toPx()
-                        scaleX = pulse
-                        scaleY = pulse
-                    }
-            )
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.fillMaxSize()
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Download,
+                    contentDescription = "Tải về phiên bản mới",
+                    tint = accentColor,
+                    modifier = Modifier
+                        .size(20.dp)
+                        .graphicsLayer {
+                            translationY = bobY.dp.toPx()
+                            scaleX = pulse
+                            scaleY = pulse
+                        }
+                )
+            }
         }
     }
 }
@@ -3868,32 +4073,141 @@ fun ThoiTietAmLichApp() {
                                 }
                             },
                             actions = {
+                                var showQuickToolsMenu by remember { mutableStateOf(false) }
+
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(5.dp),
-                                    modifier = Modifier.padding(end = 6.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    modifier = Modifier.padding(end = 8.dp)
                                 ) {
-                                    TopBarFoodChoiceButton(
-                                        palette = palette,
-                                        accentColor = accentCompose,
-                                        isActive = canAnimateVisuals,
-                                        onClick = { startFoodRandomizer() }
-                                    )
-                                    TopBarLuckyButton(
-                                        palette = palette,
-                                        accentColor = accentCompose,
-                                        isActive = canAnimateVisuals,
-                                        isRolling = isRollingLucky,
-                                        onClick = {
-                                            val existingToday = DailyLuckyHelper.getTodayLuckyIfExists(appContext)
-                                            if (existingToday != null) {
-                                                luckyResultPopup = existingToday
-                                            } else if (!isRollingLucky) {
-                                                rollingPreviewNumber = Random.nextInt(1, 100).toString().padStart(2, '0')
-                                                isRollingLucky = true
+                                    Box {
+                                        TopBarQuickMenuButton(
+                                            palette = palette,
+                                            accentColor = accentCompose,
+                                            isExpanded = showQuickToolsMenu,
+                                            onClick = { showQuickToolsMenu = !showQuickToolsMenu }
+                                        )
+
+                                        if (showQuickToolsMenu) {
+                                            Popup(
+                                                alignment = Alignment.TopEnd,
+                                                offset = IntOffset(x = 0, y = 118),
+                                                onDismissRequest = { showQuickToolsMenu = false },
+                                                properties = PopupProperties(
+                                                    focusable = true,
+                                                    dismissOnBackPress = true,
+                                                    dismissOnClickOutside = true,
+                                                    clippingEnabled = false
+                                                )
+                                            ) {
+                                                Surface(
+                                                    shape = RoundedCornerShape(20.dp),
+                                                    color = Color.Transparent,
+                                                    shadowElevation = 14.dp,
+                                                    modifier = Modifier
+                                                        .clip(RoundedCornerShape(20.dp))
+                                                        .background(palette.liquidGlassBrush)
+                                                        .border(
+                                                            width = 1.2.dp,
+                                                            brush = palette.liquidGlassBorder,
+                                                            shape = RoundedCornerShape(20.dp)
+                                                        )
+                                                ) {
+                                                    Column(
+                                                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                                        modifier = Modifier.padding(14.dp)
+                                                    ) {
+                                                        // Hàng 1: Gợi ý món ăn, Số may mắn, Tung đồng xu
+                                                        Row(
+                                                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                                            verticalAlignment = Alignment.CenterVertically
+                                                        ) {
+                                                            TopBarFoodChoiceButton(
+                                                                palette = palette,
+                                                                accentColor = accentCompose,
+                                                                isActive = canAnimateVisuals,
+                                                                tooltipText = "Gợi ý món ăn",
+                                                                onClick = {
+                                                                    showQuickToolsMenu = false
+                                                                    startFoodRandomizer()
+                                                                },
+                                                                modifier = Modifier.size(38.dp)
+                                                            )
+                                                            TopBarLuckyButton(
+                                                                palette = palette,
+                                                                accentColor = accentCompose,
+                                                                isActive = canAnimateVisuals,
+                                                                isRolling = isRollingLucky,
+                                                                tooltipText = "Số may mắn",
+                                                                onClick = {
+                                                                    showQuickToolsMenu = false
+                                                                    val existingToday = DailyLuckyHelper.getTodayLuckyIfExists(appContext)
+                                                                    if (existingToday != null) {
+                                                                        luckyResultPopup = existingToday
+                                                                    } else if (!isRollingLucky) {
+                                                                        rollingPreviewNumber = Random.nextInt(1, 100).toString().padStart(2, '0')
+                                                                        isRollingLucky = true
+                                                                    }
+                                                                },
+                                                                modifier = Modifier.size(38.dp)
+                                                            )
+                                                            Row2CoinTossButton(
+                                                                palette = palette,
+                                                                accentColor = accentCompose,
+                                                                isActive = canAnimateVisuals,
+                                                                tooltipText = "Tung đồng xu",
+                                                                onClick = {
+                                                                    showQuickToolsMenu = false
+                                                                    if (!isTossingCoin) {
+                                                                        coinOutcomePopup = null
+                                                                        isTossingCoin = true
+                                                                    }
+                                                                },
+                                                                modifier = Modifier.size(38.dp)
+                                                            )
+                                                        }
+
+                                                        // Hàng 2: Tối ưu hóa ứng dụng + 2 ô trống dự phòng
+                                                        Row(
+                                                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                                            verticalAlignment = Alignment.CenterVertically
+                                                        ) {
+                                                            TopBarBatteryOptimizeButton(
+                                                                palette = palette,
+                                                                accentColor = accentCompose,
+                                                                isActive = canAnimateVisuals,
+                                                                isOptimizing = isOptimizingBattery,
+                                                                tooltipText = "Tối ưu hóa ứng dụng",
+                                                                onClick = {
+                                                                    showQuickToolsMenu = false
+                                                                    if (!isOptimizingBattery) {
+                                                                        optimizationProgress = 0.05f
+                                                                        optimizationStepText = "Đang khởi động tối ưu hóa..."
+                                                                        isOptimizingBattery = true
+                                                                    }
+                                                                },
+                                                                modifier = Modifier.size(38.dp)
+                                                            )
+                                                            Spacer(modifier = Modifier.size(38.dp))
+                                                            Spacer(modifier = Modifier.size(38.dp))
+                                                        }
+
+                                                        // Hàng 3: 3 ô trống dự phòng (đủ khung lưới 3x3)
+                                                        Row(
+                                                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                                            verticalAlignment = Alignment.CenterVertically
+                                                        ) {
+                                                            Spacer(modifier = Modifier.size(38.dp))
+                                                            Spacer(modifier = Modifier.size(38.dp))
+                                                            Spacer(modifier = Modifier.size(38.dp))
+                                                        }
+                                                    }
+                                                }
                                             }
                                         }
-                                    )
+                                    }
+
                                     val currentSelectedMood = remember(dailyMoodState) {
                                         if (dailyMoodState.dateKey == DailyMoodHelper.todayKey()) {
                                             DailyMoodType.fromId(dailyMoodState.selectedMoodId)
@@ -3906,7 +4220,9 @@ fun ThoiTietAmLichApp() {
                                         accentColor = accentCompose,
                                         isActive = canAnimateVisuals,
                                         selectedMood = currentSelectedMood,
+                                        tooltipText = "Cảm xúc hiện tại",
                                         onClick = {
+                                            showQuickToolsMenu = false
                                             dailyMoodState = DailyMoodHelper.loadOrResetToday(context)
                                             showMoodPickerPopup = true
                                         },
@@ -3916,7 +4232,9 @@ fun ThoiTietAmLichApp() {
                                         palette = palette,
                                         accentColor = accentCompose,
                                         isActive = canAnimateVisuals,
+                                        tooltipText = "Chào ngày mới",
                                         onClick = {
+                                            showQuickToolsMenu = false
                                             greetingPopupText = pickRandomGreetingForNow()
                                             showGreetingPopup = true
                                         }
@@ -6084,42 +6402,18 @@ fun ThoiTietAmLichApp() {
                                     .fillMaxWidth()
                                     .padding(top = 4.dp, bottom = 8.dp)
                             ) {
-                                Row2CoinTossButton(
-                                    palette = palette,
-                                    accentColor = accentCompose,
-                                    isActive = canAnimateVisuals,
-                                    onClick = {
-                                        if (!isTossingCoin) {
-                                            coinOutcomePopup = null
-                                            isTossingCoin = true
-                                        }
-                                    },
-                                    modifier = Modifier.size(36.dp)
-                                )
-                                TopBarBatteryOptimizeButton(
-                                    palette = palette,
-                                    accentColor = accentCompose,
-                                    isActive = canAnimateVisuals,
-                                    isOptimizing = isOptimizingBattery,
-                                    onClick = {
-                                        if (!isOptimizingBattery) {
-                                            optimizationProgress = 0.05f
-                                            optimizationStepText = "Đang khởi động tối ưu hóa..."
-                                            isOptimizingBattery = true
-                                        }
-                                    },
-                                    modifier = Modifier.size(36.dp)
-                                )
                                 BottomDownloadCircleButton(
                                     palette = palette,
                                     accentColor = accentCompose,
                                     isActive = canAnimateVisuals,
+                                    tooltipText = "Tải xuống",
                                     onClick = { showDownloadPopup = true }
                                 )
                                 BottomContactCircleButton(
                                     palette = palette,
                                     accentColor = accentCompose,
                                     isActive = canAnimateVisuals,
+                                    tooltipText = "Thông tin",
                                     onClick = { showContactPopup = true }
                                 )
                             }
