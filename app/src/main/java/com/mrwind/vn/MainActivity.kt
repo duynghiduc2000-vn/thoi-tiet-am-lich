@@ -169,6 +169,11 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
@@ -4396,6 +4401,8 @@ fun ThoiTietAmLichApp() {
     val focusManager = LocalFocusManager.current
     var showFeatureSearch by remember { mutableStateOf(false) }
     var featureSearchQuery by remember { mutableStateOf("") }
+    var searchCardBounds by remember { mutableStateOf(Rect.Zero) }
+    var searchButtonBounds by remember { mutableStateOf(Rect.Zero) }
     var pendingSearchTarget by remember { mutableStateOf<FeatureSearchTarget?>(null) }
 
     val featureSearchResults = remember(featureSearchQuery) {
@@ -4688,7 +4695,19 @@ fun ThoiTietAmLichApp() {
 
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
-    ) { _ ->
+    ) { results ->
+        val askedLocation = results.containsKey(Manifest.permission.ACCESS_FINE_LOCATION) ||
+            results.containsKey(Manifest.permission.ACCESS_COARSE_LOCATION)
+        val locationDenied = askedLocation &&
+            results[Manifest.permission.ACCESS_FINE_LOCATION] != true &&
+            results[Manifest.permission.ACCESS_COARSE_LOCATION] != true
+        if (autoLocation && locationDenied) {
+            Toast.makeText(
+                context,
+                "Chưa có quyền vị trí. Hãy cấp quyền trong Cài đặt hệ thống để app tự cập nhật vị trí.",
+                Toast.LENGTH_LONG
+            ).show()
+        }
         scope.launch {
             syncWeatherData(refreshLocation = true)
         }
@@ -4747,11 +4766,26 @@ fun ThoiTietAmLichApp() {
             BirthdayHelper.markAppPopupShownToday(context)
         }
 
+        // Xin quyền khi vào app: thông báo (Android 13+) và vị trí (nếu đang bật tự động theo GPS).
+        // Gộp vào 1 lần xin để 2 hộp thoại không đè nhau; xin xong sẽ tự cập nhật vị trí.
+        val permsToRequest = mutableListOf<String>()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
             != PackageManager.PERMISSION_GRANTED
         ) {
-            notificationPermissionLauncher.launch(arrayOf(Manifest.permission.POST_NOTIFICATIONS))
+            permsToRequest += Manifest.permission.POST_NOTIFICATIONS
+        }
+        val missingLocationPerm = autoLocation &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) !=
+            PackageManager.PERMISSION_GRANTED &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) !=
+            PackageManager.PERMISSION_GRANTED
+        if (missingLocationPerm) {
+            permsToRequest += Manifest.permission.ACCESS_FINE_LOCATION
+            permsToRequest += Manifest.permission.ACCESS_COARSE_LOCATION
+        }
+        if (permsToRequest.isNotEmpty()) {
+            locationPermissionLauncher.launch(permsToRequest.toTypedArray())
         }
 
         syncWeatherData(refreshLocation = false)
@@ -4857,6 +4891,22 @@ fun ThoiTietAmLichApp() {
                 modifier = Modifier
                     .fillMaxSize()
                     .background(palette.screenBrush)
+                    .pointerInput(showFeatureSearch) {
+                        // Chạm ra ngoài ô tìm kiếm (hoặc nút kính lúp) -> tự đóng.
+                        // Dùng pass Initial và không consume nên các nút/tính năng khác vẫn nhận cú chạm bình thường.
+                        if (!showFeatureSearch) return@pointerInput
+                        awaitEachGesture {
+                            val down = awaitFirstDown(
+                                requireUnconsumed = false,
+                                pass = PointerEventPass.Initial
+                            )
+                            val p = down.position
+                            if (!searchCardBounds.contains(p) && !searchButtonBounds.contains(p)) {
+                                focusManager.clearFocus()
+                                showFeatureSearch = false
+                            }
+                        }
+                    }
             ) {
                 Scaffold(
                     containerColor = Color.Transparent,
@@ -4909,7 +4959,10 @@ fun ThoiTietAmLichApp() {
                                         palette = palette,
                                         accentColor = accentCompose,
                                         isExpanded = showFeatureSearch,
-                                        onClick = { showFeatureSearch = !showFeatureSearch }
+                                        onClick = { showFeatureSearch = !showFeatureSearch },
+                                        modifier = Modifier.onGloballyPositioned {
+                                            searchButtonBounds = it.boundsInRoot()
+                                        }
                                     )
 
                                     Box {
@@ -5727,8 +5780,23 @@ fun ThoiTietAmLichApp() {
                                     onCheckedChange = { checked ->
                                         autoLocation = checked
                                         AppPrefs.setAutoLocation(context, checked)
-                                        scope.launch {
-                                            syncWeatherData(refreshLocation = false)
+                                        val missingLocationPerm = checked &&
+                                            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) !=
+                                            PackageManager.PERMISSION_GRANTED &&
+                                            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) !=
+                                            PackageManager.PERMISSION_GRANTED
+                                        if (missingLocationPerm) {
+                                            // Xin quyền xong, launcher sẽ tự cập nhật vị trí
+                                            locationPermissionLauncher.launch(
+                                                arrayOf(
+                                                    Manifest.permission.ACCESS_FINE_LOCATION,
+                                                    Manifest.permission.ACCESS_COARSE_LOCATION
+                                                )
+                                            )
+                                        } else {
+                                            scope.launch {
+                                                syncWeatherData(refreshLocation = true)
+                                            }
                                         }
                                     }
                                 )
@@ -7355,6 +7423,7 @@ fun ThoiTietAmLichApp() {
                                 .align(Alignment.TopCenter)
                                 .padding(innerPadding)
                                 .padding(horizontal = 16.dp, vertical = 6.dp)
+                                .onGloballyPositioned { searchCardBounds = it.boundsInRoot() }
                         )
                     }
 }
@@ -9733,6 +9802,33 @@ private fun rememberCardBounceScale(
     return if (bounceEnabled) animated else 1f
 }
 
+/**
+ * Nền "liquid glass" cho thẻ tên tính năng (cùng phong cách với thanh tab dưới cùng):
+ * lớp kính mờ + gradient liquidGlass + vệt sáng phía trên + viền gradient.
+ * Khi mở rộng (expanded) viền chuyển sang màu nhấn.
+ */
+private fun Modifier.glassHeaderSurface(
+    palette: AdaptivePalette,
+    accentColor: Color,
+    expanded: Boolean,
+    shape: androidx.compose.ui.graphics.Shape
+): Modifier {
+    val sheenTop = if (palette.isDark) 0.16f else 0.50f
+    val borderBrush: Brush =
+        if (expanded) androidx.compose.ui.graphics.SolidColor(accentColor.copy(alpha = 0.70f))
+        else palette.liquidGlassBorder
+    return this
+        .clip(shape)
+        .background(palette.cardBg.copy(alpha = if (palette.isDark) 0.55f else 0.35f))
+        .background(palette.liquidGlassBrush)
+        .background(
+            Brush.verticalGradient(
+                listOf(Color.White.copy(alpha = sheenTop), Color.Transparent)
+            )
+        )
+        .border(if (expanded) 1.5.dp else 1.2.dp, borderBrush, shape)
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun CompactDualCard(
@@ -9755,11 +9851,10 @@ private fun CompactDualCard(
         animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow),
         label = "compact_chevron_rotation"
     )
-    val borderColor = if (expanded) accentColor.copy(alpha = 0.65f) else palette.border
 
     Surface(
         shape = RoundedCornerShape(20.dp),
-        color = palette.cardBg,
+        color = Color.Transparent,
         contentColor = palette.textPrimary,
         modifier = modifier
             .height(64.dp)
@@ -9767,8 +9862,7 @@ private fun CompactDualCard(
                 scaleX = cardScale
                 scaleY = cardScale
             }
-            .clip(RoundedCornerShape(20.dp))
-            .border(width = if (expanded) 1.5.dp else 1.dp, color = borderColor, shape = RoundedCornerShape(20.dp))
+            .glassHeaderSurface(palette, accentColor, expanded, RoundedCornerShape(20.dp))
             .clickable(onClick = onToggle)
     ) {
         Row(
@@ -9862,7 +9956,6 @@ private fun CollapsibleSectionCard(
         animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow),
         label = "chevron_rotation"
     )
-    val borderColor = if (expanded) accentColor.copy(alpha = 0.65f) else palette.border
 
     Column(
         verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -9875,13 +9968,12 @@ private fun CollapsibleSectionCard(
     ) {
         Surface(
             shape = RoundedCornerShape(20.dp),
-            color = palette.cardBg,
+            color = Color.Transparent,
             contentColor = palette.textPrimary,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(60.dp)
-                .clip(RoundedCornerShape(20.dp))
-                .border(width = if (expanded) 1.5.dp else 1.dp, color = borderColor, shape = RoundedCornerShape(20.dp))
+                .glassHeaderSurface(palette, accentColor, expanded, RoundedCornerShape(20.dp))
                 .clickable(onClick = onToggle)
         ) {
             Row(
