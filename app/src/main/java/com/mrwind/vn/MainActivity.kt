@@ -137,6 +137,8 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -147,8 +149,12 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
+import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.graphicsLayer
@@ -548,6 +554,50 @@ private object DailyLuckyHelper {
     }
 }
 
+/** Vị trí + kích thước cửa sổ Activity trên màn hình (để đổi toạ độ màn hình -> toạ độ cửa sổ). */
+private fun Context.activityWindowInfo(): Pair<IntOffset, IntSize> {
+    var c: Context? = this
+    while (c is android.content.ContextWrapper) {
+        if (c is android.app.Activity) {
+            val decor = c.window.decorView
+            val loc = IntArray(2)
+            decor.getLocationOnScreen(loc)
+            return IntOffset(loc[0], loc[1]) to IntSize(decor.width, decor.height)
+        }
+        c = c.baseContext
+    }
+    return IntOffset.Zero to IntSize.Zero
+}
+
+/**
+ * Đặt thẻ tên NGAY TRÊN ĐẦU nút (căn giữa theo nút), cách nút một khoảng nhỏ,
+ * và luôn giữ thẻ nằm trọn trong màn hình (nút ở góc cũng không bị cắt).
+ * Toạ độ nút được truyền vào là toạ độ trong cửa sổ Activity nên đúng cả khi nút
+ * nằm bên trong một Popup khác (thẻ sổ xuống).
+ */
+private class TooltipAboveAnchorPositionProvider(
+    private val anchor: IntRect,
+    private val activityWindowSize: IntSize,
+    private val gapPx: Int,
+    private val edgeMarginPx: Int
+) : PopupPositionProvider {
+    override fun calculatePosition(
+        anchorBounds: IntRect,
+        windowSize: IntSize,
+        layoutDirection: LayoutDirection,
+        popupContentSize: IntSize
+    ): IntOffset {
+        val winW = if (activityWindowSize.width > 0) activityWindowSize.width else windowSize.width
+        val centeredX = anchor.left + (anchor.width - popupContentSize.width) / 2
+        val maxX = (winW - popupContentSize.width - edgeMarginPx).coerceAtLeast(edgeMarginPx)
+        val x = centeredX.coerceIn(edgeMarginPx, maxX)
+
+        val aboveY = anchor.top - popupContentSize.height - gapPx
+        val y = if (aboveY >= edgeMarginPx) aboveY else anchor.bottom + gapPx
+        return IntOffset(x, y)
+    }
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun CircleActionTooltipWrapper(
@@ -559,40 +609,69 @@ private fun CircleActionTooltipWrapper(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
+    val context = LocalContext.current
+    val density = LocalDensity.current
     var showTooltip by remember { mutableStateOf(false) }
+    var tooltipAnchor by remember { mutableStateOf<IntRect?>(null) }
+    var windowSize by remember { mutableStateOf(IntSize.Zero) }
+    val anchorCoordinates = remember { arrayOfNulls<LayoutCoordinates>(1) }
     val currentEnabled by rememberUpdatedState(enabled)
     val currentOnClick by rememberUpdatedState(onClick)
 
     Box(
         contentAlignment = Alignment.Center,
-        modifier = modifier.pointerInput(Unit) {
-            detectTapGestures(
-                onPress = {
-                    kotlinx.coroutines.coroutineScope {
-                        // Track long-press vs quick tap cleanly
-                        var longPressed = false
-                        val timerJob = launch {
-                            delay(260L)
-                            longPressed = true
-                            showTooltip = true
-                        }
-                        val released = tryAwaitRelease()
-                        timerJob.cancel()
-                        showTooltip = false
-                        if (released && !longPressed && currentEnabled) {
-                            currentOnClick()
+        modifier = modifier
+            .onGloballyPositioned { anchorCoordinates[0] = it }
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onPress = {
+                        kotlinx.coroutines.coroutineScope {
+                            // Phân biệt nhấn giữ (hiện thẻ tên) và chạm nhanh (bấm nút)
+                            var longPressed = false
+                            val timerJob = launch {
+                                delay(260L)
+                                longPressed = true
+                                val coords = anchorCoordinates[0]
+                                if (coords != null && coords.isAttached) {
+                                    val topLeft = coords.localToScreen(Offset.Zero)
+                                    val (origin, size) = context.activityWindowInfo()
+                                    val left = topLeft.x.roundToInt() - origin.x
+                                    val top = topLeft.y.roundToInt() - origin.y
+                                    tooltipAnchor = IntRect(
+                                        left = left,
+                                        top = top,
+                                        right = left + coords.size.width,
+                                        bottom = top + coords.size.height
+                                    )
+                                    windowSize = size
+                                    showTooltip = true
+                                }
+                            }
+                            val released = tryAwaitRelease()
+                            timerJob.cancel()
+                            showTooltip = false
+                            if (released && !longPressed && currentEnabled) {
+                                currentOnClick()
+                            }
                         }
                     }
-                }
-            )
-        }
+                )
+            }
     ) {
         content()
 
-        if (showTooltip && tooltipText.isNotBlank()) {
+        val anchor = tooltipAnchor
+        if (showTooltip && anchor != null && tooltipText.isNotBlank()) {
+            val positionProvider = remember(anchor, windowSize) {
+                TooltipAboveAnchorPositionProvider(
+                    anchor = anchor,
+                    activityWindowSize = windowSize,
+                    gapPx = with(density) { 10.dp.roundToPx() },
+                    edgeMarginPx = with(density) { 8.dp.roundToPx() }
+                )
+            }
             Popup(
-                alignment = Alignment.TopCenter,
-                offset = IntOffset(x = 0, y = -92),
+                popupPositionProvider = positionProvider,
                 properties = PopupProperties(
                     focusable = false,
                     dismissOnBackPress = false,
