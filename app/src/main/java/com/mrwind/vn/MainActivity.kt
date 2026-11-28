@@ -42,6 +42,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.border
@@ -1740,7 +1741,7 @@ private val FEATURE_SEARCH_TARGETS: List<FeatureSearchTarget> = listOf(
         listOf("cỡ chữ", "kích thước chữ", "font", "phông chữ", "chữ")
     ),
     FeatureSearchTarget(
-        "Sao lưu và chuyển máy", MainTab.SETTINGS, ExpandableSection.BACKUP_RESTORE, "backup_restore_section",
+        "Sao lưu và khôi phục", MainTab.SETTINGS, ExpandableSection.BACKUP_RESTORE, "backup_restore_section",
         listOf("sao lưu", "khôi phục", "chuyển máy", "đổi điện thoại", "xuất file", "nhập file", "backup", "restore", "dữ liệu")
     ),
     FeatureSearchTarget(
@@ -4550,6 +4551,39 @@ fun ThoiTietAmLichApp() {
         pendingSearchTarget = null
     }
 
+    // Khi mở một thẻ: nếu phần nội dung sổ xuống bị thanh tab dưới che khuất thì tự cuộn lên vừa đủ.
+    // Thẻ có nội dung quá dài (không vừa màn hình) thì bỏ qua, để người dùng tự kéo.
+    LaunchedEffect(expandedSection) {
+        val section = expandedSection ?: return@LaunchedEffect
+        if (pendingSearchTarget != null) return@LaunchedEffect
+        val itemKey = FEATURE_SEARCH_TARGETS.firstOrNull { it.section == section }?.itemKey
+            ?: return@LaunchedEffect
+
+        // Chờ hiệu ứng sổ xuống kết thúc (kích thước thẻ ổn định) rồi mới đo
+        var lastSize = -1
+        var stableCount = 0
+        var tries = 0
+        while (tries < 20 && stableCount < 2) {
+            delay(40)
+            val size = mainListState.layoutInfo.visibleItemsInfo
+                .firstOrNull { it.key == itemKey }?.size ?: -1
+            if (size > 0 && size == lastSize) stableCount++ else stableCount = 0
+            lastSize = size
+            tries++
+        }
+
+        val layout = mainListState.layoutInfo
+        val item = layout.visibleItemsInfo.firstOrNull { it.key == itemKey } ?: return@LaunchedEffect
+        val visibleTop = layout.viewportStartOffset + layout.beforeContentPadding
+        val visibleBottom = layout.viewportEndOffset - layout.afterContentPadding
+        if (item.size > visibleBottom - visibleTop) return@LaunchedEffect // quá dài: thôi
+
+        val overflow = item.offset + item.size - visibleBottom
+        if (overflow > 0) {
+            mainListState.animateScrollBy(overflow.toFloat())
+        }
+    }
+
     val lookupSectionBringIntoView = remember { BringIntoViewRequester() }
     val lunarUsefulBringIntoView = remember { BringIntoViewRequester() }
     val ageSectionBringIntoView = remember { BringIntoViewRequester() }
@@ -5678,33 +5712,15 @@ fun ThoiTietAmLichApp() {
                                 verticalArrangement = Arrangement.spacedBy(10.dp),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    CompactDualCard(
+                                CompactDualCard(
                                         title = "Giao diện, Hiệu ứng & Nhạc nền ứng dụng",
                                         badgeText = currentThemeLabel,
                                         accentColor = accentCompose,
                                         palette = palette,
                                         bounceEnabled = cardBounceEnabled,
                                         expanded = expandedSection == ExpandableSection.APP_APPEARANCE_AUDIO,
-                                        onToggle = { toggleSection(ExpandableSection.APP_APPEARANCE_AUDIO) },
-                                        modifier = Modifier.weight(1f)
+                                        onToggle = { toggleSection(ExpandableSection.APP_APPEARANCE_AUDIO) }
                                     )
-
-                                    CompactDualCard(
-                                        title = "Giao diện, đồng hồ và nền Widget",
-                                        badgeText = if (showSeconds) "HH:mm:ss" else "HH:mm",
-                                        accentColor = accentCompose,
-                                        palette = palette,
-                                        bounceEnabled = cardBounceEnabled,
-                                        expanded = expandedSection == ExpandableSection.CLOCK_THEME_BG,
-                                        onToggle = { toggleSection(ExpandableSection.CLOCK_THEME_BG) },
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                }
 
                                 AnimatedVisibility(
                                     visible = expandedSection == ExpandableSection.APP_APPEARANCE_AUDIO,
@@ -5907,6 +5923,16 @@ fun ThoiTietAmLichApp() {
                                     }
                                 }
 
+                                CompactDualCard(
+                                        title = "Giao diện, đồng hồ và nền Widget",
+                                        badgeText = if (showSeconds) "HH:mm:ss" else "HH:mm",
+                                        accentColor = accentCompose,
+                                        palette = palette,
+                                        bounceEnabled = cardBounceEnabled,
+                                        expanded = expandedSection == ExpandableSection.CLOCK_THEME_BG,
+                                        onToggle = { toggleSection(ExpandableSection.CLOCK_THEME_BG) }
+                                    )
+
                                 AnimatedVisibility(
                                     visible = expandedSection == ExpandableSection.CLOCK_THEME_BG,
                                     enter = fadeIn(tween(140)) + slideInVertically(animationSpec = tween(140)) { it / 14 },
@@ -6024,6 +6050,7 @@ fun ThoiTietAmLichApp() {
                                         }
                                     }
                                 }
+
                             }
                         }
                         }
@@ -6487,33 +6514,15 @@ fun ThoiTietAmLichApp() {
                                 verticalArrangement = Arrangement.spacedBy(10.dp),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    CompactDualCard(
+                                CompactDualCard(
                                         title = "Tra cứu lịch âm",
                                         badgeText = "${lunarHistory.size} lưu",
                                         accentColor = accentCompose,
                                         palette = palette,
                                         bounceEnabled = cardBounceEnabled,
                                         expanded = expandedSection == ExpandableSection.LUNAR_LOOKUP,
-                                        onToggle = { toggleSection(ExpandableSection.LUNAR_LOOKUP) },
-                                        modifier = Modifier.weight(1f)
+                                        onToggle = { toggleSection(ExpandableSection.LUNAR_LOOKUP) }
                                     )
-
-                                    CompactDualCard(
-                                        title = "Tính tuổi",
-                                        badgeText = "${ageHistory.size} lưu",
-                                        accentColor = accentCompose,
-                                        palette = palette,
-                                        bounceEnabled = cardBounceEnabled,
-                                        expanded = expandedSection == ExpandableSection.AGE_CALC,
-                                        onToggle = { toggleSection(ExpandableSection.AGE_CALC) },
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                }
 
                                 AnimatedVisibility(
                                     visible = expandedSection == ExpandableSection.LUNAR_LOOKUP,
@@ -6750,6 +6759,16 @@ fun ThoiTietAmLichApp() {
                                         }
                                     }
                                 }
+
+                                CompactDualCard(
+                                        title = "Tính tuổi",
+                                        badgeText = "${ageHistory.size} lưu",
+                                        accentColor = accentCompose,
+                                        palette = palette,
+                                        bounceEnabled = cardBounceEnabled,
+                                        expanded = expandedSection == ExpandableSection.AGE_CALC,
+                                        onToggle = { toggleSection(ExpandableSection.AGE_CALC) }
+                                    )
 
                                 AnimatedVisibility(
                                     visible = expandedSection == ExpandableSection.AGE_CALC,
@@ -6992,6 +7011,7 @@ fun ThoiTietAmLichApp() {
                                         }
                                     }
                                 }
+
                             }
                         }
                         }
@@ -7154,33 +7174,15 @@ fun ThoiTietAmLichApp() {
                                 verticalArrangement = Arrangement.spacedBy(10.dp),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    CompactDualCard(
+                                CompactDualCard(
                                         title = "Nhắc ngày sinh nhật",
                                         badgeText = "${birthdays.size}/10",
                                         accentColor = accentCompose,
                                         palette = palette,
                                         bounceEnabled = cardBounceEnabled,
                                         expanded = expandedSection == ExpandableSection.BIRTHDAY,
-                                        onToggle = { toggleSection(ExpandableSection.BIRTHDAY) },
-                                        modifier = Modifier.weight(1f)
+                                        onToggle = { toggleSection(ExpandableSection.BIRTHDAY) }
                                     )
-
-                                    CompactDualCard(
-                                        title = "Nhắc ngày lễ & kỷ niệm",
-                                        badgeText = if (holidayReminderEnabled) "$activeHolidayCount bật" else "Tắt",
-                                        accentColor = accentCompose,
-                                        palette = palette,
-                                        bounceEnabled = cardBounceEnabled,
-                                        expanded = expandedSection == ExpandableSection.HOLIDAY,
-                                        onToggle = { toggleSection(ExpandableSection.HOLIDAY) },
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                }
 
                                 AnimatedVisibility(
                                     visible = expandedSection == ExpandableSection.BIRTHDAY,
@@ -7357,6 +7359,16 @@ fun ThoiTietAmLichApp() {
                                     }
                                 }
 
+                                CompactDualCard(
+                                        title = "Nhắc ngày lễ & kỷ niệm",
+                                        badgeText = if (holidayReminderEnabled) "$activeHolidayCount bật" else "Tắt",
+                                        accentColor = accentCompose,
+                                        palette = palette,
+                                        bounceEnabled = cardBounceEnabled,
+                                        expanded = expandedSection == ExpandableSection.HOLIDAY,
+                                        onToggle = { toggleSection(ExpandableSection.HOLIDAY) }
+                                    )
+
                                 AnimatedVisibility(
                                     visible = expandedSection == ExpandableSection.HOLIDAY,
                                     enter = fadeIn(tween(140)) + slideInVertically(animationSpec = tween(140)) { it / 14 },
@@ -7509,6 +7521,7 @@ fun ThoiTietAmLichApp() {
                                         }
                                     }
                                 }
+
                             }
                         }
                         }
@@ -7631,7 +7644,7 @@ fun ThoiTietAmLichApp() {
                         if (selectedMainTab == MainTab.SETTINGS) {
                         item(key = "backup_restore_section") {
                             CollapsibleSectionCard(
-                                title = "Sao lưu và chuyển máy",
+                                title = "Sao lưu và khôi phục",
                                 badgeText = "File",
                                 accentColor = accentCompose,
                                 palette = palette,
@@ -11028,7 +11041,8 @@ private fun CompactDualCard(
         color = Color.Transparent,
         contentColor = palette.textPrimary,
         modifier = modifier
-            .height(64.dp)
+            .fillMaxWidth()
+            .height(60.dp)
             .graphicsLayer {
                 scaleX = cardScale
                 scaleY = cardScale
@@ -11041,7 +11055,7 @@ private fun CompactDualCard(
             horizontalArrangement = Arrangement.SpaceBetween,
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 12.dp)
+                .padding(horizontal = 14.dp)
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -11049,14 +11063,14 @@ private fun CompactDualCard(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(7.dp)
+                        .size(8.dp)
                         .clip(CircleShape)
                         .background(if (expanded) accentColor else accentColor.copy(alpha = 0.65f))
                 )
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(10.dp))
                 Text(
                     text = title,
-                    fontSize = 13.5.sp,
+                    fontSize = 14.5.sp,
                     fontWeight = FontWeight.Bold,
                     color = palette.textPrimary,
                     maxLines = 1,
@@ -11082,22 +11096,20 @@ private fun CompactDualCard(
                 ) {
                     Text(
                         badgeText,
-                        fontSize = 10.5.sp,
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         color = if (expanded) accentColor else palette.textSecondary,
                         maxLines = 1,
                         softWrap = false,
-                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp)
                     )
                 }
-                Spacer(modifier = Modifier.width(2.dp))
+                Spacer(modifier = Modifier.width(4.dp))
                 Icon(
                     imageVector = Icons.Default.ExpandMore,
                     contentDescription = null,
                     tint = if (expanded) accentColor else palette.textSecondary,
-                    modifier = Modifier
-                        .size(18.dp)
-                        .rotate(chevronAngle)
+                    modifier = Modifier.rotate(chevronAngle)
                 )
             }
         }
