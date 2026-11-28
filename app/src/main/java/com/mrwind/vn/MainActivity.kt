@@ -11,6 +11,8 @@ import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.net.Uri
 import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -2295,6 +2297,66 @@ private fun pickRandomGreetingForNow(): String {
         else -> GREETINGS_NIGHT                                                // 21:30 - 05:59
     }
     return pool.random()
+}
+
+/** Lưu ảnh mã QR ủng hộ vào thư viện ảnh của máy (Pictures/ThoiTietAmLich). Trả về true nếu thành công. */
+private fun saveDonateQrToGallery(context: Context): Boolean {
+    return try {
+        val drawable = ContextCompat.getDrawable(context, R.drawable.donate_qr) ?: return false
+        val w = drawable.intrinsicWidth.takeIf { it > 0 } ?: 1024
+        val h = drawable.intrinsicHeight.takeIf { it > 0 } ?: 1024
+        val bitmap = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
+        val canvas = android.graphics.Canvas(bitmap)
+        canvas.drawColor(android.graphics.Color.WHITE)
+        drawable.setBounds(0, 0, w, h)
+        drawable.draw(canvas)
+
+        val fileName = "QR_UngHo_ThoiTietAmLich.png"
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val resolver = context.contentResolver
+            val values = android.content.ContentValues().apply {
+                put(MediaStore.Images.Media.DISPLAY_NAME, fileName)
+                put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+                put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/ThoiTietAmLich")
+                put(MediaStore.Images.Media.IS_PENDING, 1)
+            }
+            val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values) ?: return false
+            try {
+                val stream = resolver.openOutputStream(uri) ?: throw java.io.IOException("Không mở được luồng ghi")
+                stream.use { out ->
+                    if (!bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)) {
+                        throw java.io.IOException("Không ghi được ảnh")
+                    }
+                }
+                values.clear()
+                values.put(MediaStore.Images.Media.IS_PENDING, 0)
+                resolver.update(uri, values, null, null)
+            } catch (e: Exception) {
+                resolver.delete(uri, null, null)
+                return false
+            }
+        } else {
+            // Android 9 trở xuống: ghi thẳng vào thư mục Pictures (cần quyền ghi bộ nhớ)
+            val dir = java.io.File(
+                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES),
+                "ThoiTietAmLich"
+            )
+            if (!dir.exists() && !dir.mkdirs()) return false
+            val file = java.io.File(dir, fileName)
+            java.io.FileOutputStream(file).use { out ->
+                bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
+            }
+            android.media.MediaScannerConnection.scanFile(
+                context,
+                arrayOf(file.absolutePath),
+                arrayOf("image/png"),
+                null
+            )
+        }
+        true
+    } catch (e: Exception) {
+        false
+    }
 }
 
 private fun openExternalUrlSafely(context: Context, url: String) {
@@ -7377,6 +7439,10 @@ fun ThoiTietAmLichApp() {
                                         fontWeight = FontWeight.ExtraBold,
                                         textAlign = TextAlign.Center
                                     )
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
                                     OutlinedButton(
                                         onClick = {
                                             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
@@ -7394,6 +7460,32 @@ fun ThoiTietAmLichApp() {
                                             color = palette.popupTextPrimary,
                                             fontWeight = FontWeight.Bold
                                         )
+                                    }
+                                    // Nút nhỏ: tải ảnh mã QR về máy
+                                    OutlinedButton(
+                                        onClick = {
+                                            scope.launch {
+                                                val ok = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                                    saveDonateQrToGallery(context)
+                                                }
+                                                Toast.makeText(
+                                                    context,
+                                                    if (ok) "Đã lưu mã QR vào thư viện ảnh" else "Không lưu được mã QR, vui lòng thử lại",
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
+                                            }
+                                        },
+                                        shape = RoundedCornerShape(12.dp),
+                                        contentPadding = PaddingValues(0.dp),
+                                        modifier = Modifier.size(width = 46.dp, height = 40.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Download,
+                                            contentDescription = "Tải mã QR về máy",
+                                            tint = accentCompose,
+                                            modifier = Modifier.size(22.dp)
+                                        )
+                                    }
                                     }
                                 }
                             }
