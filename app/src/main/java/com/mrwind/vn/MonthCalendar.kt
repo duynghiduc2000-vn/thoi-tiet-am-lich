@@ -271,6 +271,7 @@ private object McPrefs {
     private const val KEY_HIDDEN = "hidden_markers"
     private const val KEY_SOUND = "tear_sound_on"
     private const val KEY_BIRTH = "birth_profile"
+    private const val KEY_TET_FLOWER = "tet_flower"
 
     private fun sp(c: Context) = c.getSharedPreferences(NAME, Context.MODE_PRIVATE)
 
@@ -281,6 +282,13 @@ private object McPrefs {
 
     fun setHiddenMarkers(c: Context, hidden: Set<McMarker>) {
         sp(c).edit().putStringSet(KEY_HIDDEN, hidden.map { it.name }.toSet()).apply()
+    }
+
+    /** Hoa Tết: 0 = tự động (ngẫu nhiên mỗi lần mở), 1 = hoa đào, 2 = hoa mai vàng. */
+    fun tetFlower(c: Context): Int = sp(c).getInt(KEY_TET_FLOWER, 0).coerceIn(0, 2)
+
+    fun setTetFlower(c: Context, v: Int) {
+        sp(c).edit().putInt(KEY_TET_FLOWER, v).apply()
     }
 
     fun soundOn(c: Context): Boolean = sp(c).getBoolean(KEY_SOUND, true)
@@ -1375,6 +1383,12 @@ internal fun McTearOffSheet(
     var soundOn by remember { mutableStateOf(McPrefs.soundOn(context)) }
     // Mỗi lần mở pop-up đổi 'hạt giống' => nền, hiệu ứng và bó hoa mỗi tờ mỗi khác
     val salt = remember { Random.nextInt() }
+    // Hoa Tết: 0 = tự động, 1 = đào, 2 = mai (nhớ lựa chọn cho lần sau)
+    var tetFlower by remember { mutableStateOf(McPrefs.tetFlower(context)) }
+    val cycleTetFlower = {
+        tetFlower = (tetFlower + 1) % 3
+        McPrefs.setTetFlower(context, tetFlower)
+    }
     val tearSound = remember { McTearSound(context) }
     DisposableEffect(Unit) { onDispose { tearSound.release() } }
     val toggleSound = {
@@ -1456,6 +1470,8 @@ internal fun McTearOffSheet(
                 soundOn = soundOn,
                 onToggleSound = toggleSound,
                 salt = salt,
+                tetFlower = tetFlower,
+                onCycleTetFlower = cycleTetFlower,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(sheetH)
@@ -1472,6 +1488,8 @@ internal fun McTearOffSheet(
             soundOn = soundOn,
             onToggleSound = toggleSound,
             salt = salt,
+            tetFlower = tetFlower,
+            onCycleTetFlower = cycleTetFlower,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(sheetH)
@@ -1498,11 +1516,15 @@ private fun McPaper(
     soundOn: Boolean,
     onToggleSound: () -> Unit,
     salt: Int,
+    tetFlower: Int,
+    onCycleTetFlower: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val jd = remember(date) { mcJdFromDate(date.day, date.month, date.year) }
-    val theme = remember(date, salt) { mcThemeFor(date, salt) }
+    val info = remember(date) { engine.dayInfo(date) }
+    val theme = remember(date, salt, tetFlower) { mcOccasionTheme(info, tetFlower, salt) ?: mcThemeFor(date, salt) }
+    val isTet = theme == McPaperTheme.TET_DAO || theme == McPaperTheme.TET_MAI
     val variantSeed = remember(date, salt) { mcMix(salt xor 0x5bd1e995, jd) }
     val particles = remember(variantSeed) { mcParticles(variantSeed xor 0x1234567, 34) }
     val fx = rememberInfiniteTransition(label = "paper_fx")
@@ -1512,10 +1534,9 @@ private fun McPaper(
         animationSpec = infiniteRepeatable(tween(durationMillis = 16000, easing = LinearEasing)),
         label = "paper_phase"
     )
-    val info = remember(date) { engine.dayInfo(date) }
     val lunarTag = remember(date) { engine.lunarMonthTag(date) }
     val hours = remember(date) { engine.goodHours(info.dayChi) }
-    val headline = remember(date) { engine.blessing(info) }
+    val headline = remember(date, theme) { mcOccasionHeadline(theme, info) ?: engine.blessing(info) }
     val firstHour = remember(date) { engine.firstHourCanChi(info) }
     val note = remember(date) { AppPrefs.getLunarDayNote(context, date.key()).trim() }
 
@@ -1597,6 +1618,23 @@ private fun McPaper(
                         .weight(1f)
                         .padding(horizontal = 6.dp)
                 )
+                if (isTet) {
+                    // Chạm để đổi: 🎲 tự động → 🌸 hoa đào → 🌼 hoa mai
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.22f))
+                            .clickable(onClick = onCycleTetFlower)
+                    ) {
+                        Text(
+                            when (tetFlower) { 1 -> "🌸"; 2 -> "🌼"; else -> "🎲" },
+                            fontSize = 13.sp
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(6.dp))
+                }
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
@@ -1940,14 +1978,106 @@ private fun McCanChiLine(label: String, value: String, color: Color, palette: Ad
 //  NỀN + HIỆU ỨNG NGẪU NHIÊN CHO TỜ LỊCH
 // ============================================================
 
-private enum class McPaperTheme(val tint: Color) {
+private enum class McPaperTheme(val tint: Color, val occasion: Boolean = false) {
     CLASSIC(Color.Transparent),      // kính trong, chỉ có vệt sáng chéo
     SAKURA(Color(0xFFF48FB1)),       // cánh hoa anh đào rơi
     STARS(Color(0xFF5C6BC0)),        // sao nhấp nháy
     BOKEH(Color(0xFF26C6DA)),        // bong bóng sáng bay lên
     WAVES(Color(0xFF29B6F6)),        // sóng nước nhẹ dưới chân tờ lịch
     SUNBURST(Color(0xFFFFB300)),     // tia nắng đung đưa
-    LATTICE(Color(0xFFE53935))       // hoa văn ô trám + ánh kim quét ngang
+    LATTICE(Color(0xFFE53935)),      // hoa văn ô trám + ánh kim quét ngang
+
+    // ---- Tờ theo dịp: chỉ xuất hiện đúng ngày, KHÔNG nằm trong vòng quay ngẫu nhiên ----
+    TET_DAO(Color(0xFFF06292), true),     // cành đào + cánh hoa đào rơi + kim tuyến vàng
+    TET_MAI(Color(0xFFFFC107), true),     // cành mai vàng + cánh mai rơi + kim tuyến (miền Nam)
+    TRUNG_THU(Color(0xFFFFA000), true),   // trăng rằm + đèn lồng bay lên
+    GIANG_SINH(Color(0xFF64B5F6), true),  // tuyết rơi + nền tuyết
+    QUOC_KHANH(Color(0xFFDA251D), true),  // lá cờ đỏ sao vàng bay phấp phới (2/9, 30/4)
+    VALENTINE(Color(0xFFE91E63), true),   // trái tim đập rung động + tim bay lên
+    PHAO_HOA(Color(0xFF7E57C2), true),    // pháo hoa (31/12, 1/1)
+    HOA_TUOI(Color(0xFFEC407A), true),    // hoa hồng/tulip/cúc rơi (8/3, 20/10)
+    THIEU_NHI(Color(0xFF26C6DA), true),   // bóng bay + hoa giấy (1/6)
+    NHA_GIAO(Color(0xFF5C6BC0), true),    // mũ cử nhân rơi + sao (20/11)
+    HALLOWEEN(Color(0xFFFF6F00), true),   // bí ngô phát sáng + dơi bay (31/10)
+    VU_LAN(Color(0xFF4DB6AC), true)       // hoa sen nổi trên ao + đom đóm (rằm tháng 7)
+}
+
+/** Chỉ các theme thường mới được bốc ngẫu nhiên (thứ tự giữ nguyên như trước). */
+private val MC_RANDOM_THEMES = McPaperTheme.entries.filterNot { it.occasion }
+
+// Khoảng ngày áp dụng tờ theo dịp (chỉnh số ở đây nếu muốn dài/ngắn hơn)
+private const val MC_TET_FROM_DAY_MONTH_12 = 23   // từ 23 tháng Chạp (ông Táo)
+private const val MC_TET_TO_DAY_MONTH_1 = 10      // đến mùng 10 tháng Giêng
+private const val MC_TRUNG_THU_FROM_DAY = 10      // Trung thu: 10..16 tháng Tám Âm lịch
+private const val MC_TRUNG_THU_TO_DAY = 16
+private const val MC_NOEL_FROM_DAY = 20           // Giáng sinh: 20..26 tháng 12 Dương lịch
+private const val MC_NOEL_TO_DAY = 26
+
+private const val MC_VU_LAN_FROM_DAY = 14        // Vu Lan: 14..16 tháng Bảy Âm lịch
+private const val MC_VU_LAN_TO_DAY = 16
+
+private data class McSolarOccasion(val month: Int, val fromDay: Int, val toDay: Int, val theme: McPaperTheme)
+
+/**
+ * Các dịp theo ngày Dương lịch. Xếp từ trên xuống: ngày nào trùng nhau thì dòng ở trên thắng
+ * (và các dịp này thắng cả Tết/Trung thu Âm lịch). Muốn thêm dịp mới: thêm 1 dòng + 1 theme.
+ */
+private val MC_SOLAR_OCCASIONS = listOf(
+    McSolarOccasion(1, 1, 1, McPaperTheme.PHAO_HOA),                 // Tết Dương lịch
+    McSolarOccasion(2, 14, 14, McPaperTheme.VALENTINE),
+    McSolarOccasion(3, 8, 8, McPaperTheme.HOA_TUOI),                 // Quốc tế Phụ nữ
+    McSolarOccasion(4, 30, 30, McPaperTheme.QUOC_KHANH),             // Giải phóng miền Nam
+    McSolarOccasion(6, 1, 1, McPaperTheme.THIEU_NHI),
+    McSolarOccasion(9, 1, 3, McPaperTheme.QUOC_KHANH),               // Quốc khánh 2/9 (+ngày liền kề)
+    McSolarOccasion(10, 20, 20, McPaperTheme.HOA_TUOI),              // Phụ nữ Việt Nam
+    McSolarOccasion(10, 31, 31, McPaperTheme.HALLOWEEN),
+    McSolarOccasion(11, 20, 20, McPaperTheme.NHA_GIAO),
+    McSolarOccasion(12, MC_NOEL_FROM_DAY, MC_NOEL_TO_DAY, McPaperTheme.GIANG_SINH),
+    McSolarOccasion(12, 31, 31, McPaperTheme.PHAO_HOA)
+)
+
+/** Trả về theme của dịp lễ nếu [info] rơi vào khoảng ngày trên, ngược lại null (dùng nền ngẫu nhiên). */
+private fun mcOccasionTheme(info: McDayInfo, tetFlower: Int, salt: Int): McPaperTheme? {
+    val d = info.date
+    for (o in MC_SOLAR_OCCASIONS) {
+        if (d.month == o.month && d.day in o.fromDay..o.toDay) return o.theme
+    }
+    if (!info.lunarLeap) {
+        if ((info.lunarMonth == 12 && info.lunarDay >= MC_TET_FROM_DAY_MONTH_12) ||
+            (info.lunarMonth == 1 && info.lunarDay <= MC_TET_TO_DAY_MONTH_1)
+        ) {
+            return when (tetFlower) {
+                1 -> McPaperTheme.TET_DAO
+                2 -> McPaperTheme.TET_MAI
+                else -> if (Math.floorMod(mcMix(salt, 0x7e7), 2) == 0) McPaperTheme.TET_DAO else McPaperTheme.TET_MAI
+            }
+        }
+        if (info.lunarMonth == 8 && info.lunarDay in MC_TRUNG_THU_FROM_DAY..MC_TRUNG_THU_TO_DAY) {
+            return McPaperTheme.TRUNG_THU
+        }
+        if (info.lunarMonth == 7 && info.lunarDay in MC_VU_LAN_FROM_DAY..MC_VU_LAN_TO_DAY) {
+            return McPaperTheme.VU_LAN
+        }
+    }
+    return null
+}
+
+/** Dòng chúc thay cho câu chúc ngẫu nhiên ở dải đỏ đầu tờ, chỉ dùng cho tờ theo dịp. */
+private fun mcOccasionHeadline(theme: McPaperTheme, info: McDayInfo): String? = when (theme) {
+    McPaperTheme.TET_DAO, McPaperTheme.TET_MAI -> "TẾT ĐẾN XUÂN VỀ"
+    McPaperTheme.TRUNG_THU -> "VUI TẾT TRUNG THU"
+    McPaperTheme.GIANG_SINH -> "GIÁNG SINH AN LÀNH"
+    McPaperTheme.QUOC_KHANH ->
+        if (info.date.month == 4) "MỪNG ĐẠI THẮNG 30/4" else "MỪNG QUỐC KHÁNH 2/9"
+    McPaperTheme.VALENTINE -> "VALENTINE NGỌT NGÀO"
+    McPaperTheme.PHAO_HOA -> "CHÀO NĂM MỚI"
+    McPaperTheme.HOA_TUOI ->
+        if (info.date.month == 3) "MỪNG NGÀY QUỐC TẾ PHỤ NỮ" else "MỪNG NGÀY PHỤ NỮ VIỆT NAM"
+    McPaperTheme.THIEU_NHI -> "NGÀY QUỐC TẾ THIẾU NHI"
+    McPaperTheme.NHA_GIAO -> "TRI ÂN NHÀ GIÁO VIỆT NAM"
+    McPaperTheme.HALLOWEEN -> "HALLOWEEN VUI VẺ"
+    McPaperTheme.VU_LAN -> "MÙA VU LAN BÁO HIẾU"
+    else -> null
 }
 
 private data class McParticle(
@@ -1969,10 +2099,10 @@ private fun mcMix(a: Int, b: Int): Int {
 
 /** Chọn kiểu nền cho ngày [d]; ngày liền kề luôn khác kiểu để mỗi lần xé thấy đổi hẳn. */
 private fun mcThemeFor(d: McDate, salt: Int): McPaperTheme {
-    val n = McPaperTheme.entries.size
+    val n = MC_RANDOM_THEMES.size
     fun raw(x: McDate) = Math.floorMod(mcMix(salt, mcJdFromDate(x.day, x.month, x.year)), n)
     val t = raw(d)
-    return McPaperTheme.entries[if (t == raw(d.plusDays(-1))) (t + 1) % n else t]
+    return MC_RANDOM_THEMES[if (t == raw(d.plusDays(-1))) (t + 1) % n else t]
 }
 
 private fun mcParticles(seed: Int, n: Int): List<McParticle> {
@@ -2095,6 +2225,404 @@ private fun DrawScope.mcDrawPaperTheme(
             }
         }
 
+        McPaperTheme.TET_DAO -> {
+            val wood = Color(0xFF6D4C41).copy(alpha = if (dark) 0.70f else 0.80f)
+            val sw = 3.2f * dp1
+            // Cành đào mọc từ góc dưới trái + hai nhánh con
+            val main = Path().apply {
+                moveTo(-w * 0.02f, h * 0.985f)
+                cubicTo(w * 0.14f, h * 0.93f, w * 0.27f, h * 0.86f, w * 0.42f, h * 0.71f)
+            }
+            val twigA = Path().apply {
+                moveTo(w * 0.15f, h * 0.925f)
+                cubicTo(w * 0.22f, h * 0.93f, w * 0.30f, h * 0.91f, w * 0.38f, h * 0.88f)
+            }
+            val twigB = Path().apply {
+                moveTo(w * 0.29f, h * 0.835f)
+                cubicTo(w * 0.31f, h * 0.78f, w * 0.30f, h * 0.74f, w * 0.27f, h * 0.69f)
+            }
+            drawPath(main, wood, style = Stroke(sw, cap = StrokeCap.Round))
+            drawPath(twigA, wood, style = Stroke(sw * 0.7f, cap = StrokeCap.Round))
+            drawPath(twigB, wood, style = Stroke(sw * 0.7f, cap = StrokeCap.Round))
+
+            // Nụ đào
+            val buds = listOf(Offset(0.45f, 0.77f), Offset(0.33f, 0.73f), Offset(0.07f, 0.965f), Offset(0.40f, 0.92f))
+            for (b in buds) drawCircle(Color(0xFFEC407A).copy(alpha = 0.85f), 3.2f * dp1, Offset(w * b.x, h * b.y))
+
+            // Hoa đào nở: (x, y, bán kính dp) - hơi "thở" theo phase (lặp liền mạch)
+            val blossoms = listOf(
+                Triple(0.42f, 0.71f, 11f), Triple(0.36f, 0.78f, 9f), Triple(0.27f, 0.69f, 10f),
+                Triple(0.38f, 0.88f, 8f), Triple(0.22f, 0.89f, 9f), Triple(0.12f, 0.945f, 8f),
+                Triple(0.31f, 0.83f, 7f)
+            )
+            blossoms.forEachIndexed { i, (fx, fy, rdp) ->
+                val pulse = 1f + 0.06f * sin(tau * (phase + i * 0.17f))
+                val col = if (i % 2 == 0) Color(0xFFF06292) else Color(0xFFF8BBD0)
+                mcDrawFlower(1, Offset(w * fx, h * fy), rdp * dp1 * pulse, col)
+            }
+
+            // Cánh đào rơi
+            for (p in ps.take(22)) {
+                val prog = (p.y + phase * p.k) % 1f
+                val x = (p.x + 0.05f * sin(tau * (prog * 2f + p.r))) * w
+                val y = prog * h
+                val len = (5f + 6f * p.s) * dp1
+                val col = if (p.hue == 0) Color(0xFFF8BBD0) else Color(0xFFF06292)
+                rotate(360f * ((p.r + phase * p.k) % 1f), Offset(x, y)) {
+                    mcPetal(x, y, len, len * 0.55f, col.copy(alpha = 0.65f))
+                }
+            }
+            // Kim tuyến vàng lấp lánh (không khí Tết)
+            for (p in ps.drop(22).take(10)) {
+                val tw = 0.3f + 0.7f * (0.5f + 0.5f * sin(tau * (phase * (1 + p.k) + p.r)))
+                drawCircle(
+                    Color(0xFFFFC107).copy(alpha = tw * 0.8f),
+                    (1.4f + 1.8f * p.s) * dp1,
+                    Offset(p.x * w, p.y * h * 0.9f)
+                )
+            }
+        }
+
+        McPaperTheme.QUOC_KHANH -> {
+            // Cờ đỏ sao vàng treo ở mép phải, gió thổi làm lá cờ lượn sóng
+            mcWavingFlag(w * 0.96f, h * 0.13f, w * 0.56f, w * 0.37f, phase, dark)
+            // Sao vàng nhỏ lấp lánh
+            for (p in ps.take(14)) {
+                val tw = 0.3f + 0.7f * (0.5f + 0.5f * sin(tau * (phase * (1 + p.k) + p.r)))
+                mcStar5(Offset(p.x * w, p.y * h * 0.95f), (2.2f + 3f * p.s) * dp1, Color(0xFFFFC107).copy(alpha = tw * 0.75f))
+            }
+        }
+
+        McPaperTheme.VALENTINE -> {
+            // Nhịp tim "thịch-thịch": 2 nhịp rồi nghỉ, lặp 10 lần mỗi vòng phase
+            fun beat(off: Float): Float {
+                val b = (phase * 10f + off) % 1f
+                val x = maxOf(0f, sin(tau * b * 2f))
+                return x * x
+            }
+            // Vài trái tim lớn đập rung động
+            val bigs = listOf(Triple(0.84f, 0.60f, 0.10f), Triple(0.14f, 0.80f, 0.065f), Triple(0.78f, 0.89f, 0.045f))
+            bigs.forEachIndexed { i, (fx, fy, fr) ->
+                val c = Offset(w * fx, h * fy)
+                val s = w * fr * (1f + 0.20f * beat(i * 0.23f))
+                rotate(4f * sin(tau * (phase * 10f + i * 0.3f)), c) {
+                    drawCircle(
+                        Brush.radialGradient(
+                            listOf(Color(0xFFE91E63).copy(alpha = 0.25f), Color.Transparent),
+                            center = c, radius = s * 2.2f
+                        ),
+                        s * 2.2f, c
+                    )
+                    mcHeart(c, s, Color(0xFFE91E63).copy(alpha = 0.38f))
+                    mcHeart(Offset(c.x - s * 0.35f, c.y - s * 0.35f), s * 0.18f, Color.White.copy(alpha = 0.35f))
+                }
+            }
+            // Tim nhỏ bay lên, cũng đập nhẹ
+            val cols = listOf(Color(0xFFF48FB1), Color(0xFFF06292), Color(0xFFE53935))
+            for (p in ps.take(14)) {
+                val prog = (p.y + phase * p.k) % 1f
+                val fade = minOf(prog / 0.12f, (1f - prog) / 0.15f, 1f).coerceIn(0f, 1f)
+                val cx = (0.06f + 0.88f * p.x + 0.03f * sin(tau * (prog * 2f + p.r))) * w
+                val cy = (1.1f - 1.2f * prog) * h
+                val s = (4f + 6f * p.s) * dp1 * (1f + 0.12f * beat(p.r))
+                mcHeart(Offset(cx, cy), s, cols[p.hue].copy(alpha = 0.55f * fade))
+            }
+        }
+
+        McPaperTheme.PHAO_HOA -> {
+            val cols = listOf(
+                Color(0xFFFFC107), Color(0xFFE53935), Color(0xFF26C6DA), Color(0xFFEC407A), Color(0xFF7E57C2)
+            )
+            for (i in 0 until 5) {
+                val p = ps[i]
+                val t = (phase * 2f + i * 0.2f) % 1f
+                val cx = (0.15f + 0.70f * p.x) * w
+                val cy = (0.18f + 0.45f * p.y) * h
+                val col = cols[i % cols.size]
+                if (t < 0.15f) {
+                    // quả pháo bay lên
+                    val rise = t / 0.15f
+                    drawCircle(col.copy(alpha = 0.85f), 2f * dp1, Offset(cx, cy + (1f - rise) * h * 0.25f))
+                } else {
+                    val e = (t - 0.15f) / 0.85f
+                    val ease = 1f - (1f - e) * (1f - e)
+                    val radius = (28f + 22f * p.s) * dp1 * ease
+                    val a = 1f - e
+                    for (k in 0 until 16) {
+                        val ang = tau * k / 16f + p.r * tau
+                        val dx = cos(ang) * radius
+                        val dy = sin(ang) * radius + 10f * dp1 * e * e // rơi nhẹ do trọng lực
+                        drawLine(
+                            col.copy(alpha = a * 0.35f),
+                            Offset(cx + cos(ang) * radius * 0.82f, cy + sin(ang) * radius * 0.82f),
+                            Offset(cx + dx, cy + dy),
+                            strokeWidth = dp1
+                        )
+                        drawCircle(col.copy(alpha = a * 0.85f), (1.8f - 0.8f * e) * dp1, Offset(cx + dx, cy + dy))
+                    }
+                }
+            }
+            for (p in ps.drop(5).take(14)) {
+                val tw = 0.3f + 0.7f * (0.5f + 0.5f * sin(tau * (phase * (1 + p.k) + p.r)))
+                drawCircle(Color(0xFFFFC107).copy(alpha = tw * 0.7f), (1.2f + 1.6f * p.s) * dp1, Offset(p.x * w, p.y * h * 0.9f))
+            }
+        }
+
+        McPaperTheme.HOA_TUOI -> {
+            val cols = listOf(
+                Color(0xFFF48FB1), Color(0xFFEC407A), Color(0xFFBA68C8), Color(0xFFFF8A65), Color(0xFFFFB74D)
+            )
+            for (p in ps.take(16)) {
+                val prog = (p.y + phase * p.k) % 1f
+                val x = (p.x + 0.05f * sin(tau * (prog * 2f + p.r))) * w
+                val y = prog * h
+                val r = (5f + 5f * p.s) * dp1
+                val style = (p.s * 6f).toInt().coerceIn(0, 5)
+                rotate(360f * ((p.r + phase * p.k) % 1f), Offset(x, y)) {
+                    mcDrawFlower(style, Offset(x, y), r, cols[(p.hue + p.k) % cols.size])
+                }
+            }
+            for (p in ps.drop(16).take(10)) {
+                val tw = 0.3f + 0.7f * (0.5f + 0.5f * sin(tau * (phase * (1 + p.k) + p.r)))
+                drawCircle(Color(0xFFFFC107).copy(alpha = tw * 0.7f), (1.2f + 1.6f * p.s) * dp1, Offset(p.x * w, p.y * h * 0.9f))
+            }
+        }
+
+        McPaperTheme.THIEU_NHI -> {
+            val cols = listOf(
+                Color(0xFFE53935), Color(0xFF29B6F6), Color(0xFFFFCA28),
+                Color(0xFF66BB6A), Color(0xFFEC407A), Color(0xFFAB47BC)
+            )
+            // Hoa giấy rơi
+            for (p in ps.drop(10).take(16)) {
+                val prog = (p.y + phase * p.k) % 1f
+                val x = (p.x + 0.03f * sin(tau * (prog * 3f + p.r))) * w
+                val y = prog * h
+                val sz = (2.5f + 2.5f * p.s) * dp1
+                rotate(360f * ((p.r + phase * p.k * 2f) % 1f), Offset(x, y)) {
+                    drawRect(cols[(p.hue * 2 + p.k) % cols.size].copy(alpha = 0.7f), Offset(x - sz, y - sz * 0.5f), Size(sz * 2f, sz))
+                }
+            }
+            // Bóng bay bay lên
+            for (p in ps.take(10)) {
+                val prog = (p.y + phase * p.k) % 1f
+                val fade = minOf(prog / 0.10f, (1f - prog) / 0.20f, 1f).coerceIn(0f, 1f)
+                val cx = (0.08f + 0.84f * p.x + 0.02f * sin(tau * (prog * 2f + p.r))) * w
+                val cy = (1.15f - 1.3f * prog) * h
+                val sway = sin(tau * (phase * 3f + p.r))
+                mcBalloon(Offset(cx, cy), (8f + 7f * p.s) * dp1, cols[(p.hue * 2 + p.k) % cols.size], fade, sway)
+            }
+        }
+
+        McPaperTheme.NHA_GIAO -> {
+            for (p in ps.drop(9).take(10)) {
+                val tw = 0.3f + 0.7f * (0.5f + 0.5f * sin(tau * (phase * (1 + p.k) + p.r)))
+                mcStar5(Offset(p.x * w, p.y * h * 0.95f), (2f + 2.6f * p.s) * dp1, Color(0xFFFFC107).copy(alpha = tw * 0.7f))
+            }
+            // Mũ cử nhân rơi chậm, nghiêng qua lại
+            for (p in ps.take(9)) {
+                val prog = (p.y + phase * p.k) % 1f
+                val fade = minOf(prog / 0.10f, (1f - prog) / 0.10f, 1f).coerceIn(0f, 1f)
+                val c = Offset((p.x + 0.04f * sin(tau * (prog * 2f + p.r))) * w, prog * h)
+                rotate(25f * sin(tau * (phase * 2f + p.r)), c) {
+                    mcGradCap(c, (7f + 6f * p.s) * dp1, 0.70f * fade)
+                }
+            }
+        }
+
+        McPaperTheme.HALLOWEEN -> {
+            // Trăng tròn mờ
+            val moonC = Offset(w * 0.84f, h * 0.20f)
+            val moonR = w * 0.09f
+            drawCircle(
+                Brush.radialGradient(
+                    listOf(Color(0xFFFFF59D).copy(alpha = if (dark) 0.35f else 0.40f), Color.Transparent),
+                    center = moonC, radius = moonR * 3f
+                ),
+                moonR * 3f, moonC
+            )
+            drawCircle(Color(0xFFFFF59D).copy(alpha = if (dark) 0.50f else 0.55f), moonR, moonC)
+            // Bí ngô phát sáng bay lên
+            for (p in ps.drop(6).take(5)) {
+                val prog = (p.y + phase * p.k) % 1f
+                val fade = minOf(prog / 0.12f, (1f - prog) / 0.15f, 1f).coerceIn(0f, 1f)
+                val cx = (0.10f + 0.80f * p.x + 0.02f * sin(tau * (prog * 2f + p.r))) * w
+                val cy = (1.1f - 1.25f * prog) * h
+                mcPumpkin(Offset(cx, cy), (9f + 6f * p.s) * dp1, fade)
+            }
+            // Dơi bay ngang, vỗ cánh
+            val bat = if (dark) Color(0xFFB39DDB).copy(alpha = 0.70f) else Color(0xFF4A148C).copy(alpha = 0.60f)
+            for (i in 0 until 6) {
+                val p = ps[i]
+                val u = (p.x * 1.2f + phase * 1.2f * p.k) % 1.2f
+                val x = (u - 0.1f) * w
+                val y = (0.12f + 0.50f * p.y) * h + 14f * dp1 * sin(tau * (phase * 3f + p.r))
+                val flap = 0.35f + 0.65f * (0.5f + 0.5f * sin(tau * (phase * 12f + p.r)))
+                mcBat(Offset(x, y), (9f + 7f * p.s) * dp1, flap, bat)
+            }
+        }
+
+        McPaperTheme.VU_LAN -> {
+            // Mặt nước gợn sóng
+            for (i in 0 until 3) {
+                val base = 0.76f + 0.06f * i
+                val path = Path()
+                path.moveTo(0f, h)
+                val step = w / 48f
+                var x = 0f
+                while (x <= w + 0.1f) {
+                    val y = h * base + h * 0.012f * sin(tau * (x / w * (1.4f + i * 0.5f) + phase * (if (i % 2 == 0) 1 else -1)))
+                    path.lineTo(x, y)
+                    x += step
+                }
+                path.lineTo(w, h)
+                path.close()
+                drawPath(path, Color(0xFF4DB6AC).copy(alpha = 0.12f + 0.04f * i))
+            }
+            // Lá sen + hoa sen nhấp nhô theo sóng
+            val lotus = listOf(Triple(0.18f, 0.80f, 11f), Triple(0.46f, 0.86f, 13f), Triple(0.74f, 0.82f, 10f), Triple(0.92f, 0.90f, 9f))
+            lotus.forEachIndexed { i, (fx, fy, rdp) ->
+                val r = rdp * dp1
+                val bob = 2f * dp1 * sin(tau * (phase + i * 0.25f))
+                val c = Offset(w * fx, h * fy + bob)
+                drawOval(Color(0xFF66BB6A).copy(alpha = 0.45f), Offset(c.x - r * 1.5f, c.y + r * 0.25f), Size(r * 3f, r * 1.0f))
+                mcDrawFlower(2, c, r, Color(0xFFF48FB1))
+            }
+            // Đom đóm / ánh đèn hoa đăng lấp lánh bay lên
+            for (p in ps.take(14)) {
+                val prog = (p.y + phase * p.k) % 1f
+                val fade = minOf(prog / 0.12f, (1f - prog) / 0.15f, 1f).coerceIn(0f, 1f)
+                val tw = 0.5f + 0.5f * sin(tau * (phase * (2 + p.k) + p.r))
+                val c = Offset((p.x + 0.03f * sin(tau * (prog * 3f + p.r))) * w, (1f - prog) * h)
+                val r = (1.6f + 1.8f * p.s) * dp1
+                drawCircle(
+                    Brush.radialGradient(
+                        listOf(Color(0xFFFFEE58).copy(alpha = 0.45f * fade * tw), Color.Transparent),
+                        center = c, radius = r * 4f
+                    ),
+                    r * 4f, c
+                )
+                drawCircle(Color(0xFFFFF59D).copy(alpha = 0.9f * fade * tw), r * 0.7f, c)
+            }
+        }
+
+        McPaperTheme.TET_MAI -> {
+            val wood = Color(0xFF5D4037).copy(alpha = if (dark) 0.75f else 0.85f)
+            val sw = 3.6f * dp1
+            // Cành mai gân guốc, uốn khúc, mọc từ góc dưới trái
+            val main = Path().apply {
+                moveTo(-w * 0.02f, h * 0.985f)
+                cubicTo(w * 0.10f, h * 0.90f, w * 0.20f, h * 0.92f, w * 0.27f, h * 0.82f)
+                cubicTo(w * 0.33f, h * 0.74f, w * 0.40f, h * 0.76f, w * 0.46f, h * 0.68f)
+            }
+            val twigA = Path().apply {
+                moveTo(w * 0.22f, h * 0.89f)
+                cubicTo(w * 0.28f, h * 0.90f, w * 0.34f, h * 0.88f, w * 0.40f, h * 0.84f)
+            }
+            val twigB = Path().apply {
+                moveTo(w * 0.30f, h * 0.775f)
+                cubicTo(w * 0.28f, h * 0.72f, w * 0.30f, h * 0.68f, w * 0.34f, h * 0.64f)
+            }
+            drawPath(main, wood, style = Stroke(sw, cap = StrokeCap.Round))
+            drawPath(twigA, wood, style = Stroke(sw * 0.65f, cap = StrokeCap.Round))
+            drawPath(twigB, wood, style = Stroke(sw * 0.65f, cap = StrokeCap.Round))
+
+            // Nụ mai (xanh vàng)
+            val buds = listOf(Offset(0.50f, 0.72f), Offset(0.38f, 0.60f), Offset(0.07f, 0.95f), Offset(0.44f, 0.88f))
+            for (b in buds) drawCircle(Color(0xFFC0CA33).copy(alpha = 0.85f), 3.2f * dp1, Offset(w * b.x, h * b.y))
+
+            // Hoa mai nở: (x, y, bán kính dp)
+            val blossoms = listOf(
+                Triple(0.46f, 0.68f, 12f), Triple(0.40f, 0.84f, 10f), Triple(0.34f, 0.64f, 10f),
+                Triple(0.27f, 0.82f, 11f), Triple(0.17f, 0.90f, 9f), Triple(0.09f, 0.95f, 8f),
+                Triple(0.36f, 0.75f, 8f)
+            )
+            blossoms.forEachIndexed { i, (fx, fy, rdp) ->
+                val pulse = 1f + 0.06f * sin(tau * (phase + i * 0.17f))
+                mcMaiFlower(Offset(w * fx, h * fy), rdp * dp1 * pulse, i % 2 == 1)
+            }
+
+            // Cánh mai rơi
+            for (p in ps.take(20)) {
+                val prog = (p.y + phase * p.k) % 1f
+                val x = (p.x + 0.05f * sin(tau * (prog * 2f + p.r))) * w
+                val y = prog * h
+                val len = (4.5f + 5f * p.s) * dp1
+                val col = if (p.hue == 0) Color(0xFFFFD54F) else Color(0xFFFFC107)
+                rotate(360f * ((p.r + phase * p.k) % 1f), Offset(x, y)) {
+                    mcPetal(x, y, len, len * 0.85f, col.copy(alpha = 0.70f))
+                }
+            }
+            // Kim tuyến đỏ - vàng lấp lánh
+            for (p in ps.drop(20).take(12)) {
+                val tw = 0.3f + 0.7f * (0.5f + 0.5f * sin(tau * (phase * (1 + p.k) + p.r)))
+                val c = if (p.hue == 0) Color(0xFFE53935) else Color(0xFFFFB300)
+                drawCircle(c.copy(alpha = tw * 0.75f), (1.4f + 1.8f * p.s) * dp1, Offset(p.x * w, p.y * h * 0.9f))
+            }
+        }
+
+        McPaperTheme.TRUNG_THU -> {
+            // Trăng rằm + quầng sáng
+            val moonC = Offset(w * 0.84f, h * 0.22f)
+            val moonR = w * 0.13f
+            drawCircle(
+                Brush.radialGradient(
+                    listOf(Color(0xFFFFE082).copy(alpha = if (dark) 0.40f else 0.45f), Color.Transparent),
+                    center = moonC, radius = moonR * 3f
+                ),
+                moonR * 3f, moonC
+            )
+            drawCircle(Color(0xFFFFF59D).copy(alpha = if (dark) 0.55f else 0.60f), moonR, moonC)
+
+            // Sao nhỏ
+            for (p in ps.drop(22).take(10)) {
+                val tw = 0.3f + 0.7f * (0.5f + 0.5f * sin(tau * (phase * (1 + p.k) + p.r)))
+                drawCircle(
+                    Color(0xFFFFCA28).copy(alpha = tw * 0.7f),
+                    (1.2f + 1.6f * p.s) * dp1,
+                    Offset(p.x * w, p.y * h * 0.6f)
+                )
+            }
+
+            // Đèn lồng bay lên, đung đưa nhẹ, mờ dần ở hai đầu để lặp không bị "giật"
+            val lanternCols = listOf(Color(0xFFE53935), Color(0xFFFF9800), Color(0xFFFFC107))
+            for (p in ps.take(9)) {
+                val prog = (p.y + phase * p.k) % 1f
+                val fade = minOf(prog / 0.12f, (1f - prog) / 0.15f, 1f).coerceIn(0f, 1f)
+                val cx = (0.08f + 0.84f * p.x + 0.025f * sin(tau * (prog * 2f + p.r))) * w
+                val cy = (1.1f - 1.25f * prog) * h
+                mcLantern(Offset(cx, cy), (9f + 9f * p.s) * dp1, lanternCols[p.hue], fade)
+            }
+        }
+
+        McPaperTheme.GIANG_SINH -> {
+            // Màu bông tuyết: trắng trên nền tối, xanh băng trên nền sáng (trắng sẽ chìm vào giấy)
+            val flake = if (dark) Color.White else Color(0xFF64B5F6)
+            for (p in ps) {
+                val prog = (p.y + phase * p.k) % 1f
+                val x = (p.x + 0.04f * sin(tau * (prog * 3f + p.r))) * w
+                val y = prog * h
+                val r = (1.6f + 3.4f * p.s) * dp1
+                val a = 0.35f + 0.5f * p.s // bông to = gần = rõ hơn
+                if (p.s > 0.62f) {
+                    // Bông tuyết 6 cánh, xoay chậm
+                    val spin = 360f * ((p.r + phase * p.k) % 1f)
+                    for (i in 0 until 3) {
+                        val ang = Math.toRadians((spin + i * 60f).toDouble())
+                        val dx = cos(ang).toFloat() * r * 1.6f
+                        val dy = sin(ang).toFloat() * r * 1.6f
+                        drawLine(
+                            flake.copy(alpha = a), Offset(x - dx, y - dy), Offset(x + dx, y + dy),
+                            strokeWidth = 1.2f * dp1, cap = StrokeCap.Round
+                        )
+                    }
+                } else {
+                    drawCircle(flake.copy(alpha = a), r * 0.6f, Offset(x, y))
+                }
+            }
+            mcSnowGround(dark)
+        }
+
         McPaperTheme.LATTICE -> {
             val gap = 30f * dp1
             val lc = Color(0xFFE53935).copy(alpha = if (dark) 0.12f else 0.10f)
@@ -2115,6 +2643,257 @@ private fun DrawScope.mcDrawPaperTheme(
             )
         }
     }
+}
+
+private fun Path.addMcHeart(cx: Float, cy: Float, s: Float) {
+    moveTo(cx, cy + s * 0.9f)
+    cubicTo(cx - s * 1.3f, cy + s * 0.1f, cx - s * 0.9f, cy - s * 0.9f, cx, cy - s * 0.35f)
+    cubicTo(cx + s * 0.9f, cy - s * 0.9f, cx + s * 1.3f, cy + s * 0.1f, cx, cy + s * 0.9f)
+    close()
+}
+
+/** Trái tim tâm [c], "bán kính" [s]. */
+private fun DrawScope.mcHeart(c: Offset, s: Float, color: Color) {
+    drawPath(Path().apply { addMcHeart(c.x, c.y, s) }, color)
+}
+
+/** Ngôi sao 5 cánh. */
+private fun DrawScope.mcStar5(c: Offset, r: Float, color: Color) {
+    val path = Path()
+    for (i in 0 until 10) {
+        val rad = if (i % 2 == 0) r else r * 0.382f
+        val a = (-90.0 + i * 36.0) * PI / 180.0
+        val x = c.x + cos(a).toFloat() * rad
+        val y = c.y + sin(a).toFloat() * rad
+        if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+    }
+    path.close()
+    drawPath(path, color)
+}
+
+/**
+ * Lá cờ đỏ sao vàng lượn sóng: cột cờ ở [poleX], lá cờ bay sang trái, rộng [fw] cao [fh].
+ * Chia thành các dải dọc, mỗi dải lệch lên/xuống theo sóng (càng xa cột càng dao động mạnh)
+ * và đổi độ sáng theo độ dốc để có cảm giác nếp vải. phase chạy 0..1 => lặp liền mạch.
+ */
+private fun DrawScope.mcWavingFlag(poleX: Float, top: Float, fw: Float, fh: Float, phase: Float, dark: Boolean) {
+    val tau = (2 * PI).toFloat()
+    val d = density
+    val amp = fh * 0.10f
+    fun dy(t: Float): Float = amp * t * sin(tau * (t * 1.5f - phase))
+
+    // cột cờ
+    drawLine(
+        Color(0xFF8D6E63).copy(alpha = 0.75f),
+        Offset(poleX, top - fh * 0.12f), Offset(poleX, top + fh * 2.2f),
+        strokeWidth = 3f * d, cap = StrokeCap.Round
+    )
+    drawCircle(Color(0xFFFFC107).copy(alpha = 0.9f), 3.5f * d, Offset(poleX, top - fh * 0.12f))
+
+    val n = 28
+    val red = Color(0xFFDA251D)
+    for (i in 0 until n) {
+        val t0 = i / n.toFloat()
+        val t1 = (i + 1) / n.toFloat()
+        val x0 = poleX - t0 * fw
+        val x1 = poleX - t1 * fw - 0.6f
+        val d0 = dy(t0)
+        val d1 = dy(t1)
+        val slope = (d1 - d0) / (fw / n)
+        val shade = (slope * 1.6f).coerceIn(-0.35f, 0.35f)
+        val col = if (shade >= 0f) lerp(red, Color.White, shade) else lerp(red, Color.Black, -shade)
+        val strip = Path().apply {
+            moveTo(x0, top + d0)
+            lineTo(x1, top + d1)
+            lineTo(x1, top + fh + d1)
+            lineTo(x0, top + fh + d0)
+            close()
+        }
+        drawPath(strip, col.copy(alpha = if (dark) 0.50f else 0.42f))
+    }
+    mcStar5(
+        Offset(poleX - 0.5f * fw, top + fh / 2f + dy(0.5f)),
+        fh * 0.30f,
+        Color(0xFFFFEB3B).copy(alpha = 0.85f)
+    )
+}
+
+/** Bóng bay có dây, nút thắt và vệt sáng. [sway] -1..1 làm dây đung đưa. */
+private fun DrawScope.mcBalloon(c: Offset, r: Float, color: Color, fade: Float, sway: Float) {
+    if (fade <= 0.01f) return
+    val d = density
+    val bw = r * 1.7f
+    val bh = r * 2f
+    val str = Path().apply {
+        moveTo(c.x, c.y + bh * 0.5f + r * 0.2f)
+        cubicTo(c.x + sway * r * 0.6f, c.y + r * 1.6f, c.x - sway * r * 0.6f, c.y + r * 2.4f, c.x + sway * r * 0.3f, c.y + r * 3.4f)
+    }
+    drawPath(str, Color(0xFF90A4AE).copy(alpha = 0.55f * fade), style = Stroke(d))
+    drawOval(color.copy(alpha = 0.75f * fade), Offset(c.x - bw / 2f, c.y - bh / 2f), Size(bw, bh))
+    val knot = Path().apply {
+        moveTo(c.x, c.y + bh * 0.5f - r * 0.02f)
+        lineTo(c.x - r * 0.16f, c.y + bh * 0.5f + r * 0.2f)
+        lineTo(c.x + r * 0.16f, c.y + bh * 0.5f + r * 0.2f)
+        close()
+    }
+    drawPath(knot, color.copy(alpha = 0.85f * fade))
+    drawOval(
+        Color.White.copy(alpha = 0.45f * fade),
+        Offset(c.x - bw * 0.28f, c.y - bh * 0.32f), Size(bw * 0.18f, bh * 0.26f)
+    )
+}
+
+/** Mũ cử nhân (tâm [c], cỡ [s]) có tua rua vàng. */
+private fun DrawScope.mcGradCap(c: Offset, s: Float, alpha: Float) {
+    if (alpha <= 0.01f) return
+    val navy = Color(0xFF283593)
+    val base = Path().apply {
+        moveTo(c.x - s * 0.62f, c.y + s * 0.05f)
+        lineTo(c.x - s * 0.62f, c.y + s * 0.55f)
+        cubicTo(c.x - s * 0.3f, c.y + s * 0.8f, c.x + s * 0.3f, c.y + s * 0.8f, c.x + s * 0.62f, c.y + s * 0.55f)
+        lineTo(c.x + s * 0.62f, c.y + s * 0.05f)
+        lineTo(c.x, c.y + s * 0.3f)
+        close()
+    }
+    drawPath(base, Color(0xFF3949AB).copy(alpha = alpha))
+    val board = Path().apply {
+        moveTo(c.x, c.y - s * 0.55f)
+        lineTo(c.x + s * 1.2f, c.y - s * 0.1f)
+        lineTo(c.x, c.y + s * 0.35f)
+        lineTo(c.x - s * 1.2f, c.y - s * 0.1f)
+        close()
+    }
+    drawPath(board, navy.copy(alpha = alpha))
+    val gold = Color(0xFFFFC107).copy(alpha = alpha)
+    drawLine(gold, Offset(c.x, c.y - s * 0.1f), Offset(c.x + s * 1.0f, c.y - s * 0.02f), strokeWidth = density)
+    drawLine(gold, Offset(c.x + s * 1.0f, c.y - s * 0.02f), Offset(c.x + s * 1.0f, c.y + s * 0.5f), strokeWidth = 1.4f * density)
+    drawCircle(gold, s * 0.08f, Offset(c.x + s * 1.0f, c.y + s * 0.55f))
+}
+
+/** Bí ngô Halloween phát sáng, mặt cười nham hiểm. */
+private fun DrawScope.mcPumpkin(c: Offset, r: Float, fade: Float) {
+    if (fade <= 0.01f) return
+    val orange = Color(0xFFFF7A00)
+    drawCircle(
+        Brush.radialGradient(listOf(orange.copy(alpha = 0.30f * fade), Color.Transparent), center = c, radius = r * 2.2f),
+        r * 2.2f, c
+    )
+    drawOval(orange.copy(alpha = 0.75f * fade), Offset(c.x - r * 1.05f, c.y - r * 0.75f), Size(r * 1.3f, r * 1.5f))
+    drawOval(orange.copy(alpha = 0.75f * fade), Offset(c.x - r * 0.25f, c.y - r * 0.75f), Size(r * 1.3f, r * 1.5f))
+    drawOval(
+        lerp(orange, Color(0xFFFFB300), 0.3f).copy(alpha = 0.85f * fade),
+        Offset(c.x - r * 0.55f, c.y - r * 0.85f), Size(r * 1.1f, r * 1.7f)
+    )
+    drawRect(Color(0xFF2E7D32).copy(alpha = 0.85f * fade), Offset(c.x - r * 0.1f, c.y - r * 1.1f), Size(r * 0.2f, r * 0.3f))
+    val glow = Color(0xFFFFF59D).copy(alpha = 0.9f * fade)
+    for (sign in listOf(-1f, 1f)) {
+        val eye = Path().apply {
+            moveTo(c.x + sign * r * 0.42f, c.y - r * 0.45f)
+            lineTo(c.x + sign * r * 0.15f, c.y - r * 0.05f)
+            lineTo(c.x + sign * r * 0.69f, c.y - r * 0.05f)
+            close()
+        }
+        drawPath(eye, glow)
+    }
+    val mouth = Path().apply {
+        moveTo(c.x - r * 0.6f, c.y + r * 0.2f)
+        lineTo(c.x + r * 0.6f, c.y + r * 0.2f)
+        lineTo(c.x + r * 0.35f, c.y + r * 0.62f)
+        lineTo(c.x + r * 0.12f, c.y + r * 0.4f)
+        lineTo(c.x - r * 0.12f, c.y + r * 0.62f)
+        lineTo(c.x - r * 0.35f, c.y + r * 0.4f)
+        close()
+    }
+    drawPath(mouth, glow)
+}
+
+/** Con dơi: [flap] 0..1 là độ vỗ cánh (1 = cánh giương cao). */
+private fun DrawScope.mcBat(c: Offset, s: Float, flap: Float, color: Color) {
+    val path = Path().apply {
+        moveTo(c.x, c.y)
+        cubicTo(c.x - s * 0.4f, c.y - s * 0.9f * flap, c.x - s * 0.9f, c.y - s * 0.7f * flap, c.x - s, c.y - s * 0.15f * flap)
+        cubicTo(c.x - s * 0.75f, c.y + s * 0.05f, c.x - s * 0.6f, c.y + s * 0.35f, c.x - s * 0.45f, c.y + s * 0.2f)
+        cubicTo(c.x - s * 0.3f, c.y + s * 0.4f, c.x - s * 0.15f, c.y + s * 0.3f, c.x, c.y + s * 0.35f)
+        cubicTo(c.x + s * 0.15f, c.y + s * 0.3f, c.x + s * 0.3f, c.y + s * 0.4f, c.x + s * 0.45f, c.y + s * 0.2f)
+        cubicTo(c.x + s * 0.6f, c.y + s * 0.35f, c.x + s * 0.75f, c.y + s * 0.05f, c.x + s, c.y - s * 0.15f * flap)
+        cubicTo(c.x + s * 0.9f, c.y - s * 0.7f * flap, c.x + s * 0.4f, c.y - s * 0.9f * flap, c.x, c.y)
+        close()
+    }
+    drawPath(path, color)
+    drawCircle(color, s * 0.14f, Offset(c.x, c.y + s * 0.05f))
+}
+
+/** Hoa mai vàng: 5 cánh tròn bầu + nhụy cam. [light] = tông vàng nhạt hơn để hoa xen kẽ. */
+private fun DrawScope.mcMaiFlower(c: Offset, r: Float, light: Boolean) {
+    val petal = if (light) Color(0xFFFFE57F) else Color(0xFFFFD600)
+    for (i in 0 until 5) {
+        val a = (i * 72.0 - 90.0) * PI / 180.0
+        val pc = Offset(c.x + cos(a).toFloat() * r * 0.55f, c.y + sin(a).toFloat() * r * 0.55f)
+        drawCircle(petal.copy(alpha = 0.95f), r * 0.52f, pc)
+        drawCircle(Color(0xFFFFA000).copy(alpha = 0.35f), r * 0.52f, pc, style = Stroke(r * 0.05f))
+    }
+    drawCircle(Color(0xFFFF8F00), r * 0.2f, c)
+    for (i in 0 until 6) {
+        val a = (i * 60.0) * PI / 180.0
+        drawCircle(
+            Color(0xFFFFE082), r * 0.045f,
+            Offset(c.x + cos(a).toFloat() * r * 0.32f, c.y + sin(a).toFloat() * r * 0.32f)
+        )
+    }
+}
+
+/** Đèn lồng tròn: quầng sáng, thân có gân, nắp vàng, tua rua. [fade] 0..1 để mờ dần. */
+private fun DrawScope.mcLantern(c: Offset, r: Float, color: Color, fade: Float) {
+    if (fade <= 0.01f) return
+    val gold = Color(0xFFFFD54F)
+    val d = density
+    drawCircle(
+        Brush.radialGradient(
+            listOf(color.copy(alpha = 0.32f * fade), Color.Transparent),
+            center = c, radius = r * 2.4f
+        ),
+        r * 2.4f, c
+    )
+    // dây treo
+    drawLine(gold.copy(alpha = 0.6f * fade), Offset(c.x, c.y - r * 1.35f), Offset(c.x, c.y - r * 0.95f), strokeWidth = 1.2f * d)
+    // thân
+    drawOval(color.copy(alpha = 0.78f * fade), Offset(c.x - r, c.y - r * 0.8f), Size(2f * r, 1.6f * r))
+    val rib = Color.White.copy(alpha = 0.30f * fade)
+    drawOval(rib, Offset(c.x - r * 0.5f, c.y - r * 0.8f), Size(r, 1.6f * r), style = Stroke(1.1f * d))
+    drawLine(rib, Offset(c.x, c.y - r * 0.8f), Offset(c.x, c.y + r * 0.8f), strokeWidth = 1.1f * d)
+    // nắp trên/dưới
+    val capW = r * 0.9f
+    drawRoundRect(gold.copy(alpha = 0.85f * fade), Offset(c.x - capW / 2f, c.y - r * 0.98f), Size(capW, r * 0.22f), CornerRadius(r * 0.06f, r * 0.06f))
+    drawRoundRect(gold.copy(alpha = 0.85f * fade), Offset(c.x - capW / 2f, c.y + r * 0.76f), Size(capW, r * 0.22f), CornerRadius(r * 0.06f, r * 0.06f))
+    // tua rua
+    drawLine(gold.copy(alpha = 0.8f * fade), Offset(c.x, c.y + r * 0.98f), Offset(c.x, c.y + r * 1.6f), strokeWidth = 1.6f * d, cap = StrokeCap.Round)
+}
+
+/** Lớp tuyết phủ dưới chân tờ lịch (đường viền gợn sóng, tĩnh). */
+private fun DrawScope.mcSnowGround(dark: Boolean) {
+    val w = size.width
+    val h = size.height
+    val tau = (2 * PI).toFloat()
+    val d = density
+    val step = w / 40f
+    fun yAt(x: Float): Float =
+        h * 0.955f - h * 0.012f * (sin(tau * (x / w * 2.2f)) + 0.5f * sin(tau * (x / w * 5f + 0.3f)))
+
+    val top = Path()
+    top.moveTo(0f, yAt(0f))
+    var x = step
+    while (x <= w + 0.1f) {
+        top.lineTo(x, yAt(x))
+        x += step
+    }
+    val fill = Path().apply {
+        addPath(top)
+        lineTo(w, h)
+        lineTo(0f, h)
+        close()
+    }
+    drawPath(fill, if (dark) Color(0xFFE3F2FD).copy(alpha = 0.50f) else Color.White.copy(alpha = 0.90f))
+    drawPath(top, Color(0xFF90CAF9).copy(alpha = if (dark) 0.35f else 0.60f), style = Stroke(1.2f * d))
 }
 
 // ============================================================
