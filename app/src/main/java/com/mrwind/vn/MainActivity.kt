@@ -4955,9 +4955,14 @@ fun ThoiTietAmLichApp() {
     val solarToday = remember { LunarCalendar.formatVietnameseSolarDate() }
 
     // ----- Thẻ ảnh chia sẻ nhanh -----
-    fun regenerateShareCard() {
+    fun regenerateShareCard(keepBackground: Boolean = false) {
         scope.launch {
-            var spec = ShareCardHelper.randomSpec(weather, shareCardSpec)
+            // keepBackground = true: chỉ đổi câu chúc, giữ nguyên nền (màu + hiệu ứng)
+            var spec = if (keepBackground) {
+                ShareCardHelper.refreshGreeting(weather, shareCardSpec)
+            } else {
+                ShareCardHelper.randomSpec(weather, shareCardSpec)
+            }
             shareCardCustomGreeting?.let { spec = spec.copy(greeting = it) }
             val bmp = ShareCardHelper.renderAsync(context, weather, solarToday, lunarTodaySummary, spec, shareCardPhoto)
             shareCardSpec = spec
@@ -9444,7 +9449,19 @@ fun ThoiTietAmLichApp() {
                                         .weight(1f)
                                         .height(44.dp)
                                 ) {
-                                    Text("Dùng nền ngẫu nhiên", fontWeight = FontWeight.Bold, maxLines = 1)
+                                    Text(
+                                        "🎨 Dùng nền ngẫu nhiên",
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        modifier = Modifier
+                                            .clipToBounds()
+                                            .basicMarquee(
+                                                iterations = Int.MAX_VALUE,
+                                                repeatDelayMillis = 1200,
+                                                velocity = 24.dp
+                                            )
+                                    )
                                 }
                                 }
                             }
@@ -9456,7 +9473,7 @@ fun ThoiTietAmLichApp() {
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 OutlinedButton(
-                                    onClick = { regenerateShareCard() },
+                                    onClick = { regenerateShareCard(keepBackground = shareCardPhoto != null) },
                                     enabled = cardBmp != null && !isSavingShareCard &&
                                         !(shareCardPhoto != null && shareCardCustomGreeting != null),
                                     shape = RoundedCornerShape(16.dp),
@@ -9693,7 +9710,8 @@ fun ThoiTietAmLichApp() {
                                 onClick = {
                                     shareCardCustomGreeting = null
                                     showGreetingInput = false
-                                    if (shareCardBitmap != null) regenerateShareCard()
+                                    // Chỉ random câu chúc, KHÔNG đổi nền
+                                    if (shareCardBitmap != null) regenerateShareCard(keepBackground = true)
                                 },
                                 shape = RoundedCornerShape(16.dp),
                                 colors = ButtonDefaults.outlinedButtonColors(
@@ -9727,7 +9745,7 @@ fun ThoiTietAmLichApp() {
                                         val text = draft.trim()
                                         shareCardCustomGreeting = text.ifEmpty { null }
                                         showGreetingInput = false
-                                        if (shareCardBitmap != null) regenerateShareCard()
+                                        if (shareCardBitmap != null) regenerateShareCard(keepBackground = true)
                                     },
                                     shape = RoundedCornerShape(16.dp),
                                     colors = ButtonDefaults.buttonColors(

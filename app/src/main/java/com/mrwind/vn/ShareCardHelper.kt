@@ -3,9 +3,12 @@ package com.mrwind.vn
 import android.content.ContentValues
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BlurMaskFilter
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Matrix
+import android.graphics.Path
+import android.graphics.RadialGradient
 import android.graphics.Rect
 import android.net.Uri
 import android.media.ExifInterface
@@ -33,13 +36,17 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 import kotlin.random.Random
 
 /** Thông số ngẫu nhiên của một thẻ ảnh: nền + câu chúc + vị trí hoa văn. */
 data class ShareCardSpec(
     val themeIndex: Int,
     val greeting: String,
-    val decorSeed: Int
+    val decorSeed: Int,
+    val styleIndex: Int = 0
 )
 
 /**
@@ -63,8 +70,23 @@ object ShareCardHelper {
         Theme(0xFFCC5333.toInt(), 0xFFE8913A.toInt(), 0xFFFFE29A.toInt()), // cam nắng ấm
         Theme(0xFF41295A.toInt(), 0xFF2F0743.toInt(), 0xFFC9A7FF.toInt()), // tím đêm
         Theme(0xFF0B486B.toInt(), 0xFF3B8686.toInt(), 0xFFCFF09E.toInt()), // xanh lam - bạc hà
-        Theme(0xFF8E2DE2.toInt(), 0xFF4A00E0.toInt(), 0xFFE0C3FC.toInt())  // tím điện
+        Theme(0xFF8E2DE2.toInt(), 0xFF4A00E0.toInt(), 0xFFE0C3FC.toInt()), // tím điện
+        Theme(0xFF232526.toInt(), 0xFF414345.toInt(), 0xFFB0BEC5.toInt()), // than chì
+        Theme(0xFF0F0C29.toInt(), 0xFF302B63.toInt(), 0xFF8E9EFF.toInt()), // chàm nửa đêm
+        Theme(0xFF1D4350.toInt(), 0xFFA43931.toInt(), 0xFFFFB199.toInt()), // ngọc - đỏ gạch
+        Theme(0xFF16222A.toInt(), 0xFF3A6073.toInt(), 0xFF9FD3E8.toInt()), // xám bão
+        Theme(0xFF642B73.toInt(), 0xFFC6426E.toInt(), 0xFFFFC0D9.toInt()), // mận hồng
+        Theme(0xFF004E92.toInt(), 0xFF000428.toInt(), 0xFF5DA9FF.toInt()), // đại dương sâu
+        Theme(0xFF0B6E4F.toInt(), 0xFF093028.toInt(), 0xFF8DF5C8.toInt()), // lục bảo
+        Theme(0xFFB3541E.toInt(), 0xFF5B1F0F.toInt(), 0xFFFFC38A.toInt()), // than hồng
+        Theme(0xFF4A1942.toInt(), 0xFFC2185B.toInt(), 0xFFFFA7C7.toInt()), // quả mọng
+        Theme(0xFF8A2387.toInt(), 0xFFE94057.toInt(), 0xFFFFD0A6.toInt()), // tím - đỏ rực
+        Theme(0xFF0A2342.toInt(), 0xFF2CA58D.toInt(), 0xFFB8F2E6.toInt()), // đêm - bạc hà
+        Theme(0xFF3D348B.toInt(), 0xFF7678ED.toInt(), 0xFFD6D3FF.toInt())  // tím phiên
     )
+
+    /** Số kiểu hiệu ứng nền (xem [drawDecor]). */
+    private const val STYLE_COUNT = 15
 
     private val GREETINGS_MORNING = listOf(
         "Chào buổi sáng! Chúc bạn một ngày mới thật nhiều năng lượng và niềm vui.",
@@ -134,23 +156,36 @@ object ShareCardHelper {
         return pool
     }
 
-    /** Chọn ngẫu nhiên nền + câu chúc. [previous] dùng để tránh trùng với lần trước. */
-    fun randomSpec(weather: WeatherCache, previous: ShareCardSpec? = null): ShareCardSpec {
-        var theme: Int
-        do {
-            theme = Random.nextInt(THEMES.size)
-        } while (previous != null && theme == previous.themeIndex && THEMES.size > 1)
-
+    private fun pickGreeting(weather: WeatherCache, previousGreeting: String?): String {
         val pool = greetingPool(weather)
         var greeting: String
         var tries = 0
         do {
             greeting = pool.random()
             tries++
-        } while (previous != null && greeting == previous.greeting && pool.size > 1 && tries < 10)
-
-        return ShareCardSpec(theme, greeting, Random.nextInt())
+        } while (previousGreeting != null && greeting == previousGreeting && pool.size > 1 && tries < 10)
+        return greeting
     }
+
+    /** Chọn ngẫu nhiên nền (màu + hiệu ứng) + câu chúc. [previous] dùng để tránh trùng với lần trước. */
+    fun randomSpec(weather: WeatherCache, previous: ShareCardSpec? = null): ShareCardSpec {
+        var theme: Int
+        do {
+            theme = Random.nextInt(THEMES.size)
+        } while (previous != null && theme == previous.themeIndex && THEMES.size > 1)
+
+        var style: Int
+        do {
+            style = Random.nextInt(STYLE_COUNT)
+        } while (previous != null && style == previous.styleIndex && STYLE_COUNT > 1)
+
+        return ShareCardSpec(theme, pickGreeting(weather, previous?.greeting), Random.nextInt(), style)
+    }
+
+    /** Chỉ đổi câu chúc, GIỮ NGUYÊN nền (màu, hiệu ứng, vị trí hoa văn). */
+    fun refreshGreeting(weather: WeatherCache, previous: ShareCardSpec?): ShareCardSpec =
+        if (previous == null) randomSpec(weather, null)
+        else previous.copy(greeting = pickGreeting(weather, previous.greeting))
 
     private fun weatherEmoji(code: Int): String {
         val hour = vnHour()
@@ -181,6 +216,356 @@ object ShareCardHelper {
     private fun drawCentered(canvas: Canvas, text: String, cy: Float, p: TextPaint, maxWidth: Float = 940f) {
         val fitted = TextUtils.ellipsize(text, p, maxWidth, TextUtils.TruncateAt.END).toString()
         canvas.drawText(fitted, W / 2f, cy, p)
+    }
+
+    // ---------------------------------------------------------------------
+    //  NỀN NGẪU NHIÊN: 15 kiểu hiệu ứng, tất cả đều nhẹ để chữ trắng vẫn dễ đọc
+    // ---------------------------------------------------------------------
+
+    private fun withAlpha(c: Int, a: Int): Int = (c and 0x00FFFFFF) or ((a.coerceIn(0, 255)) shl 24)
+
+    private fun mix(a: Int, b: Int, t: Float): Int {
+        val r = (Color.red(a) + (Color.red(b) - Color.red(a)) * t).toInt()
+        val g = (Color.green(a) + (Color.green(b) - Color.green(a)) * t).toInt()
+        val bl = (Color.blue(a) + (Color.blue(b) - Color.blue(a)) * t).toInt()
+        return Color.rgb(r.coerceIn(0, 255), g.coerceIn(0, 255), bl.coerceIn(0, 255))
+    }
+
+    private fun fillPaint(c: Int, a: Int): Paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = c
+        alpha = a.coerceIn(0, 255)
+        style = Paint.Style.FILL
+    }
+
+    private fun strokePaint(c: Int, a: Int, width: Float): Paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = c
+        alpha = a.coerceIn(0, 255)
+        style = Paint.Style.STROKE
+        strokeWidth = width
+        strokeCap = Paint.Cap.ROUND
+        strokeJoin = Paint.Join.ROUND
+    }
+
+    private fun sparkle(canvas: Canvas, cx: Float, cy: Float, s: Float, paint: Paint) {
+        val path = Path()
+        path.moveTo(cx, cy - s)
+        path.quadTo(cx, cy, cx + s, cy)
+        path.quadTo(cx, cy, cx, cy + s)
+        path.quadTo(cx, cy, cx - s, cy)
+        path.quadTo(cx, cy, cx, cy - s)
+        path.close()
+        canvas.drawPath(path, paint)
+    }
+
+    /** Nền gradient (4 kiểu hướng chuyển màu khác nhau). */
+    private fun drawBackgroundGradient(canvas: Canvas, theme: Theme, rnd: Random) {
+        val w = W.toFloat()
+        val h = H.toFloat()
+        val shader: Shader = when (rnd.nextInt(4)) {
+            0 -> LinearGradient(0f, 0f, w, h, theme.top, theme.bottom, Shader.TileMode.CLAMP)
+            1 -> LinearGradient(0f, 0f, 0f, h, theme.top, theme.bottom, Shader.TileMode.CLAMP)
+            2 -> LinearGradient(w, 0f, 0f, h, theme.top, theme.bottom, Shader.TileMode.CLAMP)
+            else -> RadialGradient(
+                w * (0.25f + 0.5f * rnd.nextFloat()),
+                h * (0.2f + 0.3f * rnd.nextFloat()),
+                h * 0.95f,
+                mix(theme.bottom, theme.top, 0.35f),
+                theme.top,
+                Shader.TileMode.CLAMP
+            )
+        }
+        canvas.drawRect(0f, 0f, w, h, Paint(Paint.ANTI_ALIAS_FLAG).apply { this.shader = shader })
+    }
+
+    private fun drawDecor(canvas: Canvas, style: Int, rnd: Random, theme: Theme) {
+        when (style) {
+            0 -> decorBokeh(canvas, rnd, theme)
+            1 -> decorWaves(canvas, rnd, theme)
+            2 -> decorStars(canvas, rnd, theme)
+            3 -> decorStripes(canvas, rnd, theme)
+            4 -> decorRays(canvas, rnd, theme)
+            5 -> decorRipples(canvas, rnd, theme)
+            6 -> decorRain(canvas, rnd, theme)
+            7 -> decorDots(canvas, rnd, theme)
+            8 -> decorAurora(canvas, rnd, theme)
+            9 -> decorMountains(canvas, rnd, theme)
+            10 -> decorLowPoly(canvas, rnd, theme)
+            11 -> decorBubbles(canvas, rnd, theme)
+            12 -> decorFireflies(canvas, rnd, theme)
+            13 -> decorClouds(canvas, rnd, theme)
+            else -> decorContours(canvas, rnd, theme)
+        }
+        // Lớp tối nhẹ về phía dưới giúp chữ luôn dễ đọc
+        val vignette = Paint().apply {
+            shader = LinearGradient(0f, 0f, 0f, H.toFloat(), 0x00000000, 0x33000000, Shader.TileMode.CLAMP)
+        }
+        canvas.drawRect(0f, 0f, W.toFloat(), H.toFloat(), vignette)
+    }
+
+    /** 0. Vòng sáng mờ (bokeh) */
+    private fun decorBokeh(canvas: Canvas, rnd: Random, theme: Theme) {
+        val glow = Paint(Paint.ANTI_ALIAS_FLAG)
+        repeat(9) {
+            val r = 90f + rnd.nextFloat() * 260f
+            glow.color = theme.glow
+            glow.alpha = 18 + rnd.nextInt(30)
+            canvas.drawCircle(rnd.nextFloat() * W, rnd.nextFloat() * H, r, glow)
+        }
+    }
+
+    /** 1. Sóng nhiều lớp */
+    private fun decorWaves(canvas: Canvas, rnd: Random, theme: Theme) {
+        val twoPi = (2.0 * PI).toFloat()
+        for (i in 0 until 5) {
+            val baseY = H * 0.42f + i * H * 0.12f + rnd.nextFloat() * 40f
+            val amp = 36f + rnd.nextFloat() * 60f
+            val len = 360f + rnd.nextFloat() * 440f
+            val phase = rnd.nextFloat() * twoPi
+            val path = Path()
+            path.moveTo(0f, H.toFloat())
+            var x = 0f
+            while (x <= W) {
+                path.lineTo(x, baseY + sin(x / len * twoPi + phase) * amp)
+                x += 8f
+            }
+            path.lineTo(W.toFloat(), H.toFloat())
+            path.close()
+            canvas.drawPath(path, fillPaint(theme.glow, 14 + i * 8))
+        }
+    }
+
+    /** 2. Bầu trời sao + lấp lánh */
+    private fun decorStars(canvas: Canvas, rnd: Random, theme: Theme) {
+        repeat(80) {
+            val r = 1.5f + rnd.nextFloat() * 4f
+            canvas.drawCircle(rnd.nextFloat() * W, rnd.nextFloat() * H, r, fillPaint(Color.WHITE, 50 + rnd.nextInt(100)))
+        }
+        repeat(8) {
+            val s = 18f + rnd.nextFloat() * 30f
+            sparkle(canvas, rnd.nextFloat() * W, rnd.nextFloat() * H, s, fillPaint(theme.glow, 110 + rnd.nextInt(40)))
+        }
+        // Vầng trăng/mặt trời mờ
+        val cx = if (rnd.nextBoolean()) 150f + rnd.nextFloat() * 120f else W - 270f + rnd.nextFloat() * 120f
+        canvas.drawCircle(cx, 330f, 150f, fillPaint(theme.glow, 22))
+        canvas.drawCircle(cx, 330f, 84f, fillPaint(theme.glow, 50))
+    }
+
+    /** 3. Sọc chéo */
+    private fun decorStripes(canvas: Canvas, rnd: Random, theme: Theme) {
+        canvas.save()
+        canvas.rotate(-25f + rnd.nextFloat() * 10f, W / 2f, H / 2f)
+        var x = -W.toFloat()
+        while (x < W * 2f) {
+            val w = 40f + rnd.nextFloat() * 120f
+            canvas.drawRect(x, -H.toFloat(), x + w, H * 2f, fillPaint(theme.glow, 10 + rnd.nextInt(22)))
+            x += w + 30f + rnd.nextFloat() * 140f
+        }
+        canvas.restore()
+    }
+
+    /** 4. Tia sáng toả từ trên xuống */
+    private fun decorRays(canvas: Canvas, rnd: Random, theme: Theme) {
+        val cx = W * (0.2f + 0.6f * rnd.nextFloat())
+        val cy = -80f - rnd.nextFloat() * 120f
+        val n = 12
+        val start = Math.toRadians(30.0)
+        val step = Math.toRadians(120.0) / n
+        val radius = 2300f
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            shader = LinearGradient(
+                cx, cy, cx, cy + 1700f,
+                withAlpha(theme.glow, 95), withAlpha(theme.glow, 0), Shader.TileMode.CLAMP
+            )
+        }
+        var i = 0
+        while (i < n) {
+            val a0 = start + i * step
+            val a1 = a0 + step * (0.5 + 0.4 * rnd.nextDouble())
+            val path = Path()
+            path.moveTo(cx, cy)
+            path.lineTo(cx + (radius * cos(a0)).toFloat(), cy + (radius * sin(a0)).toFloat())
+            path.lineTo(cx + (radius * cos(a1)).toFloat(), cy + (radius * sin(a1)).toFloat())
+            path.close()
+            canvas.drawPath(path, paint)
+            i += 2
+        }
+        canvas.drawCircle(cx, 0f, 170f, fillPaint(theme.glow, 40))
+    }
+
+    /** 5. Gợn sóng lan toả (như giọt mưa rơi xuống nước) */
+    private fun decorRipples(canvas: Canvas, rnd: Random, theme: Theme) {
+        repeat(2) { k ->
+            val cx = W * (0.15f + 0.7f * rnd.nextFloat())
+            val cy = H * (0.15f + 0.7f * rnd.nextFloat())
+            val gap = 70f + rnd.nextFloat() * 40f
+            val rings = if (k == 0) 9 else 6
+            for (i in 1..rings) {
+                canvas.drawCircle(cx, cy, i * gap, strokePaint(theme.glow, (70 - i * 6).coerceAtLeast(10), 3.5f))
+            }
+        }
+    }
+
+    /** 6. Mưa rơi */
+    private fun decorRain(canvas: Canvas, rnd: Random, theme: Theme) {
+        repeat(110) {
+            val x = -100f + rnd.nextFloat() * (W + 200f)
+            val y = rnd.nextFloat() * H
+            val len = 50f + rnd.nextFloat() * 90f
+            val width = 2.5f + rnd.nextFloat() * 2f
+            canvas.drawLine(x, y, x - len * 0.35f, y + len, strokePaint(theme.glow, 25 + rnd.nextInt(45), width))
+        }
+    }
+
+    /** 7. Lưới chấm to dần theo đường chéo */
+    private fun decorDots(canvas: Canvas, rnd: Random, theme: Theme) {
+        val flip = rnd.nextBoolean()
+        val gap = 54f
+        var y = 30f
+        while (y < H) {
+            var x = 30f
+            while (x < W) {
+                var t = (x / W + y / H) / 2f
+                if (flip) t = 1f - t
+                canvas.drawCircle(x, y, 1.5f + 5f * t, fillPaint(theme.glow, (25 + 60 * t).toInt()))
+                x += gap
+            }
+            y += gap
+        }
+    }
+
+    /** 8. Cực quang (dải sáng mềm) */
+    private fun decorAurora(canvas: Canvas, rnd: Random, theme: Theme) {
+        val second = mix(theme.glow, Color.WHITE, 0.4f)
+        for (i in 0 until 4) {
+            val y0 = H * (0.1f + 0.2f * i) + rnd.nextFloat() * 80f
+            val path = Path()
+            path.moveTo(-50f, y0)
+            path.cubicTo(
+                W * 0.3f, y0 - 200f - rnd.nextFloat() * 200f,
+                W * 0.6f, y0 + 200f + rnd.nextFloat() * 200f,
+                W + 50f, y0 + rnd.nextFloat() * 100f - 50f
+            )
+            val paint = strokePaint(if (i % 2 == 0) theme.glow else second, 46, 120f + rnd.nextFloat() * 90f).apply {
+                maskFilter = BlurMaskFilter(60f, BlurMaskFilter.Blur.NORMAL)
+            }
+            canvas.drawPath(path, paint)
+        }
+    }
+
+    /** 9. Núi nhiều lớp + mặt trăng/mặt trời */
+    private fun decorMountains(canvas: Canvas, rnd: Random, theme: Theme) {
+        val cx = if (rnd.nextBoolean()) 150f + rnd.nextFloat() * 110f else W - 260f + rnd.nextFloat() * 110f
+        canvas.drawCircle(cx, 340f, 130f, fillPaint(theme.glow, 28))
+        canvas.drawCircle(cx, 340f, 78f, fillPaint(theme.glow, 70))
+        for (layer in 0 until 4) {
+            val baseY = H * 0.64f + layer * H * 0.08f
+            val path = Path()
+            path.moveTo(0f, H.toFloat())
+            path.lineTo(0f, baseY)
+            var x = 0f
+            while (x < W) {
+                x += 90f + rnd.nextFloat() * 140f
+                path.lineTo(x.coerceAtMost(W.toFloat()), baseY - rnd.nextFloat() * (170f - layer * 25f))
+            }
+            path.lineTo(W.toFloat(), H.toFloat())
+            path.close()
+            canvas.drawPath(path, fillPaint(mix(theme.bottom, Color.BLACK, 0.2f + layer * 0.14f), 110 + layer * 25))
+        }
+    }
+
+    /** 10. Mảnh tam giác (low-poly) */
+    private fun decorLowPoly(canvas: Canvas, rnd: Random, theme: Theme) {
+        val cols = 6
+        val rows = 8
+        val cw = W / cols.toFloat()
+        val ch = H / rows.toFloat()
+        val pts = Array(rows + 1) { r ->
+            Array(cols + 1) { c ->
+                val jx = if (c == 0 || c == cols) 0f else (rnd.nextFloat() - 0.5f) * cw * 0.7f
+                val jy = if (r == 0 || r == rows) 0f else (rnd.nextFloat() - 0.5f) * ch * 0.7f
+                floatArrayOf(c * cw + jx, r * ch + jy)
+            }
+        }
+        fun tri(a: FloatArray, b: FloatArray, c: FloatArray) {
+            val path = Path()
+            path.moveTo(a[0], a[1])
+            path.lineTo(b[0], b[1])
+            path.lineTo(c[0], c[1])
+            path.close()
+            val light = rnd.nextBoolean()
+            canvas.drawPath(
+                path,
+                fillPaint(if (light) theme.glow else Color.BLACK, if (light) 4 + rnd.nextInt(24) else 6 + rnd.nextInt(30))
+            )
+        }
+        for (r in 0 until rows) {
+            for (c in 0 until cols) {
+                tri(pts[r][c], pts[r][c + 1], pts[r + 1][c])
+                tri(pts[r][c + 1], pts[r + 1][c + 1], pts[r + 1][c])
+            }
+        }
+    }
+
+    /** 11. Bong bóng */
+    private fun decorBubbles(canvas: Canvas, rnd: Random, theme: Theme) {
+        repeat(16) {
+            val k = rnd.nextFloat()
+            val r = 20f + k * k * 110f
+            val cx = rnd.nextFloat() * W
+            val cy = rnd.nextFloat() * H
+            canvas.drawCircle(cx, cy, r, fillPaint(theme.glow, 14))
+            canvas.drawCircle(cx, cy, r, strokePaint(Color.WHITE, 70, 3f))
+            canvas.drawCircle(cx - r * 0.35f, cy - r * 0.35f, r * 0.16f, fillPaint(Color.WHITE, 90))
+        }
+    }
+
+    /** 12. Đom đóm / hạt sáng mờ */
+    private fun decorFireflies(canvas: Canvas, rnd: Random, theme: Theme) {
+        repeat(26) {
+            val r = 6f + rnd.nextFloat() * 22f
+            val paint = fillPaint(if (rnd.nextBoolean()) theme.glow else Color.WHITE, 90 + rnd.nextInt(90)).apply {
+                maskFilter = BlurMaskFilter(r * 0.9f, BlurMaskFilter.Blur.NORMAL)
+            }
+            canvas.drawCircle(rnd.nextFloat() * W, rnd.nextFloat() * H, r, paint)
+        }
+    }
+
+    /** 13. Mây trôi */
+    private fun decorClouds(canvas: Canvas, rnd: Random, theme: Theme) {
+        repeat(5) {
+            val s = 60f + rnd.nextFloat() * 70f
+            val x = rnd.nextFloat() * W
+            val y = H * (0.08f + 0.8f * rnd.nextFloat())
+            val paint = fillPaint(Color.WHITE, 16 + rnd.nextInt(14))
+            canvas.drawCircle(x, y, s, paint)
+            canvas.drawCircle(x + s * 0.9f, y + s * 0.2f, s * 0.75f, paint)
+            canvas.drawCircle(x - s * 0.9f, y + s * 0.25f, s * 0.7f, paint)
+            canvas.drawCircle(x + s * 0.3f, y - s * 0.4f, s * 0.7f, paint)
+            canvas.drawRoundRect(RectF(x - s * 1.6f, y + s * 0.1f, x + s * 1.7f, y + s * 0.95f), s * 0.4f, s * 0.4f, paint)
+        }
+    }
+
+    /** 14. Đường đồng mức uốn lượn */
+    private fun decorContours(canvas: Canvas, rnd: Random, theme: Theme) {
+        val twoPi = (2.0 * PI).toFloat()
+        val len1 = 300f + rnd.nextFloat() * 300f
+        val len2 = 140f + rnd.nextFloat() * 120f
+        val amp1 = 40f + rnd.nextFloat() * 50f
+        val amp2 = 12f + rnd.nextFloat() * 18f
+        val ph1 = rnd.nextFloat() * twoPi
+        val ph2 = rnd.nextFloat() * twoPi
+        val paint = strokePaint(theme.glow, 34, 2.5f)
+        for (i in 0 until 26) {
+            val y0 = i * H / 25f - 100f
+            val path = Path()
+            var x = -10f
+            path.moveTo(x, y0 + sin(x / len1 * twoPi + ph1 + i * 0.3f) * amp1)
+            while (x <= W + 10f) {
+                x += 10f
+                path.lineTo(x, y0 + sin(x / len1 * twoPi + ph1 + i * 0.3f) * amp1 + sin(x / len2 * twoPi + ph2) * amp2)
+            }
+            canvas.drawPath(path, paint)
+        }
     }
 
     /** Ảnh người dùng: phủ kín (center-crop) + lớp tối nhẹ để chữ trắng luôn dễ đọc. */
@@ -250,21 +635,12 @@ object ShareCardHelper {
         val theme = THEMES[spec.themeIndex.coerceIn(0, THEMES.size - 1)]
         val rnd = Random(spec.decorSeed)
 
-        // Nền gradient chéo
-        val bg = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            shader = LinearGradient(0f, 0f, W.toFloat(), H.toFloat(), theme.top, theme.bottom, Shader.TileMode.CLAMP)
-        }
-        canvas.drawRect(0f, 0f, W.toFloat(), H.toFloat(), bg)
-
-        // Các vòng sáng mờ ngẫu nhiên
-        val glow = Paint(Paint.ANTI_ALIAS_FLAG)
-        if (photo != null) drawPhotoBackground(canvas, photo) else repeat(9) {
-            val r = 90f + rnd.nextFloat() * 260f
-            val cx = rnd.nextFloat() * W
-            val cy = rnd.nextFloat() * H
-            glow.color = theme.glow
-            glow.alpha = 18 + rnd.nextInt(30)
-            canvas.drawCircle(cx, cy, r, glow)
+        // Nền gradient (hướng ngẫu nhiên) + hiệu ứng ngẫu nhiên, hoặc ảnh người dùng
+        drawBackgroundGradient(canvas, theme, rnd)
+        if (photo != null) {
+            drawPhotoBackground(canvas, photo)
+        } else {
+            drawDecor(canvas, spec.styleIndex.coerceIn(0, STYLE_COUNT - 1), rnd, theme)
         }
 
         // Vị trí + ngày dương lịch
