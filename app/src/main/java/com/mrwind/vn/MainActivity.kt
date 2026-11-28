@@ -151,7 +151,6 @@ import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.SpanStyle
@@ -163,7 +162,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -568,10 +566,10 @@ private fun CircleActionTooltipWrapper(
         modifier = modifier.pointerInput(Unit) {
             detectTapGestures(
                 onPress = {
-                    val longPressJob = kotlinx.coroutines.coroutineScope {
+                    kotlinx.coroutines.coroutineScope {
                         // Track long-press vs quick tap cleanly
                         var longPressed = false
-                        val timerJob = kotlinx.coroutines.launch {
+                        val timerJob = launch {
                             delay(260L)
                             longPressed = true
                             showTooltip = true
@@ -1990,6 +1988,7 @@ private fun TopBarDayNightIndicator(
                     }
                 }
             }
+        }
         }
     }
 }
