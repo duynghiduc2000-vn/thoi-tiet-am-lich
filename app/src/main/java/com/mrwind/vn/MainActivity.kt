@@ -4479,6 +4479,8 @@ fun ThoiTietAmLichApp() {
     var shareCardPhoto by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
     var shareCardPhotoOriginal by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
     var cropSourceBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+    var shareCardCustomGreeting by remember { mutableStateOf<String?>(null) }
+    var showGreetingInput by remember { mutableStateOf(false) }
 
     var feedbackCategory by remember { mutableStateOf(FeedbackCategory.BUG) }
     var feedbackMessageInput by remember { mutableStateOf("") }
@@ -4732,6 +4734,7 @@ fun ThoiTietAmLichApp() {
         activeWeatherAlerts,
         showShareCardPopup,
         cropSourceBitmap,
+        showGreetingInput,
         activeTodoPopup,
         ageResultPopup,
         showAgeHistoryClearedPopup,
@@ -4764,6 +4767,7 @@ fun ThoiTietAmLichApp() {
             (showWeatherAlertPopup && activeWeatherAlerts.isNotEmpty()) ||
             showShareCardPopup ||
             cropSourceBitmap != null ||
+            showGreetingInput ||
             activeTodoPopup != null ||
             ageResultPopup != null ||
             showAgeHistoryClearedPopup ||
@@ -4953,7 +4957,8 @@ fun ThoiTietAmLichApp() {
     // ----- Thẻ ảnh chia sẻ nhanh -----
     fun regenerateShareCard() {
         scope.launch {
-            val spec = ShareCardHelper.randomSpec(weather, shareCardSpec)
+            var spec = ShareCardHelper.randomSpec(weather, shareCardSpec)
+            shareCardCustomGreeting?.let { spec = spec.copy(greeting = it) }
             val bmp = ShareCardHelper.renderAsync(context, weather, solarToday, lunarTodaySummary, spec, shareCardPhoto)
             shareCardSpec = spec
             shareCardBitmap = bmp
@@ -4972,6 +4977,7 @@ fun ThoiTietAmLichApp() {
         shareCardBitmap = null
         shareCardPhoto = null
         shareCardPhotoOriginal = null
+        shareCardCustomGreeting = null
         showShareCardPopup = true
         regenerateShareCard()
     }
@@ -9384,48 +9390,62 @@ fun ThoiTietAmLichApp() {
                                         .weight(1f)
                                         .height(44.dp)
                                 ) {
-                                    Text(
-                                        if (shareCardPhoto == null) "📷 Ảnh của bạn" else "📷 Chọn ảnh khác",
-                                        fontWeight = FontWeight.Bold,
-                                        maxLines = 1
-                                    )
+                                    Text(if (shareCardPhoto == null) "📷 Ảnh của bạn" else "📷 Chọn ảnh khác", fontWeight = FontWeight.Bold, maxLines = 1)
                                 }
-                                if (shareCardPhoto != null) {
-                                    OutlinedButton(
-                                        onClick = {
-                                            shareCardPhoto = null
-                                            shareCardPhotoOriginal = null
-                                            regenerateShareCard()
-                                        },
-                                        enabled = !isSavingShareCard,
-                                        shape = RoundedCornerShape(16.dp),
-                                        colors = ButtonDefaults.outlinedButtonColors(
-                                            contentColor = palette.popupTextPrimary
-                                        ),
-                                        contentPadding = PaddingValues(horizontal = 8.dp),
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .height(44.dp)
-                                    ) {
-                                        Text("Dùng nền ngẫu nhiên", fontWeight = FontWeight.Bold, maxLines = 1)
-                                    }
-                                }
-                            }
-
-                            if (shareCardPhotoOriginal != null) {
-                                Spacer(modifier = Modifier.height(10.dp))
                                 OutlinedButton(
-                                    onClick = { cropSourceBitmap = shareCardPhotoOriginal },
+                                    onClick = { showGreetingInput = true },
                                     enabled = !isSavingShareCard,
                                     shape = RoundedCornerShape(16.dp),
                                     colors = ButtonDefaults.outlinedButtonColors(
                                         contentColor = palette.popupTextPrimary
                                     ),
+                                    contentPadding = PaddingValues(horizontal = 8.dp),
                                     modifier = Modifier
-                                        .fillMaxWidth()
+                                        .weight(1f)
                                         .height(44.dp)
                                 ) {
-                                    Text("✂️ Cắt / căn lại ảnh", fontWeight = FontWeight.Bold, maxLines = 1)
+                                    Text(if (shareCardCustomGreeting == null) "✍️ Nhập câu chúc" else "✍️ Sửa câu chúc", fontWeight = FontWeight.Bold, maxLines = 1)
+                                }
+                            }
+
+                            if (shareCardPhoto != null) {
+                                Spacer(modifier = Modifier.height(10.dp))
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                OutlinedButton(
+                                    onClick = { cropSourceBitmap = shareCardPhotoOriginal },
+                                    enabled = !isSavingShareCard && shareCardPhotoOriginal != null,
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        contentColor = palette.popupTextPrimary
+                                    ),
+                                    contentPadding = PaddingValues(horizontal = 8.dp),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(44.dp)
+                                ) {
+                                    Text("✂️ Cắt / căn lại", fontWeight = FontWeight.Bold, maxLines = 1)
+                                }
+                                OutlinedButton(
+                                    onClick = {
+                                            shareCardPhoto = null
+                                            shareCardPhotoOriginal = null
+                                            regenerateShareCard()
+                                        },
+                                    enabled = !isSavingShareCard,
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        contentColor = palette.popupTextPrimary
+                                    ),
+                                    contentPadding = PaddingValues(horizontal = 8.dp),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(44.dp)
+                                ) {
+                                    Text("Dùng nền ngẫu nhiên", fontWeight = FontWeight.Bold, maxLines = 1)
+                                }
                                 }
                             }
 
@@ -9437,7 +9457,8 @@ fun ThoiTietAmLichApp() {
                             ) {
                                 OutlinedButton(
                                     onClick = { regenerateShareCard() },
-                                    enabled = cardBmp != null && !isSavingShareCard,
+                                    enabled = cardBmp != null && !isSavingShareCard &&
+                                        !(shareCardPhoto != null && shareCardCustomGreeting != null),
                                     shape = RoundedCornerShape(16.dp),
                                     colors = ButtonDefaults.outlinedButtonColors(
                                         contentColor = palette.popupTextPrimary
@@ -9623,6 +9644,101 @@ fun ThoiTietAmLichApp() {
                                     ) {
                                         Text("Xong", fontWeight = FontWeight.Bold, maxLines = 1)
                                     }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Pop-up nhập câu chúc thủ công
+                AnimatedPopupOverlay(
+                    visible = showGreetingInput,
+                    onDismiss = {},
+                    dismissOnBackdropClick = false
+                ) {
+                    var draft by remember(showGreetingInput) { mutableStateOf(shareCardCustomGreeting ?: "") }
+                    LiquidGlassPopupSurface(palette = palette) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(20.dp)
+                        ) {
+                            Text(
+                                "Nhập câu chúc của bạn",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = palette.popupTextPrimary,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            OutlinedTextField(
+                                value = draft,
+                                onValueChange = { draft = it.take(120) },
+                                placeholder = { Text("Ví dụ: Chúc bạn một ngày thật vui!", color = palette.popupTextSecondary) },
+                                supportingText = {
+                                    Text("${draft.length}/120", color = palette.popupTextSecondary)
+                                },
+                                minLines = 2,
+                                maxLines = 4,
+                                shape = RoundedCornerShape(14.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = palette.popupTextPrimary,
+                                    unfocusedTextColor = palette.popupTextPrimary,
+                                    focusedBorderColor = accentCompose,
+                                    unfocusedBorderColor = palette.border,
+                                    cursorColor = accentCompose
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedButton(
+                                onClick = {
+                                    shareCardCustomGreeting = null
+                                    showGreetingInput = false
+                                    if (shareCardBitmap != null) regenerateShareCard()
+                                },
+                                shape = RoundedCornerShape(16.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = palette.popupTextPrimary
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(44.dp)
+                            ) {
+                                Text("🎲 Dùng câu chúc ngẫu nhiên", fontWeight = FontWeight.Bold, maxLines = 1)
+                            }
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                OutlinedButton(
+                                    onClick = { showGreetingInput = false },
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        contentColor = palette.popupTextPrimary
+                                    ),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(48.dp)
+                                ) {
+                                    Text("Hủy", fontWeight = FontWeight.Bold, maxLines = 1)
+                                }
+                                Button(
+                                    onClick = {
+                                        val text = draft.trim()
+                                        shareCardCustomGreeting = text.ifEmpty { null }
+                                        showGreetingInput = false
+                                        if (shareCardBitmap != null) regenerateShareCard()
+                                    },
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = accentCompose,
+                                        contentColor = palette.onAccentText
+                                    ),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(48.dp)
+                                ) {
+                                    Text("Áp dụng", fontWeight = FontWeight.Bold, maxLines = 1)
                                 }
                             }
                         }
