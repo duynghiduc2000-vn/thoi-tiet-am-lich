@@ -1661,6 +1661,7 @@ private val MAIN_TAB_ITEM_KEYS: Map<MainTab, List<String>> = mapOf(
         "app_and_widget_appearance_row_section",
         "location_and_signature_section",
         "font_scale_section",
+        "backup_restore_section",
         "bug_report_section",
         "bottom_contact_button_row"
     )
@@ -1737,6 +1738,10 @@ private val FEATURE_SEARCH_TARGETS: List<FeatureSearchTarget> = listOf(
     FeatureSearchTarget(
         "Kích cỡ chữ trên Widget", MainTab.SETTINGS, ExpandableSection.FONT_SCALE, "font_scale_section",
         listOf("cỡ chữ", "kích thước chữ", "font", "phông chữ", "chữ")
+    ),
+    FeatureSearchTarget(
+        "Sao lưu và chuyển máy", MainTab.SETTINGS, ExpandableSection.BACKUP_RESTORE, "backup_restore_section",
+        listOf("sao lưu", "khôi phục", "chuyển máy", "đổi điện thoại", "xuất file", "nhập file", "backup", "restore", "dữ liệu")
     ),
     FeatureSearchTarget(
         "Báo cáo lỗi và đề xuất", MainTab.SETTINGS, ExpandableSection.BUG_REPORT, "bug_report_section",
@@ -2251,6 +2256,7 @@ private enum class ExpandableSection {
     GOOD_BAD_DAY,
     BIRTHDAY,
     HOLIDAY,
+    BACKUP_RESTORE,
     BUG_REPORT
 }
 
@@ -4482,6 +4488,12 @@ fun ThoiTietAmLichApp() {
     var shareCardCustomGreeting by remember { mutableStateOf<String?>(null) }
     var showGreetingInput by remember { mutableStateOf(false) }
 
+    // ----- Sao lưu & chuyển máy -----
+    var backupBusy by remember { mutableStateOf(false) }
+    var backupMessage by remember { mutableStateOf<String?>(null) }
+    var pendingRestore by remember { mutableStateOf<BackupHelper.ParsedBackup?>(null) }
+    var showRestoreConfirm by remember { mutableStateOf(false) }
+
     var feedbackCategory by remember { mutableStateOf(FeedbackCategory.BUG) }
     var feedbackMessageInput by remember { mutableStateOf("") }
     var feedbackError by remember { mutableStateOf<String?>(null) }
@@ -4735,6 +4747,7 @@ fun ThoiTietAmLichApp() {
         showShareCardPopup,
         cropSourceBitmap,
         showGreetingInput,
+        showRestoreConfirm,
         activeTodoPopup,
         ageResultPopup,
         showAgeHistoryClearedPopup,
@@ -4768,6 +4781,7 @@ fun ThoiTietAmLichApp() {
             showShareCardPopup ||
             cropSourceBitmap != null ||
             showGreetingInput ||
+            showRestoreConfirm ||
             activeTodoPopup != null ||
             ageResultPopup != null ||
             showAgeHistoryClearedPopup ||
@@ -5040,6 +5054,45 @@ fun ThoiTietAmLichApp() {
             }
         }
     }
+    val backupExportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val uri = result.data?.data
+        if (result.resultCode == android.app.Activity.RESULT_OK && uri != null) {
+            scope.launch {
+                backupBusy = true
+                val ok = BackupHelper.exportToUri(context, uri)
+                backupBusy = false
+                backupMessage = if (ok) {
+                    "✅ Đã lưu file sao lưu. Hãy chép file sang điện thoại mới (Zalo, Drive, USB...)."
+                } else {
+                    "❌ Không ghi được file sao lưu, hãy thử chọn nơi lưu khác."
+                }
+            }
+        }
+    }
+
+    val backupImportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val uri = result.data?.data
+        if (result.resultCode == android.app.Activity.RESULT_OK && uri != null) {
+            scope.launch {
+                backupBusy = true
+                try {
+                    val parsed = BackupHelper.readAndParse(context, uri)
+                    pendingRestore = parsed
+                    backupMessage = null
+                    showRestoreConfirm = true
+                } catch (e: Exception) {
+                    backupMessage = "❌ " + (e.message ?: "Không đọc được file sao lưu")
+                } finally {
+                    backupBusy = false
+                }
+            }
+        }
+    }
+
     val dailyWarmMessage = remember(nowCal) { dailyWarmMessageForToday(nowCal) }
 
     fun performLunarLookup(day: Int, month: Int, year: Int) {
@@ -7576,6 +7629,110 @@ fun ThoiTietAmLichApp() {
                         }
 
                         if (selectedMainTab == MainTab.SETTINGS) {
+                        item(key = "backup_restore_section") {
+                            CollapsibleSectionCard(
+                                title = "Sao lưu và chuyển máy",
+                                badgeText = "File",
+                                accentColor = accentCompose,
+                                palette = palette,
+                                bounceEnabled = cardBounceEnabled,
+                                expanded = expandedSection == ExpandableSection.BACKUP_RESTORE,
+                                onToggle = { toggleSection(ExpandableSection.BACKUP_RESTORE) }
+                            ) {
+                                Text(
+                                    "Xuất cài đặt, lịch sử, ghi chú ngày Âm lịch, sinh nhật và ngày kỷ niệm Âm lịch ra 1 file để không mất dữ liệu khi đổi điện thoại.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = palette.textSecondary
+                                )
+
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Button(
+                                        onClick = {
+                                            backupMessage = null
+                                            val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                                                addCategory(Intent.CATEGORY_OPENABLE)
+                                                type = "application/json"
+                                                putExtra(Intent.EXTRA_TITLE, BackupHelper.suggestedFileName())
+                                            }
+                                            try {
+                                                backupExportLauncher.launch(intent)
+                                            } catch (_: Exception) {
+                                                Toast.makeText(context, "Máy không mở được hộp thoại lưu file", Toast.LENGTH_LONG).show()
+                                            }
+                                        },
+                                        enabled = !backupBusy,
+                                        shape = RoundedCornerShape(16.dp),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = accentCompose,
+                                            contentColor = palette.onAccentText
+                                        ),
+                                        contentPadding = PaddingValues(horizontal = 8.dp),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(48.dp)
+                                    ) {
+                                        Text("📤 Xuất file", fontWeight = FontWeight.Bold, maxLines = 1)
+                                    }
+                                    OutlinedButton(
+                                        onClick = {
+                                            backupMessage = null
+                                            val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                                                addCategory(Intent.CATEGORY_OPENABLE)
+                                                type = "*/*"
+                                                putExtra(
+                                                    Intent.EXTRA_MIME_TYPES,
+                                                    arrayOf("application/json", "text/plain", "application/octet-stream")
+                                                )
+                                            }
+                                            try {
+                                                backupImportLauncher.launch(intent)
+                                            } catch (_: Exception) {
+                                                Toast.makeText(context, "Máy không mở được hộp thoại chọn file", Toast.LENGTH_LONG).show()
+                                            }
+                                        },
+                                        enabled = !backupBusy,
+                                        shape = RoundedCornerShape(16.dp),
+                                        colors = ButtonDefaults.outlinedButtonColors(
+                                            contentColor = palette.textPrimary
+                                        ),
+                                        contentPadding = PaddingValues(horizontal = 8.dp),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(48.dp)
+                                    ) {
+                                        Text("📥 Nhập file", fontWeight = FontWeight.Bold, maxLines = 1)
+                                    }
+                                }
+
+                                backupMessage?.let { msg ->
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    Text(
+                                        msg,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = palette.textPrimary,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                Text(
+                                    "Chuyển máy: cài ứng dụng trên điện thoại mới, mở thẻ này và bấm \"Nhập file\". " +
+                                        "File có thông tin cá nhân (sinh nhật, ghi chú) nên hãy giữ cẩn thận. " +
+                                        "Không gồm việc cần làm trong ngày và dữ liệu thời tiết tạm (sẽ tự cập nhật lại).",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = palette.textSecondary
+                                )
+                            }
+                        }
+                        }
+
+                        if (selectedMainTab == MainTab.SETTINGS) {
                         item(key = "bug_report_section") {
                             Column(
                                 modifier = Modifier
@@ -9757,6 +9914,109 @@ fun ThoiTietAmLichApp() {
                                         .height(48.dp)
                                 ) {
                                     Text("Áp dụng", fontWeight = FontWeight.Bold, maxLines = 1)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Pop-up xác nhận khôi phục dữ liệu từ file sao lưu
+                AnimatedPopupOverlay(
+                    visible = showRestoreConfirm,
+                    onDismiss = {},
+                    dismissOnBackdropClick = false
+                ) {
+                    val restoreData = pendingRestore
+                    LiquidGlassPopupSurface(palette = palette) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(20.dp)
+                        ) {
+                            Text(
+                                "Khôi phục dữ liệu?",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = palette.popupTextPrimary,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
+                            if (restoreData != null) {
+                                val sm = restoreData.summary
+                                val whenText = if (restoreData.exportedAt > 0L) {
+                                    SimpleDateFormat("dd/MM/yyyy HH:mm", Locale("vi", "VN"))
+                                        .format(Date(restoreData.exportedAt))
+                                } else {
+                                    "không rõ"
+                                }
+                                Text(
+                                    "File sao lưu tạo lúc $whenText gồm:\n" +
+                                        "• Cài đặt: ${sm.settings} mục\n" +
+                                        "• Sinh nhật: ${sm.birthdays}\n" +
+                                        "• Ngày kỷ niệm Âm lịch: ${sm.lunarEvents}\n" +
+                                        "• Lịch sử: ${sm.historyTotal}\n" +
+                                        "• Ghi chú ngày Âm lịch: ${sm.notes}",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = palette.popupTextPrimary
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Text(
+                                "Dữ liệu hiện tại ở các mục này sẽ bị thay thế. Ứng dụng sẽ tải lại sau khi khôi phục.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = palette.popupTextSecondary
+                            )
+                            Spacer(modifier = Modifier.height(14.dp))
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                OutlinedButton(
+                                    onClick = { showRestoreConfirm = false },
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        contentColor = palette.popupTextPrimary
+                                    ),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(48.dp)
+                                ) {
+                                    Text("Hủy", fontWeight = FontWeight.Bold, maxLines = 1)
+                                }
+                                Button(
+                                    onClick = {
+                                        val data = pendingRestore
+                                        showRestoreConfirm = false
+                                        if (data != null) {
+                                            scope.launch {
+                                                backupBusy = true
+                                                try {
+                                                    BackupHelper.restore(context, data)
+                                                    pendingRestore = null
+                                                    WeatherLunarWidget.updateAllWidgets(context)
+                                                    Toast.makeText(context, "Đã khôi phục dữ liệu từ file sao lưu", Toast.LENGTH_LONG).show()
+                                                    // Tải lại giao diện để mọi cài đặt được áp dụng
+                                                    var host: android.content.Context? = context
+                                                    while (host is android.content.ContextWrapper && host !is android.app.Activity) {
+                                                        host = host.baseContext
+                                                    }
+                                                    (host as? android.app.Activity)?.recreate()
+                                                } catch (e: Exception) {
+                                                    backupMessage = "❌ Khôi phục thất bại, hãy thử lại."
+                                                } finally {
+                                                    backupBusy = false
+                                                }
+                                            }
+                                        }
+                                    },
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = accentCompose,
+                                        contentColor = palette.onAccentText
+                                    ),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(48.dp)
+                                ) {
+                                    Text("Khôi phục", fontWeight = FontWeight.Bold, maxLines = 1)
                                 }
                             }
                         }

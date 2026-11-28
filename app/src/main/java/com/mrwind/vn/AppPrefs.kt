@@ -565,6 +565,9 @@ object AppPrefs {
     fun getHourlyForecastJson(context: Context): String =
         prefs(context).getString("weather_hourly_json", "[]") ?: "[]"
 
+    /** Dùng cho sao lưu / khôi phục dữ liệu (xem BackupHelper). */
+    fun backupPrefs(context: Context): android.content.SharedPreferences = prefs(context)
+
     private fun prefs(context: Context) =
         context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
 }
