@@ -20,6 +20,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
@@ -127,6 +128,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
@@ -4087,10 +4089,15 @@ fun ThoiTietAmLichApp() {
                                             onClick = { showQuickToolsMenu = !showQuickToolsMenu }
                                         )
 
-                                        if (showQuickToolsMenu) {
+                                        val quickMenuVisibleState = remember { MutableTransitionState(false) }
+                                        quickMenuVisibleState.targetState = showQuickToolsMenu
+                                        // Nút cao 35dp + khoảng cách 12dp giữa nút và thẻ
+                                        val quickMenuOffsetY = with(LocalDensity.current) { (35.dp + 12.dp).roundToPx() }
+
+                                        if (quickMenuVisibleState.currentState || quickMenuVisibleState.targetState) {
                                             Popup(
-                                                alignment = Alignment.TopEnd,
-                                                offset = IntOffset(x = 0, y = 118),
+                                                alignment = Alignment.TopCenter,
+                                                offset = IntOffset(x = 0, y = quickMenuOffsetY),
                                                 onDismissRequest = { showQuickToolsMenu = false },
                                                 properties = PopupProperties(
                                                     focusable = true,
@@ -4099,6 +4106,27 @@ fun ThoiTietAmLichApp() {
                                                     clippingEnabled = false
                                                 )
                                             ) {
+                                                AnimatedVisibility(
+                                                    visibleState = quickMenuVisibleState,
+                                                    enter = fadeIn(animationSpec = tween(durationMillis = 160)) +
+                                                        scaleIn(
+                                                            initialScale = 0.55f,
+                                                            transformOrigin = TransformOrigin(0.5f, 0f),
+                                                            animationSpec = spring(
+                                                                dampingRatio = 0.62f,
+                                                                stiffness = Spring.StiffnessMediumLow
+                                                            )
+                                                        ) +
+                                                        slideInVertically(
+                                                            animationSpec = tween(durationMillis = 260, easing = FastOutSlowInEasing)
+                                                        ) { fullHeight -> -fullHeight / 5 },
+                                                    exit = fadeOut(animationSpec = tween(durationMillis = 130)) +
+                                                        scaleOut(
+                                                            targetScale = 0.7f,
+                                                            transformOrigin = TransformOrigin(0.5f, 0f),
+                                                            animationSpec = tween(durationMillis = 150, easing = FastOutSlowInEasing)
+                                                        )
+                                                ) {
                                                 Surface(
                                                     shape = RoundedCornerShape(20.dp),
                                                     color = Color.Transparent,
@@ -4202,6 +4230,7 @@ fun ThoiTietAmLichApp() {
                                                             Spacer(modifier = Modifier.size(38.dp))
                                                         }
                                                     }
+                                                }
                                                 }
                                             }
                                         }
