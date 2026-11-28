@@ -183,6 +183,8 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import org.json.JSONArray
+import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -9433,6 +9435,68 @@ private fun GenderSymbolIcon(
     }
 }
 
+private data class GoodBadDayHistoryItem(
+    val day: Int,
+    val month: Int,
+    val year: Int,
+    val isMale: Boolean,
+    val activityName: String,
+    val viewedAt: Long
+) {
+    fun sameQuery(other: GoodBadDayHistoryItem): Boolean =
+        day == other.day && month == other.month && year == other.year &&
+            isMale == other.isMale && activityName == other.activityName
+}
+
+private object GoodBadDayHistoryStore {
+    private const val PREFS_NAME = "good_bad_day_history_prefs"
+    private const val KEY_ENTRIES = "entries"
+    const val MAX_ITEMS = 20
+
+    fun load(context: Context): List<GoodBadDayHistoryItem> {
+        return try {
+            val raw = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getString(KEY_ENTRIES, null) ?: return emptyList()
+            val arr = JSONArray(raw)
+            (0 until arr.length()).mapNotNull { i ->
+                val o = arr.optJSONObject(i) ?: return@mapNotNull null
+                GoodBadDayHistoryItem(
+                    day = o.optInt("d"),
+                    month = o.optInt("m"),
+                    year = o.optInt("y"),
+                    isMale = o.optBoolean("male", true),
+                    activityName = o.optString("a"),
+                    viewedAt = o.optLong("t")
+                )
+            }
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    fun save(context: Context, items: List<GoodBadDayHistoryItem>) {
+        try {
+            val arr = JSONArray()
+            items.forEach {
+                arr.put(
+                    JSONObject()
+                        .put("d", it.day)
+                        .put("m", it.month)
+                        .put("y", it.year)
+                        .put("male", it.isMale)
+                        .put("a", it.activityName)
+                        .put("t", it.viewedAt)
+                )
+            }
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putString(KEY_ENTRIES, arr.toString())
+                .apply()
+        } catch (_: Exception) {
+        }
+    }
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun GoodBadDayExpandableSection(
@@ -9446,6 +9510,8 @@ private fun GoodBadDayExpandableSection(
 ) {
     val bringIntoView = remember { BringIntoViewRequester() }
     val scope = rememberCoroutineScope()
+    val historyContext = LocalContext.current
+    var history by remember { mutableStateOf(GoodBadDayHistoryStore.load(historyContext)) }
 
     var birthDayText by remember { mutableStateOf("1") }
     var birthMonthText by remember { mutableStateOf("1") }
@@ -9721,6 +9787,18 @@ private fun GoodBadDayExpandableSection(
                             cal.timeInMillis
                             activityDropdownOpen = false
                             formError = null
+                            val newItem = GoodBadDayHistoryItem(
+                                day = d,
+                                month = m,
+                                year = y,
+                                isMale = selectedGender == AuspiciousGender.MALE,
+                                activityName = selectedActivity.name,
+                                viewedAt = System.currentTimeMillis()
+                            )
+                            val updatedHistory = (listOf(newItem) + history.filterNot { it.sameQuery(newItem) })
+                                .take(GoodBadDayHistoryStore.MAX_ITEMS)
+                            history = updatedHistory
+                            GoodBadDayHistoryStore.save(historyContext, updatedHistory)
                             onShowAdvicePopup(
                                 BirthdayHelper.evaluateGoodBadDayForActivity(
                                     birthDay = d,
@@ -9744,6 +9822,143 @@ private fun GoodBadDayExpandableSection(
                         .height(48.dp)
                 ) {
                     Text("Xem", fontWeight = FontWeight.ExtraBold, fontSize = 15.sp)
+                }
+
+                if (history.isNotEmpty()) {
+                    HorizontalDivider(color = palette.border)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                Icons.Default.History,
+                                contentDescription = null,
+                                tint = accentColor,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                "Lịch sử đã xem (${history.size})",
+                                fontSize = 13.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = palette.textPrimary
+                            )
+                        }
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable {
+                                    history = emptyList()
+                                    GoodBadDayHistoryStore.save(historyContext, emptyList())
+                                }
+                                .padding(horizontal = 8.dp, vertical = 6.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.DeleteSweep,
+                                contentDescription = "Xóa toàn bộ lịch sử",
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                "Xóa tất cả",
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+
+                    val historyTimeFormat = remember {
+                        SimpleDateFormat("dd/MM/yyyy HH:mm", Locale("vi", "VN")).apply {
+                            timeZone = TimeZone.getTimeZone("Asia/Ho_Chi_Minh")
+                        }
+                    }
+                    history.forEach { item ->
+                        val activity = AuspiciousActivity.entries.firstOrNull { it.name == item.activityName }
+                        Surface(
+                            shape = RoundedCornerShape(14.dp),
+                            color = palette.cardBg.copy(alpha = 0.72f),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .border(0.8.dp, palette.border, RoundedCornerShape(14.dp))
+                                .clickable(enabled = activity != null) {
+                                    if (activity != null) {
+                                        val gender = if (item.isMale) AuspiciousGender.MALE else AuspiciousGender.FEMALE
+                                        birthDayText = item.day.toString()
+                                        birthMonthText = item.month.toString()
+                                        birthYearText = item.year.toString()
+                                        selectedGender = gender
+                                        selectedActivity = activity
+                                        formError = null
+                                        activityDropdownOpen = false
+                                        onShowAdvicePopup(
+                                            BirthdayHelper.evaluateGoodBadDayForActivity(
+                                                birthDay = item.day,
+                                                birthMonth = item.month,
+                                                birthYear = item.year,
+                                                gender = gender,
+                                                activity = activity
+                                            )
+                                        )
+                                    }
+                                }
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(start = 12.dp, end = 4.dp, top = 6.dp, bottom = 6.dp)
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        activity?.label ?: item.activityName,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.5.sp,
+                                        color = palette.textPrimary,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        "%02d/%02d/%d • %s".format(
+                                            item.day,
+                                            item.month,
+                                            item.year,
+                                            if (item.isMale) "Nam" else "Nữ"
+                                        ),
+                                        fontSize = 12.sp,
+                                        color = accentColor
+                                    )
+                                    Text(
+                                        "Xem lúc ${historyTimeFormat.format(Date(item.viewedAt))}",
+                                        fontSize = 11.sp,
+                                        color = palette.textSecondary
+                                    )
+                                }
+                                IconButton(
+                                    onClick = {
+                                        val updatedHistory = history.filterNot { it === item }
+                                        history = updatedHistory
+                                        GoodBadDayHistoryStore.save(historyContext, updatedHistory)
+                                    }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = "Xóa mục lịch sử",
+                                        tint = MaterialTheme.colorScheme.error
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -9897,15 +10112,12 @@ private fun LunarCustomEventsManagerCard(
     onPersist: (List<LunarCustomEventItem>) -> Unit
 ) {
     Surface(
-        shape = RoundedCornerShape(16.dp),
-        color = palette.subtleBg,
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(1.dp, accentColor.copy(alpha = 0.25f), RoundedCornerShape(16.dp))
+        color = Color.Transparent,
+        modifier = Modifier.fillMaxWidth()
     ) {
         Column(
             verticalArrangement = Arrangement.spacedBy(10.dp),
-            modifier = Modifier.padding(12.dp)
+            modifier = Modifier.padding(vertical = 4.dp)
         ) {
             Text(
                 "Ngày giỗ / sự kiện Âm lịch riêng",
