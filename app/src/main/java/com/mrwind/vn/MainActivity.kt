@@ -4106,7 +4106,7 @@ fun ThoiTietAmLichApp() {
                                                     clippingEnabled = false
                                                 )
                                             ) {
-                                                AnimatedVisibility(
+                                                androidx.compose.animation.AnimatedVisibility(
                                                     visibleState = quickMenuVisibleState,
                                                     enter = fadeIn(animationSpec = tween(durationMillis = 160)) +
                                                         scaleIn(
