@@ -11,6 +11,14 @@ data class BirthdayItem(
     val month: Int
 )
 
+data class LunarCustomEventItem(
+    val id: String,
+    val title: String,
+    val lunarDay: Int,
+    val lunarMonth: Int,
+    val isLeapMonth: Boolean = false
+)
+
 data class LunarLookupHistoryItem(
     val id: String,
     val solarDay: Int,
