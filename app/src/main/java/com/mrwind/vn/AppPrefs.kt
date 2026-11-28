@@ -495,6 +495,43 @@ object AppPrefs {
     fun setLastRamMung1AlertKey(context: Context, key: String, commitNow: Boolean = true) {
         writeString(context, "last_ram_mung1_alert_key", key, commitNow = commitNow)
     }
+   
+    private const val KEY_LUNAR_CUSTOM_EVENTS = "lunar_custom_events_json"
+
+    fun getLunarCustomEvents(context: Context): List<LunarCustomEventItem> {
+        val raw = prefs(context).getString(KEY_LUNAR_CUSTOM_EVENTS, "[]") ?: "[]"
+        val out = mutableListOf<LunarCustomEventItem>()
+        try {
+            val arr = JSONArray(raw)
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                val id = obj.optString("id", "").trim()
+                val title = obj.optString("title", "").trim()
+                val day = obj.optInt("lunarDay", 0)
+                val month = obj.optInt("lunarMonth", 0)
+                val leap = obj.optBoolean("isLeapMonth", false)
+                if (id.isNotEmpty() && title.isNotEmpty() && day in 1..30 && month in 1..12) {
+                    out.add(LunarCustomEventItem(id, title, day, month, leap))
+                }
+            }
+        } catch (_: Exception) {
+        }
+        return out
+    }
+
+    fun saveLunarCustomEvents(context: Context, list: List<LunarCustomEventItem>) {
+        val arr = JSONArray()
+        list.take(40).forEach { item ->
+            val obj = JSONObject()
+            obj.put("id", item.id)
+            obj.put("title", item.title)
+            obj.put("lunarDay", item.lunarDay)
+            obj.put("lunarMonth", item.lunarMonth)
+            obj.put("isLeapMonth", item.isLeapMonth)
+            arr.put(obj)
+        }
+        writeString(context, KEY_LUNAR_CUSTOM_EVENTS, arr.toString(), commitNow = true)
+    }
 
     private fun prefs(context: Context) =
         context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
