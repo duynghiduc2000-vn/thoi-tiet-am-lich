@@ -51,6 +51,7 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -192,6 +193,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
@@ -1117,6 +1119,1067 @@ private object DailyMoodHelper {
             .putString(KEY_PREVIOUS, updated.previousMoodId)
             .commit()
         return updated
+    }
+}
+
+// ============================================================
+// NHẬT KÝ TÂM TRẠNG (lưu lịch sử cảm xúc theo giờ, biểu đồ, đánh giá theo tháng)
+// ============================================================
+
+private const val MOOD_TZ_ID = "Asia/Ho_Chi_Minh"
+
+private data class MoodLogEntry(
+    val dateKey: String,
+    val hour: Int,
+    val minute: Int,
+    val moodId: String,
+    val weatherCode: Int
+)
+
+private object MoodLogHelper {
+    private const val PREFS_NAME = "mood_log_prefs"
+    private const val KEY_ENTRIES = "mood_log_entries"
+    private const val MAX_ENTRIES = 3000
+
+    fun loadAll(context: Context): List<MoodLogEntry> {
+        val raw = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getString(KEY_ENTRIES, null) ?: return emptyList()
+        return try {
+            val arr = JSONArray(raw)
+            val out = ArrayList<MoodLogEntry>()
+            for (i in 0 until arr.length()) {
+                val o = arr.getJSONObject(i)
+                out.add(
+                    MoodLogEntry(
+                        dateKey = o.getString("d"),
+                        hour = o.getInt("h"),
+                        minute = o.optInt("m", 0),
+                        moodId = o.getString("id"),
+                        weatherCode = o.optInt("w", -1)
+                    )
+                )
+            }
+            out
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    fun addEntry(context: Context, mood: DailyMoodType, weatherCode: Int) {
+        val cal = Calendar.getInstance(TimeZone.getTimeZone(MOOD_TZ_ID))
+        val newEntry = MoodLogEntry(
+            dateKey = DailyMoodHelper.todayKey(),
+            hour = cal.get(Calendar.HOUR_OF_DAY),
+            minute = cal.get(Calendar.MINUTE),
+            moodId = mood.id,
+            weatherCode = weatherCode
+        )
+        val all = loadAll(context).toMutableList()
+        all.add(newEntry)
+        val kept = if (all.size > MAX_ENTRIES) all.takeLast(MAX_ENTRIES) else all
+        val arr = JSONArray()
+        for (e in kept) {
+            val o = JSONObject()
+            o.put("d", e.dateKey)
+            o.put("h", e.hour)
+            o.put("m", e.minute)
+            o.put("id", e.moodId)
+            o.put("w", e.weatherCode)
+            arr.put(o)
+        }
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KEY_ENTRIES, arr.toString())
+            .apply()
+    }
+}
+
+/** Điểm tâm trạng từ 1 (nặng nề) đến 5 (rất vui) để vẽ biểu đồ và thống kê. */
+private fun moodScoreOf(mood: DailyMoodType): Int = when (mood) {
+    DailyMoodType.HAPPY, DailyMoodType.IN_LOVE, DailyMoodType.OVERWHELMED -> 5
+    DailyMoodType.CALM -> 4
+    DailyMoodType.SURPRISED -> 3
+    DailyMoodType.SAD, DailyMoodType.SICK, DailyMoodType.TIRED,
+    DailyMoodType.ANXIOUS, DailyMoodType.STRESSED -> 2
+    DailyMoodType.CRYING, DailyMoodType.ANGRY -> 1
+}
+
+private fun moodScoreOfId(id: String): Int {
+    val mood = DailyMoodType.fromId(id) ?: return 3
+    return moodScoreOf(mood)
+}
+
+private fun moodScoreColor(score: Double): Color = when {
+    score >= 3.5 -> Color(0xFF4CAF50)
+    score >= 2.5 -> Color(0xFFFFC107)
+    else -> Color(0xFFEF5350)
+}
+
+private fun moodIsRainCode(code: Int): Boolean =
+    code in listOf(51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82, 95, 96, 99)
+
+private fun moodFmt1(value: Double): String =
+    String.format(Locale.US, "%.1f", value).replace('.', ',')
+
+private fun moodParseDateKey(dateKey: String): Triple<Int, Int, Int>? {
+    if (dateKey.length < 10) return null
+    val y = dateKey.substring(0, 4).toIntOrNull() ?: return null
+    val m = dateKey.substring(5, 7).toIntOrNull() ?: return null
+    val d = dateKey.substring(8, 10).toIntOrNull() ?: return null
+    return Triple(y, m, d)
+}
+
+private fun moodFormatDateKey(y: Int, m: Int, d: Int): String =
+    String.format(Locale.US, "%04d-%02d-%02d", y, m, d)
+
+private fun moodShiftDateKey(dateKey: String, deltaDays: Int): String {
+    val parsed = moodParseDateKey(dateKey) ?: return dateKey
+    val cal = Calendar.getInstance(TimeZone.getTimeZone(MOOD_TZ_ID))
+    cal.clear()
+    cal.set(parsed.first, parsed.second - 1, parsed.third)
+    cal.add(Calendar.DAY_OF_MONTH, deltaDays)
+    return moodFormatDateKey(
+        cal.get(Calendar.YEAR),
+        cal.get(Calendar.MONTH) + 1,
+        cal.get(Calendar.DAY_OF_MONTH)
+    )
+}
+
+private fun moodShiftMonthKey(monthKey: String, deltaMonths: Int): String {
+    val y = monthKey.substring(0, 4).toIntOrNull() ?: return monthKey
+    val m = monthKey.substring(5, 7).toIntOrNull() ?: return monthKey
+    val total = y * 12 + (m - 1) + deltaMonths
+    return String.format(Locale.US, "%04d-%02d", total / 12, total % 12 + 1)
+}
+
+private fun moodMonthDayKeys(monthKey: String): List<String> {
+    val y = monthKey.substring(0, 4).toIntOrNull() ?: return emptyList()
+    val m = monthKey.substring(5, 7).toIntOrNull() ?: return emptyList()
+    val cal = Calendar.getInstance(TimeZone.getTimeZone(MOOD_TZ_ID))
+    cal.clear()
+    cal.set(y, m - 1, 1)
+    val days = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
+    return (1..days).map { d -> moodFormatDateKey(y, m, d) }
+}
+
+private fun moodDateLabel(dateKey: String): String {
+    val parsed = moodParseDateKey(dateKey) ?: return dateKey
+    val cal = Calendar.getInstance(TimeZone.getTimeZone(MOOD_TZ_ID))
+    cal.clear()
+    cal.set(parsed.first, parsed.second - 1, parsed.third)
+    val names = listOf("Chủ nhật", "Thứ hai", "Thứ ba", "Thứ tư", "Thứ năm", "Thứ sáu", "Thứ bảy")
+    val dayName = names[(cal.get(Calendar.DAY_OF_WEEK) - 1).coerceIn(0, 6)]
+    return dayName + ", " + String.format(
+        Locale.US, "%02d/%02d/%04d", parsed.third, parsed.second, parsed.first
+    )
+}
+
+private fun moodMonthLabel(monthKey: String): String {
+    if (monthKey.length < 7) return monthKey
+    return "Tháng " + monthKey.substring(5, 7).trimStart('0') + "/" + monthKey.substring(0, 4)
+}
+
+private fun moodShortDay(dateKey: String): String {
+    if (dateKey.length < 10) return dateKey
+    return dateKey.substring(8, 10) + "/" + dateKey.substring(5, 7)
+}
+
+private fun moodPickChartRemark(entries: List<MoodLogEntry>): String {
+    if (entries.isEmpty()) {
+        return listOf(
+            "Biểu đồ đang trống. Chạm vào nút cảm xúc mỗi ngày để mình vẽ nên bức tranh tâm trạng của bạn nhé!",
+            "Chưa có dữ liệu để vẽ biểu đồ. Hôm nay bạn đang cảm thấy thế nào?",
+            "Khoảng thời gian này chưa có cảm xúc nào được ghi lại."
+        ).random()
+    }
+    val avg = entries.map { moodScoreOfId(it.moodId) }.average()
+    val pool = when {
+        avg >= 3.8 -> listOf(
+            "Đường tâm trạng của bạn đang nghiêng về phía nắng ấm. Giữ nhịp này nhé! ☀️",
+            "Nhiều chấm xanh quá! Hãy nhớ điều gì đã khiến bạn vui để lặp lại nó.",
+            "Biểu đồ khá tươi sáng, có vẻ bạn đang chăm sóc bản thân rất tốt.",
+            "Những ngày rực rỡ chiếm phần lớn. Tâm trạng đẹp cũng là thành quả của bạn đó!"
+        )
+        avg >= 3.0 -> listOf(
+            "Biểu đồ lên xuống nhẹ nhàng, đó là nhịp rất tự nhiên của một con người.",
+            "Có ngày chênh vênh, có ngày dịu dàng. Bạn đang đi qua tất cả rất ổn.",
+            "Tâm trạng cũng như thời tiết, thay đổi là chuyện bình thường. 🌤️",
+            "Nhìn chung bạn khá cân bằng. Hãy trân trọng những ngày chấm xanh nhé!"
+        )
+        avg >= 2.4 -> listOf(
+            "Biểu đồ hơi trầm một chút. Hãy dành cho bản thân thêm vài khoảnh khắc nhẹ nhàng nhé.",
+            "Có vài ngày khá nặng nề, nhưng dốc nào rồi cũng có đoạn bằng. Cố lên bạn!",
+            "Thử làm một điều nhỏ bạn thích mỗi ngày, đường biểu đồ sẽ dần ấm lên đấy. 🌱"
+        )
+        else -> listOf(
+            "Giai đoạn này có vẻ khá mệt mỏi. Bạn đã rất kiên cường khi vẫn ghi lại cảm xúc của mình.",
+            "Nhiều chấm đỏ nhưng bạn không đơn độc đâu. Hãy chia sẻ với một người bạn tin tưởng nhé.",
+            "Nếu cảm giác nặng nề kéo dài, đừng ngại tìm sự hỗ trợ từ người thân hoặc chuyên gia. 💛",
+            "Hãy nghỉ ngơi, ăn ngon và ngủ đủ. Ngày mai có thể nhẹ nhàng hơn bạn nghĩ."
+        )
+    }
+    return pool.random()
+}
+
+private fun moodPickReviewSummary(avg: Double): String {
+    val pool = when {
+        avg >= 3.8 -> listOf(
+            "Tháng này thật rực rỡ! Phần lớn thời gian bạn vui vẻ và tràn đầy năng lượng. Hãy giữ thói quen tốt này sang tháng sau nhé. 🌟",
+            "Một tháng nhiều niềm vui! Bạn xứng đáng được tự thưởng cho mình một điều gì đó nhỏ xinh.",
+            "Tâm trạng của bạn tháng này rất đẹp. Hãy ghi nhớ những điều đã khiến bạn hạnh phúc để còn lặp lại nhé."
+        )
+        avg >= 3.0 -> listOf(
+            "Một tháng khá cân bằng, có lúc vui có lúc trầm, nhưng nhìn chung bạn giữ được nhịp của mình rất tốt.",
+            "Tháng này có đủ sắc màu: nắng có, mây cũng có. Bạn đã đi qua tất cả thật vững vàng. 🌤️",
+            "Tâm trạng của bạn tháng này ổn định. Hãy thêm vào mỗi ngày một niềm vui nhỏ để tháng sau còn tươi hơn nhé."
+        )
+        avg >= 2.4 -> listOf(
+            "Tháng này có vẻ hơi nặng nề một chút. Không sao cả, ai cũng có những khoảng trầm. Hãy nhẹ nhàng với bản thân nhé.",
+            "Bạn đã trải qua vài ngày không dễ dàng. Hãy dành thời gian làm điều mình thích để nạp lại năng lượng. 🌱",
+            "Tháng này tâm trạng hơi chùng xuống. Thử ra ngoài đi dạo, nghe một bản nhạc hay hoặc gọi cho người thân xem sao nhé."
+        )
+        else -> listOf(
+            "Tháng này có vẻ khá mệt mỏi với bạn. Cảm ơn bạn đã kiên trì ghi lại cảm xúc. Hãy chăm sóc bản thân thật nhiều nhé. 💛",
+            "Một tháng nhiều áp lực. Bạn không cần phải gồng một mình, hãy chia sẻ với người bạn tin tưởng.",
+            "Nếu những cảm giác nặng nề cứ kéo dài, hãy cân nhắc trò chuyện với người thân hoặc chuyên gia. Bạn xứng đáng được hỗ trợ."
+        )
+    }
+    return pool.random()
+}
+
+private fun moodRainInsight(entries: List<MoodLogEntry>): String {
+    val rainy = entries.filter { moodIsRainCode(it.weatherCode) }
+    val dry = entries.filter { it.weatherCode >= 0 && !moodIsRainCode(it.weatherCode) }
+    if (rainy.size < 2 || dry.size < 2) {
+        return "🌧️ Chưa đủ dữ liệu để so sánh tâm trạng của bạn giữa lúc trời mưa và lúc không mưa."
+    }
+    val rainAvg = rainy.map { moodScoreOfId(it.moodId) }.average()
+    val dryAvg = dry.map { moodScoreOfId(it.moodId) }.average()
+    val diff = rainAvg - dryAvg
+    val numbers = "(" + moodFmt1(rainAvg) + " so với " + moodFmt1(dryAvg) + " điểm)"
+    return when {
+        diff <= -0.4 -> "🌧️ Lúc trời mưa, tâm trạng của bạn thường kém hơn bình thường $numbers."
+        diff >= 0.4 -> "🌧️ Thú vị nhé: lúc trời mưa tâm trạng của bạn lại tốt hơn bình thường $numbers."
+        else -> "🌧️ Thời tiết mưa hay không mưa dường như ít ảnh hưởng đến tâm trạng của bạn $numbers."
+    }
+}
+
+@Composable
+private fun MoodArrowButton(
+    symbol: String,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    palette: AdaptivePalette,
+    accent: Color
+) {
+    Surface(
+        shape = CircleShape,
+        color = palette.popupBoxBg,
+        modifier = Modifier
+            .size(36.dp)
+            .clip(CircleShape)
+            .border(1.dp, accent.copy(alpha = if (enabled) 0.45f else 0.15f), CircleShape)
+            .clickable(enabled = enabled) { onClick() }
+    ) {
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+            Text(
+                text = symbol,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = palette.popupTextPrimary.copy(alpha = if (enabled) 1f else 0.3f)
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun MoodNavRow(
+    label: String,
+    canPrev: Boolean,
+    canNext: Boolean,
+    onPrev: () -> Unit,
+    onNext: () -> Unit,
+    palette: AdaptivePalette,
+    accent: Color
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        MoodArrowButton("‹", canPrev, onPrev, palette, accent)
+        Text(
+            text = label,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+            color = palette.popupTextPrimary,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Clip,
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 6.dp)
+                .clipToBounds()
+                .basicMarquee(
+                    iterations = Int.MAX_VALUE,
+                    repeatDelayMillis = 900,
+                    velocity = 24.dp
+                )
+        )
+        MoodArrowButton("›", canNext, onNext, palette, accent)
+    }
+}
+
+/** Nút có chữ tự chạy (marquee) khi chữ dài hơn ô, không dùng dấu "...". */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun MoodMarqueeButton(
+    text: String,
+    onClick: () -> Unit,
+    palette: AdaptivePalette,
+    modifier: Modifier = Modifier
+) {
+    OutlinedButton(
+        onClick = onClick,
+        shape = RoundedCornerShape(16.dp),
+        contentPadding = PaddingValues(horizontal = 10.dp),
+        modifier = modifier.height(46.dp)
+    ) {
+        Text(
+            text = text,
+            color = palette.popupTextPrimary,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Clip,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clipToBounds()
+                .basicMarquee(
+                    iterations = Int.MAX_VALUE,
+                    repeatDelayMillis = 900,
+                    velocity = 24.dp
+                )
+        )
+    }
+}
+
+@Composable
+private fun MoodModePill(
+    text: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    palette: AdaptivePalette,
+    accent: Color,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = if (selected) accent.copy(alpha = 0.22f) else palette.popupBoxBg,
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .border(
+                1.dp,
+                accent.copy(alpha = if (selected) 0.8f else 0.3f),
+                RoundedCornerShape(14.dp)
+            )
+            .clickable { onClick() }
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.padding(vertical = 9.dp)
+        ) {
+            Text(
+                text = text,
+                fontSize = 13.sp,
+                color = palette.popupTextPrimary,
+                fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.SemiBold
+            )
+        }
+    }
+}
+
+@Composable
+private fun MoodLineChart(
+    values: List<Double?>,
+    xLabels: List<String>,
+    palette: AdaptivePalette,
+    accent: Color
+) {
+    val gridColor = palette.popupTextSecondary.copy(alpha = 0.18f)
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                verticalArrangement = Arrangement.SpaceBetween,
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .height(140.dp)
+                    .padding(end = 6.dp)
+            ) {
+                Text("😄", fontSize = 13.sp)
+                Text("😐", fontSize = 13.sp)
+                Text("😫", fontSize = 13.sp)
+            }
+            Canvas(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(140.dp)
+            ) {
+                val w = size.width
+                val h = size.height
+                val padX = 8.dp.toPx()
+                val padY = 8.dp.toPx()
+                for (level in 1..5) {
+                    val y = padY + (h - 2 * padY) * (5 - level) / 4f
+                    drawLine(
+                        color = gridColor,
+                        start = Offset(0f, y),
+                        end = Offset(w, y),
+                        strokeWidth = 1.dp.toPx()
+                    )
+                }
+                val n = values.size
+                fun xAt(i: Int): Float =
+                    if (n <= 1) w / 2f else padX + (w - 2 * padX) * i / (n - 1).toFloat()
+                fun yAt(v: Double): Float =
+                    padY + (h - 2 * padY) * ((5.0 - v) / 4.0).toFloat()
+
+                val path = Path()
+                var started = false
+                values.forEachIndexed { i, v ->
+                    if (v != null) {
+                        if (!started) {
+                            path.moveTo(xAt(i), yAt(v))
+                            started = true
+                        } else {
+                            path.lineTo(xAt(i), yAt(v))
+                        }
+                    }
+                }
+                if (started) {
+                    drawPath(
+                        path = path,
+                        color = accent,
+                        style = Stroke(
+                            width = 2.dp.toPx(),
+                            cap = StrokeCap.Round,
+                            join = StrokeJoin.Round
+                        )
+                    )
+                }
+                values.forEachIndexed { i, v ->
+                    if (v != null) {
+                        drawCircle(
+                            color = moodScoreColor(v),
+                            radius = 4.dp.toPx(),
+                            center = Offset(xAt(i), yAt(v))
+                        )
+                    }
+                }
+            }
+        }
+        Row(
+            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 26.dp, top = 4.dp)
+        ) {
+            xLabels.forEach { label ->
+                Text(
+                    text = label,
+                    fontSize = 10.sp,
+                    color = palette.popupTextSecondary,
+                    maxLines = 1
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun MoodDayScreen(
+    entries: List<MoodLogEntry>,
+    todayKey: String,
+    earliestKey: String,
+    viewDateKey: String,
+    onDateChange: (String) -> Unit,
+    onOpenChart: () -> Unit,
+    onOpenReview: () -> Unit,
+    onClose: () -> Unit,
+    palette: AdaptivePalette,
+    accent: Color
+) {
+    var selectedHour by remember(viewDateKey) { mutableStateOf<Int?>(null) }
+    val dayEntries = remember(entries, viewDateKey) {
+        entries.filter { it.dateKey == viewDateKey }.sortedBy { it.hour * 60 + it.minute }
+    }
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text(
+            text = "Nhật ký tâm trạng",
+            style = MaterialTheme.typography.titleMedium,
+            color = palette.popupTextPrimary,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        MoodNavRow(
+            label = moodDateLabel(viewDateKey),
+            canPrev = viewDateKey > earliestKey,
+            canNext = viewDateKey < todayKey,
+            onPrev = { onDateChange(moodShiftDateKey(viewDateKey, -1)) },
+            onNext = { onDateChange(moodShiftDateKey(viewDateKey, 1)) },
+            palette = palette,
+            accent = accent
+        )
+        Spacer(modifier = Modifier.height(14.dp))
+        Text(
+            text = "Tâm trạng theo giờ",
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = palette.popupTextSecondary
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        for (rowIdx in 0 until 4) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                for (colIdx in 0 until 6) {
+                    val hour = rowIdx * 6 + colIdx
+                    val last = dayEntries.lastOrNull { it.hour == hour }
+                    val mood = if (last != null) DailyMoodType.fromId(last.moodId) else null
+                    val isSelected = selectedHour == hour
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = if (isSelected) accent.copy(alpha = 0.20f) else palette.popupBoxBg,
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(10.dp))
+                            .border(
+                                1.dp,
+                                accent.copy(alpha = if (isSelected) 0.85f else 0.25f),
+                                RoundedCornerShape(10.dp)
+                            )
+                            .clickable { selectedHour = if (isSelected) null else hour }
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = String.format(Locale.US, "%02dh", hour),
+                                fontSize = 10.sp,
+                                color = palette.popupTextSecondary,
+                                maxLines = 1
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = mood?.emoji ?: "·",
+                                fontSize = 20.sp,
+                                color = palette.popupTextSecondary,
+                                maxLines = 1
+                            )
+                        }
+                    }
+                }
+            }
+            if (rowIdx < 3) {
+                Spacer(modifier = Modifier.height(6.dp))
+            }
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+        val sel = selectedHour
+        val detailText = when {
+            sel != null -> {
+                val list = dayEntries.filter { it.hour == sel }
+                if (list.isEmpty()) {
+                    String.format(Locale.US, "%02dh: chưa ghi cảm xúc nào.", sel)
+                } else {
+                    list.joinToString(separator = "  •  ") { e ->
+                        String.format(Locale.US, "%02d:%02d ", e.hour, e.minute) +
+                            (DailyMoodType.fromId(e.moodId)?.label ?: "")
+                    }
+                }
+            }
+            dayEntries.isEmpty() -> "Ngày này bạn chưa ghi lại cảm xúc nào."
+            else -> "Chạm vào một ô giờ để xem chi tiết (đã ghi ${dayEntries.size} lần)."
+        }
+        Text(
+            text = detailText,
+            fontSize = 12.5.sp,
+            color = palette.popupTextPrimary,
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            MoodMarqueeButton(
+                text = "Biểu đồ tâm trạng theo tháng",
+                onClick = onOpenChart,
+                palette = palette,
+                modifier = Modifier.weight(1f)
+            )
+            MoodMarqueeButton(
+                text = "Đánh giá cảm xúc theo tháng",
+                onClick = onOpenReview,
+                palette = palette,
+                modifier = Modifier.weight(1f)
+            )
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        MoodMarqueeButton(
+            text = "Đóng",
+            onClick = onClose,
+            palette = palette,
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun MoodChartScreen(
+    entries: List<MoodLogEntry>,
+    todayKey: String,
+    earliestKey: String,
+    chartMode: Int,
+    onChartModeChange: (Int) -> Unit,
+    monthKey: String,
+    onMonthChange: (String) -> Unit,
+    onBack: () -> Unit,
+    palette: AdaptivePalette,
+    accent: Color
+) {
+    val dayKeys = remember(chartMode, monthKey, todayKey) {
+        if (chartMode == 0) {
+            (6 downTo 0).map { back -> moodShiftDateKey(todayKey, -back) }
+        } else {
+            moodMonthDayKeys(monthKey)
+        }
+    }
+    val periodEntries = remember(entries, dayKeys) {
+        val keySet = dayKeys.toSet()
+        entries.filter { it.dateKey in keySet }
+    }
+    val values: List<Double?> = remember(periodEntries, dayKeys) {
+        dayKeys.map { dk ->
+            val list = periodEntries.filter { it.dateKey == dk }
+            if (list.isEmpty()) null else list.map { moodScoreOfId(it.moodId) }.average()
+        }
+    }
+    val xLabels = remember(dayKeys, chartMode) {
+        if (chartMode == 0) {
+            dayKeys.map { moodShortDay(it) }
+        } else {
+            listOf(1, 8, 15, 22, dayKeys.size).distinct().map { it.toString() }
+        }
+    }
+    val remark = remember(chartMode, monthKey, periodEntries.size) {
+        moodPickChartRemark(periodEntries)
+    }
+    val counts = remember(periodEntries) {
+        periodEntries.groupingBy { it.moodId }.eachCount().toList()
+            .sortedByDescending { it.second }
+            .take(5)
+    }
+    val maxCount = counts.firstOrNull()?.second ?: 1
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text(
+            text = "Biểu đồ tâm trạng",
+            style = MaterialTheme.typography.titleMedium,
+            color = palette.popupTextPrimary,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            MoodModePill(
+                text = "Tuần",
+                selected = chartMode == 0,
+                onClick = { onChartModeChange(0) },
+                palette = palette,
+                accent = accent,
+                modifier = Modifier.weight(1f)
+            )
+            MoodModePill(
+                text = "Tháng",
+                selected = chartMode == 1,
+                onClick = { onChartModeChange(1) },
+                palette = palette,
+                accent = accent,
+                modifier = Modifier.weight(1f)
+            )
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+        if (chartMode == 1) {
+            MoodNavRow(
+                label = moodMonthLabel(monthKey),
+                canPrev = monthKey > earliestKey.substring(0, 7),
+                canNext = monthKey < todayKey.substring(0, 7),
+                onPrev = { onMonthChange(moodShiftMonthKey(monthKey, -1)) },
+                onNext = { onMonthChange(moodShiftMonthKey(monthKey, 1)) },
+                palette = palette,
+                accent = accent
+            )
+        } else {
+            Text(
+                text = "7 ngày gần nhất",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = palette.popupTextPrimary
+            )
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+        MoodLineChart(
+            values = values,
+            xLabels = xLabels,
+            palette = palette,
+            accent = accent
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            text = remark,
+            fontSize = 13.sp,
+            fontStyle = FontStyle.Italic,
+            color = accent,
+            textAlign = TextAlign.Center
+        )
+
+        if (counts.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(14.dp))
+            Text(
+                text = "Số lần ghi nhận từng cảm xúc",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = palette.popupTextSecondary
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            counts.forEach { pair ->
+                val mood = DailyMoodType.fromId(pair.first)
+                if (mood != null) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 3.dp)
+                    ) {
+                        Text(text = mood.emoji, fontSize = 16.sp)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = mood.label,
+                            fontSize = 12.sp,
+                            color = palette.popupTextPrimary,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Clip,
+                            modifier = Modifier
+                                .width(74.dp)
+                                .clipToBounds()
+                                .basicMarquee(
+                                    iterations = Int.MAX_VALUE,
+                                    repeatDelayMillis = 900,
+                                    velocity = 24.dp
+                                )
+                        )
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(10.dp)
+                                .clip(RoundedCornerShape(5.dp))
+                                .background(accent.copy(alpha = 0.12f))
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxHeight()
+                                    .fillMaxWidth(pair.second.toFloat() / maxCount.toFloat())
+                                    .clip(RoundedCornerShape(5.dp))
+                                    .background(accent)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = pair.second.toString(),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = palette.popupTextPrimary,
+                            textAlign = TextAlign.End,
+                            modifier = Modifier.width(26.dp)
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+        MoodMarqueeButton(
+            text = "Quay lại",
+            onClick = onBack,
+            palette = palette,
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun MoodReviewScreen(
+    entries: List<MoodLogEntry>,
+    todayKey: String,
+    earliestKey: String,
+    monthKey: String,
+    onMonthChange: (String) -> Unit,
+    onBack: () -> Unit,
+    palette: AdaptivePalette,
+    accent: Color
+) {
+    val monthEntries = remember(entries, monthKey) {
+        entries.filter { it.dateKey.startsWith(monthKey) }
+    }
+    val total = monthEntries.size
+    val scores = remember(monthEntries) { monthEntries.map { moodScoreOfId(it.moodId) } }
+    val avg = if (scores.isEmpty()) 0.0 else scores.average()
+    val summary = remember(monthKey, total) { moodPickReviewSummary(avg) }
+    val rainInsight = remember(monthEntries) { moodRainInsight(monthEntries) }
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text(
+            text = "Đánh giá cảm xúc",
+            style = MaterialTheme.typography.titleMedium,
+            color = palette.popupTextPrimary,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        MoodNavRow(
+            label = moodMonthLabel(monthKey),
+            canPrev = monthKey > earliestKey.substring(0, 7),
+            canNext = monthKey < todayKey.substring(0, 7),
+            onPrev = { onMonthChange(moodShiftMonthKey(monthKey, -1)) },
+            onNext = { onMonthChange(moodShiftMonthKey(monthKey, 1)) },
+            palette = palette,
+            accent = accent
+        )
+        Spacer(modifier = Modifier.height(14.dp))
+
+        if (total == 0) {
+            Text(
+                text = "Tháng này bạn chưa ghi lại cảm xúc nào. Hãy chạm vào nút cảm xúc mỗi ngày để có bản đánh giá nhé!",
+                fontSize = 13.sp,
+                color = palette.popupTextPrimary,
+                textAlign = TextAlign.Center
+            )
+        } else {
+            val topPair = monthEntries.groupingBy { it.moodId }.eachCount().toList()
+                .maxByOrNull { it.second }
+            val topMood = if (topPair != null) DailyMoodType.fromId(topPair.first) else null
+            val dayAvgs = monthEntries.groupBy { it.dateKey }.entries.map { e ->
+                e.key to e.value.map { moodScoreOfId(it.moodId) }.average()
+            }
+            val bestDay = dayAvgs.maxByOrNull { it.second }
+            val worstDay = dayAvgs.minByOrNull { it.second }
+            val posCount = scores.count { it >= 4 }
+            val negCount = scores.count { it <= 2 }
+            val posPercent = (100.0 * posCount / total).roundToInt()
+            val negPercent = (100.0 * negCount / total).roundToInt()
+            val neuPercent = (100 - posPercent - negPercent).coerceAtLeast(0)
+
+            if (topMood != null && topPair != null) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(80.dp)
+                        .clip(CircleShape)
+                        .background(accent.copy(alpha = 0.16f))
+                        .border(2.dp, accent.copy(alpha = 0.65f), CircleShape)
+                ) {
+                    Text(text = topMood.emoji, fontSize = 38.sp)
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Cảm xúc nổi bật trong tháng",
+                    fontSize = 12.sp,
+                    color = palette.popupTextSecondary
+                )
+                Text(
+                    text = topMood.label + " (" + topPair.second.toString() + " lần)",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = accent,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = palette.popupBoxBg,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .border(1.dp, accent.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Text(
+                        text = "Đã ghi nhận $total lần trong ${dayAvgs.size} ngày",
+                        fontSize = 12.5.sp,
+                        color = palette.popupTextPrimary
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Điểm tâm trạng trung bình: " + moodFmt1(avg) + "/5",
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = palette.popupTextPrimary
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "😊 Tích cực $posPercent%  •  😐 Bình thường $neuPercent%  •  😣 Tiêu cực $negPercent%",
+                        fontSize = 12.5.sp,
+                        color = palette.popupTextPrimary
+                    )
+                    if (bestDay != null && worstDay != null &&
+                        dayAvgs.size >= 2 && bestDay.second != worstDay.second
+                    ) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "☀️ Ngày tươi sáng nhất: " + moodShortDay(bestDay.first) +
+                                "  •  ☁️ Ngày nặng nề nhất: " + moodShortDay(worstDay.first),
+                            fontSize = 12.5.sp,
+                            color = palette.popupTextPrimary
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = rainInsight,
+                        fontSize = 12.5.sp,
+                        color = palette.popupTextPrimary
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = summary,
+                fontSize = 13.sp,
+                fontStyle = FontStyle.Italic,
+                color = accent,
+                textAlign = TextAlign.Center
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+        MoodMarqueeButton(
+            text = "Quay lại",
+            onClick = onBack,
+            palette = palette,
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+/**
+ * Nội dung pop-up "Nhật ký tâm trạng".
+ * screen: 1 = nhật ký theo giờ, 2 = biểu đồ, 3 = đánh giá theo tháng.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun MoodJournalPopupContent(
+    screen: Int,
+    onScreenChange: (Int) -> Unit,
+    palette: AdaptivePalette,
+    accent: Color
+) {
+    val context = LocalContext.current
+    val shownHolder = remember { IntArray(1) { 1 } }
+    if (screen != 0) shownHolder[0] = screen
+    val shown = shownHolder[0]
+
+    val entries = remember { MoodLogHelper.loadAll(context) }
+    val todayKey = remember { DailyMoodHelper.todayKey() }
+    val earliestKey = remember(entries) { entries.minOfOrNull { it.dateKey } ?: todayKey }
+    var viewDateKey by remember { mutableStateOf(todayKey) }
+    var viewMonthKey by remember { mutableStateOf(todayKey.substring(0, 7)) }
+    var chartMode by remember { mutableIntStateOf(1) }
+    val scrollState = rememberScrollState()
+    val maxHeight = (LocalConfiguration.current.screenHeightDp * 0.80f).dp
+
+    LaunchedEffect(shown) {
+        scrollState.scrollTo(0)
+    }
+
+    LiquidGlassPopupSurface(palette = palette) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier
+                .heightIn(max = maxHeight)
+                .verticalScroll(scrollState)
+                .padding(20.dp)
+        ) {
+            when (shown) {
+                2 -> MoodChartScreen(
+                    entries = entries,
+                    todayKey = todayKey,
+                    earliestKey = earliestKey,
+                    chartMode = chartMode,
+                    onChartModeChange = { chartMode = it },
+                    monthKey = viewMonthKey,
+                    onMonthChange = { viewMonthKey = it },
+                    onBack = { onScreenChange(1) },
+                    palette = palette,
+                    accent = accent
+                )
+                3 -> MoodReviewScreen(
+                    entries = entries,
+                    todayKey = todayKey,
+                    earliestKey = earliestKey,
+                    monthKey = viewMonthKey,
+                    onMonthChange = { viewMonthKey = it },
+                    onBack = { onScreenChange(1) },
+                    palette = palette,
+                    accent = accent
+                )
+                else -> MoodDayScreen(
+                    entries = entries,
+                    todayKey = todayKey,
+                    earliestKey = earliestKey,
+                    viewDateKey = viewDateKey,
+                    onDateChange = { viewDateKey = it },
+                    onOpenChart = {
+                        viewMonthKey = viewDateKey.substring(0, 7)
+                        onScreenChange(2)
+                    },
+                    onOpenReview = {
+                        viewMonthKey = viewDateKey.substring(0, 7)
+                        onScreenChange(3)
+                    },
+                    onClose = { onScreenChange(0) },
+                    palette = palette,
+                    accent = accent
+                )
+            }
+        }
     }
 }
 
@@ -4310,6 +5373,8 @@ fun ThoiTietAmLichApp() {
     var showMoodPickerPopup by remember { mutableStateOf(false) }
     var moodConfirmedPopup by remember { mutableStateOf<DailyMoodType?>(null) }
     var moodConfirmedPreviousLabel by remember { mutableStateOf<String?>(null) }
+    // 0 = đóng, 1 = nhật ký theo giờ, 2 = biểu đồ tâm trạng, 3 = đánh giá cảm xúc theo tháng
+    var moodJournalScreen by remember { mutableIntStateOf(0) }
 
     var appThemeMode by remember { mutableIntStateOf(AppPrefs.getAppThemeMode(context)) }
     var cardBounceEnabled by remember { mutableStateOf(AppPrefs.isCardBounceEnabled(context)) }
@@ -4772,6 +5837,7 @@ fun ThoiTietAmLichApp() {
         coinOutcomePopup,
         showMoodPickerPopup,
         moodConfirmedPopup,
+        moodJournalScreen,
         showHolidayPopup,
         activeHolidayAlerts,
         showRamMung1Popup,
@@ -4809,6 +5875,7 @@ fun ThoiTietAmLichApp() {
             coinOutcomePopup != null ||
             showMoodPickerPopup ||
             moodConfirmedPopup != null ||
+            moodJournalScreen != 0 ||
             (showHolidayPopup && activeHolidayAlerts.isNotEmpty()) ||
             (showRamMung1Popup && activeRamMung1Alerts.isNotEmpty()) ||
             (showWeatherAlertPopup && activeWeatherAlerts.isNotEmpty()) ||
@@ -8289,6 +9356,11 @@ fun ThoiTietAmLichApp() {
                                                                 newMood = moodItem
                                                             )
                                                             dailyMoodState = updatedState
+                                                            MoodLogHelper.addEntry(
+                                                                context = context,
+                                                                mood = moodItem,
+                                                                weatherCode = weather.weatherCode
+                                                            )
                                                             showMoodPickerPopup = false
                                                             moodConfirmedPreviousLabel = prevBeforePick
                                                             moodConfirmedPopup = moodItem
@@ -8335,17 +9407,24 @@ fun ThoiTietAmLichApp() {
 
                             Spacer(modifier = Modifier.height(18.dp))
 
-                            OutlinedButton(
-                                onClick = { showMoodPickerPopup = false },
-                                shape = RoundedCornerShape(16.dp),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(46.dp)
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxWidth()
                             ) {
-                                Text(
+                                MoodMarqueeButton(
+                                    text = "Nhật ký tâm trạng",
+                                    onClick = {
+                                        showMoodPickerPopup = false
+                                        moodJournalScreen = 1
+                                    },
+                                    palette = palette,
+                                    modifier = Modifier.weight(1.5f)
+                                )
+                                MoodMarqueeButton(
                                     text = "Đóng",
-                                    color = palette.popupTextPrimary,
-                                    fontWeight = FontWeight.Bold
+                                    onClick = { showMoodPickerPopup = false },
+                                    palette = palette,
+                                    modifier = Modifier.weight(1f)
                                 )
                             }
                         }
@@ -8425,6 +9504,20 @@ fun ThoiTietAmLichApp() {
                             }
                         }
                     }
+                }
+
+                // Pop-up Nhật ký tâm trạng (bảng theo giờ, biểu đồ, đánh giá theo tháng)
+                AnimatedPopupOverlay(
+                    visible = moodJournalScreen != 0,
+                    onDismiss = { moodJournalScreen = 0 },
+                    dismissOnBackdropClick = false
+                ) {
+                    MoodJournalPopupContent(
+                        screen = moodJournalScreen,
+                        onScreenChange = { moodJournalScreen = it },
+                        palette = palette,
+                        accent = accentCompose
+                    )
                 }
 
                 // Pop-up tìm món ăn / thức uống (2 - 4 giây)
