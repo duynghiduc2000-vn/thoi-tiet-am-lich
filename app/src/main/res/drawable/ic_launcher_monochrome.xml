@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Lớp đơn sắc cho Material You (Themed icon, Android 13+): tờ lịch 31 + mặt trời -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Khung tờ lịch -->
+    <path
+        android:pathData="M46,44 H74 A6,6 0 0 1 80,50 V74 A6,6 0 0 1 74,80 H46 A6,6 0 0 1 40,74 V50 A6,6 0 0 1 46,44 Z"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="3"
+        android:strokeLineJoin="round" />
+
+    <!-- Thanh tiêu đề tờ lịch -->
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M40,52 V50 A6,6 0 0 1 46,44 H74 A6,6 0 0 1 80,50 V52 Z" />
+
+    <!-- Hai khuyên treo lịch -->
+    <path
+        android:pathData="M50,39 V46.5 M70,39 V46.5"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="3"
+        android:strokeLineCap="round" />
+
+    <!-- Số 3 -->
+    <path
+        android:pathData="M50.5,58.5 H56.5 C58.8,58.5 60,60 60,62.2 C60,64.4 58.8,66 56.5,66 H54 M56.5,66 C59,66 60.5,67.6 60.5,69.8 C60.5,72 59,73.5 56.5,73.5 H50.5"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="3.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+
+    <!-- Số 1 -->
+    <path
+        android:pathData="M66,61.5 L69,58.5 V73.5"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="3.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+
+    <!-- Mặt trời -->
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M31.5,36 A4.5,4.5 0 1 0 40.5,36 A4.5,4.5 0 1 0 31.5,36 Z" />
+    <path
+        android:pathData="M28,36 H25 M30.3,30.3 L28.2,28.2 M36,28 V25 M30.3,41.7 L28.2,43.8 M41.7,30.3 L43.8,28.2"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="2"
+        android:strokeLineCap="round" />
+</vector>
