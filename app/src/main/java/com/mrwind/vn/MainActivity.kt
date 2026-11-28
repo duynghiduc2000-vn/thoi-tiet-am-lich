@@ -8,6 +8,10 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.AudioAttributes
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.media.MediaPlayer
 import android.net.Uri
 import android.os.Build
@@ -230,6 +234,7 @@ import kotlin.math.abs
 import kotlin.math.floor
 import kotlin.math.roundToInt
 import kotlin.math.sin
+import kotlin.math.sqrt
 import kotlin.random.Random
 
 private const val APP_VERSION_NAME = "31.12-HPBD"
@@ -869,6 +874,81 @@ private fun TopBarShareCardButton(
 }
 
 @Composable
+private fun TopBarLiXiButton(
+    palette: AdaptivePalette,
+    accentColor: Color,
+    isActive: Boolean,
+    onClick: () -> Unit,
+    tooltipText: String = "Lắc lì xì",
+    modifier: Modifier = Modifier
+) {
+    val tilt: Float
+    val scale: Float
+    if (isActive) {
+        val transition = rememberInfiniteTransition(label = "top_lixi_anim")
+        tilt = transition.animateFloat(
+            initialValue = -12f,
+            targetValue = 12f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 520, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "lixi_btn_tilt"
+        ).value
+        scale = transition.animateFloat(
+            initialValue = 0.94f,
+            targetValue = 1.10f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 900, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "lixi_btn_scale"
+        ).value
+    } else {
+        tilt = 0f
+        scale = 1f
+    }
+
+    CircleActionTooltipWrapper(
+        tooltipText = tooltipText,
+        palette = palette,
+        accentColor = accentColor,
+        onClick = onClick,
+        modifier = modifier.size(35.dp)
+    ) {
+        Surface(
+            shape = RoundedCornerShape(12.dp),
+            color = palette.cardBg,
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(RoundedCornerShape(12.dp))
+                .border(
+                    width = 1.dp,
+                    color = Color(0xFFE53935).copy(alpha = 0.60f),
+                    shape = RoundedCornerShape(12.dp)
+                )
+        ) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.fillMaxSize()
+            ) {
+                Text(
+                    text = "🧧",
+                    fontSize = 16.sp,
+                    maxLines = 1,
+                    softWrap = false,
+                    modifier = Modifier.graphicsLayer {
+                        scaleX = scale
+                        scaleY = scale
+                        rotationZ = tilt
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun TopBarFoodChoiceButton(
     palette: AdaptivePalette,
     accentColor: Color,
@@ -1037,6 +1117,70 @@ private fun TopBarLuckyButton(
                 )
             }
         }
+    }
+}
+
+// ============================================================
+// LẮC LÌ XÌ (chỉ xuất hiện từ mùng 1 đến mùng 3 Tết = 1..3 tháng Giêng Âm lịch)
+// ============================================================
+
+/** Bật true để thử tính năng ngoài dịp Tết. NHỚ ĐỂ false khi phát hành. */
+private const val LIXI_FORCE_SHOW_FOR_TESTING = false
+private const val LIXI_FIRST_DAY = 1
+private const val LIXI_LAST_DAY = 3
+/** Ngưỡng lực lắc (đơn vị g; 1g = đứng yên). Thấp hơn = nhạy hơn. */
+private const val LIXI_SHAKE_THRESHOLD_G = 2.4f
+
+private val LIXI_AMOUNTS = listOf(5_000, 10_000, 20_000, 30_000, 50_000, 100_000)
+
+private val LIXI_WISHES = listOf(
+    "Chúc mừng năm mới, vạn sự như ý, an khang thịnh vượng!",
+    "Năm mới phát tài phát lộc, tiền vào như nước!",
+    "Sức khỏe dồi dào, gia đình sum vầy, hạnh phúc trọn vẹn!",
+    "Mã đáo thành công, công danh rạng rỡ, năm mới thắng lớn!",
+    "Xuân sang tài lộc đầy nhà, vui vẻ cả năm, bình an cả đời!",
+    "Ăn Tết thật no, đón xuân thật vui, năm mới đổi đời nhé!",
+    "Chúc bạn tiền vào như nước sông Đà, tiền ra nhỏ giọt như cà phê phin!",
+    "Năm mới ít deadline, nhiều lương thưởng, thêm thật nhiều niềm vui!",
+    "Một năm mới tràn đầy năng lượng, tình yêu và may mắn!",
+    "Cung chúc tân xuân, phúc lộc thọ khang ninh!",
+    "Năm mới càng ngày càng xinh đẹp, giàu có và bình an!",
+    "Chúc bạn năm mới mọi điều ước đều thành sự thật!",
+    "Tết đến xuân về, tiền đầy túi, vui đầy nhà!",
+    "Năm mới gặp nhiều quý nhân, làm đâu thắng đó!",
+    "Chúc bạn năm mới cười thật nhiều, lo thật ít, lộc thật đầy!",
+    "Xuân này hơn hẳn xuân qua, phúc lộc đầy nhà, vạn sự hanh thông!",
+    "Chúc bạn một năm nhiều niềm vui bất ngờ và những tin vui nối tiếp!",
+    "Đầu năm khai lộc, cả năm thuận buồm xuôi gió!",
+    "Năm mới bình an, tâm an, thân khỏe, việc thành!",
+    "Chúc bạn lì xì đầu năm hên cả năm, nhận lộc không ngừng nghỉ!"
+)
+
+private fun liXiLuckyNote(amount: Int): String = when {
+    amount >= 100_000 -> "Đại lộc! Bạn là con cưng của may mắn!"
+    amount >= 50_000 -> "Trúng lớn rồi, hên quá!"
+    amount >= 30_000 -> "Lộc lớn dần rồi nhé!"
+    amount >= 20_000 -> "Tài lộc đang gõ cửa!"
+    amount >= 10_000 -> "Lộc đầu năm đã đến!"
+    else -> "Lộc nhỏ, vui to!"
+}
+
+private fun formatLiXiAmount(amount: Int): String =
+    amount.toString().reversed().chunked(3).joinToString(".").reversed() + "đ"
+
+private data class LiXiResult(val amount: Int, val wish: String)
+
+/** Hôm nay (giờ Việt Nam) có phải mùng 1..3 tháng Giêng Âm lịch (không nhuận) không. */
+private fun isLiXiSeasonNow(): Boolean {
+    if (LIXI_FORCE_SHOW_FOR_TESTING) return true
+    return try {
+        val c = Calendar.getInstance(TimeZone.getTimeZone("Asia/Ho_Chi_Minh"))
+        val lunar = LunarCalendar.convertSolarToLunar(
+            c.get(Calendar.DAY_OF_MONTH), c.get(Calendar.MONTH) + 1, c.get(Calendar.YEAR)
+        )
+        !lunar.isLeap && lunar.month == 1 && lunar.day in LIXI_FIRST_DAY..LIXI_LAST_DAY
+    } catch (_: Exception) {
+        false
     }
 }
 
@@ -2755,6 +2899,7 @@ private enum class QuickToolAction(val inMenu: Boolean, val emoji: String? = nul
     COIN(true),
     OPTIMIZE(true),
     SHARE_CARD(true),
+    LIXI(true, "🧧"),
     MOOD(false, "😊"),
     GREETING(false, "🌤️")
 }
@@ -2886,6 +3031,11 @@ private val FEATURE_SEARCH_TARGETS: List<FeatureSearchTarget> = listOf(
         "Chào ngày mới", MainTab.WEATHER, null, "",
         listOf("chào", "lời chào", "lời chúc", "chúc", "chào buổi sáng", "chào buổi tối", "ngày mới", "ngủ ngon"),
         QuickToolAction.GREETING
+    ),
+    FeatureSearchTarget(
+        "Lắc lì xì", MainTab.WEATHER, null, "",
+        listOf("lì xì", "li xi", "lắc", "tết", "mừng tuổi", "tiền lì xì", "phong bao", "bao đỏ", "lộc", "mùng 1"),
+        QuickToolAction.LIXI
     )
 )
 
@@ -2902,12 +3052,14 @@ private fun normalizeForSearch(input: String): String {
  * Tìm các tính năng chứa từ khóa (không phân biệt dấu / hoa thường). Chỉ cần gõ 1 từ có trong tên
  * hoặc từ khóa liên quan. Kết quả sắp xếp theo độ khớp (khớp tên trước, từ khóa sau).
  */
-private fun searchFeatures(query: String): List<FeatureSearchTarget> {
+private fun searchFeatures(query: String, includeLiXi: Boolean = false): List<FeatureSearchTarget> {
     val q = normalizeForSearch(query)
     if (q.isBlank()) return emptyList()
     val tokens = q.split(" ").filter { it.isNotBlank() }
     val scored = ArrayList<Pair<Int, FeatureSearchTarget>>()
     for (t in FEATURE_SEARCH_TARGETS) {
+        // Lắc lì xì chỉ tìm được trong mùng 1..3 Tết
+        if (t.action == QuickToolAction.LIXI && !includeLiXi) continue
         val label = normalizeForSearch(t.label)
         val keywords = t.keywords.map { normalizeForSearch(it) }
         val haystack = (listOf(label) + keywords).joinToString(" | ")
@@ -5472,6 +5624,14 @@ fun ThoiTietAmLichApp() {
     var isTossingCoin by remember { mutableStateOf(false) }
     var coinOutcomePopup by remember { mutableStateOf<CoinTossOutcome?>(null) }
 
+    // Lắc lì xì: chỉ có mặt mùng 1..3 Tết. Stage: 0 = đóng, 1 = chờ lắc, 2 = đang mở bao, 3 = kết quả
+    var liXiSeason by remember { mutableStateOf(isLiXiSeasonNow()) }
+    var liXiStage by remember { mutableIntStateOf(0) }
+    var liXiResult by remember { mutableStateOf<LiXiResult?>(null) }
+    fun startLiXiShake() {
+        if (liXiStage == 1) liXiStage = 2
+    }
+
     var dailyMoodState by remember { mutableStateOf(DailyMoodHelper.loadOrResetToday(context)) }
     var showMoodPickerPopup by remember { mutableStateOf(false) }
     var moodConfirmedPopup by remember { mutableStateOf<DailyMoodType?>(null) }
@@ -5682,8 +5842,8 @@ fun ThoiTietAmLichApp() {
     var pendingSearchTarget by remember { mutableStateOf<FeatureSearchTarget?>(null) }
     var pendingQuickToolAction by remember { mutableStateOf<QuickToolAction?>(null) }
 
-    val featureSearchResults = remember(featureSearchQuery) {
-        if (featureSearchQuery.isBlank()) emptyList() else searchFeatures(featureSearchQuery)
+    val featureSearchResults = remember(featureSearchQuery, liXiSeason) {
+        if (featureSearchQuery.isBlank()) emptyList() else searchFeatures(featureSearchQuery, liXiSeason)
     }
 
     fun navigateToFeature(target: FeatureSearchTarget) {
@@ -5700,7 +5860,7 @@ fun ThoiTietAmLichApp() {
     }
 
     fun performFeatureSearch() {
-        val results = searchFeatures(featureSearchQuery)
+        val results = searchFeatures(featureSearchQuery, liXiSeason)
         when {
             results.isEmpty() ->
                 Toast.makeText(context, "Không có tính năng cần tìm", Toast.LENGTH_SHORT).show()
@@ -5847,6 +6007,46 @@ fun ThoiTietAmLichApp() {
         }
     }
 
+    // Lắc lì xì: sau 1.5 - 2.5 giây mở bao, bốc ngẫu nhiên số tiền và lời chúc
+    LaunchedEffect(liXiStage) {
+        if (liXiStage != 2) return@LaunchedEffect
+        delay((1500L..2500L).random())
+        liXiResult = LiXiResult(
+            amount = LIXI_AMOUNTS[Random.nextInt(LIXI_AMOUNTS.size)],
+            wish = LIXI_WISHES[Random.nextInt(LIXI_WISHES.size)]
+        )
+        liXiStage = 3
+    }
+
+    // Cảm biến gia tốc: chỉ bật khi pop-up lì xì đang chờ lắc và app đang mở
+    val liXiListening = liXiStage == 1 && isAppResumed
+    DisposableEffect(liXiListening) {
+        if (!liXiListening) return@DisposableEffect onDispose { }
+        val sm = appContext.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
+        val sensor = sm?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+        if (sm == null || sensor == null) return@DisposableEffect onDispose { }
+        var lastShakeMs = 0L
+        val listener = object : SensorEventListener {
+            override fun onSensorChanged(event: SensorEvent) {
+                val gx = event.values[0] / SensorManager.GRAVITY_EARTH
+                val gy = event.values[1] / SensorManager.GRAVITY_EARTH
+                val gz = event.values[2] / SensorManager.GRAVITY_EARTH
+                val gForce = sqrt(gx * gx + gy * gy + gz * gz)
+                if (gForce > LIXI_SHAKE_THRESHOLD_G) {
+                    val now = System.currentTimeMillis()
+                    if (now - lastShakeMs > 1200L) {
+                        lastShakeMs = now
+                        startLiXiShake()
+                    }
+                }
+            }
+
+            override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+        }
+        sm.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_UI)
+        onDispose { sm.unregisterListener(listener) }
+    }
+
     LaunchedEffect(moodConfirmedPopup) {
         if (moodConfirmedPopup == null) return@LaunchedEffect
         delay(2000L)
@@ -5906,6 +6106,7 @@ fun ThoiTietAmLichApp() {
                     applyBgMusicState()
                     TodoHelper.ensureChannel(context)
                     dailyMoodState = DailyMoodHelper.loadOrResetToday(context)
+                    liXiSeason = isLiXiSeasonNow()
                     refreshTodosAndCheckDueTasks()
                     BirthdayHelper.runDailyBackgroundReminders(context)
                 }
@@ -5947,6 +6148,7 @@ fun ThoiTietAmLichApp() {
         showGreetingPopup,
         isTossingCoin,
         coinOutcomePopup,
+        liXiStage,
         showMoodPickerPopup,
         moodConfirmedPopup,
         moodJournalScreen,
@@ -5986,6 +6188,7 @@ fun ThoiTietAmLichApp() {
             showGreetingPopup ||
             isTossingCoin ||
             coinOutcomePopup != null ||
+            liXiStage != 0 ||
             showMoodPickerPopup ||
             moodConfirmedPopup != null ||
             moodJournalScreen != 0 ||
@@ -6135,6 +6338,7 @@ fun ThoiTietAmLichApp() {
         while (true) {
             delay(60_000L)
             dailyMoodState = DailyMoodHelper.loadOrResetToday(context)
+            liXiSeason = isLiXiSeasonNow()
             refreshTodosAndCheckDueTasks()
         }
     }
@@ -6252,6 +6456,9 @@ fun ThoiTietAmLichApp() {
             QuickToolAction.GREETING -> {
                 greetingPopupText = pickRandomGreetingForNow()
                 showGreetingPopup = true
+            }
+            QuickToolAction.LIXI -> {
+                if (liXiSeason && liXiStage == 0) liXiStage = 1
             }
         }
         pendingQuickToolAction = null
@@ -6635,7 +6842,21 @@ fun ThoiTietAmLichApp() {
                                                                 },
                                                                 modifier = Modifier.size(38.dp)
                                                             )
-                                                            Spacer(modifier = Modifier.size(38.dp))
+                                                            if (liXiSeason) {
+                                                                TopBarLiXiButton(
+                                                                    palette = palette,
+                                                                    accentColor = accentCompose,
+                                                                    isActive = canAnimateVisuals,
+                                                                    tooltipText = "Lắc lì xì",
+                                                                    onClick = {
+                                                                        showQuickToolsMenu = false
+                                                                        if (liXiStage == 0) liXiStage = 1
+                                                                    },
+                                                                    modifier = Modifier.size(38.dp)
+                                                                )
+                                                            } else {
+                                                                Spacer(modifier = Modifier.size(38.dp))
+                                                            }
                                                         }
 
                                                         // Hàng 3: 3 ô trống dự phòng (đủ khung lưới 3x3)
@@ -9332,6 +9553,224 @@ fun ThoiTietAmLichApp() {
                                     text = "Ok",
                                     fontWeight = FontWeight.Bold
                                 )
+                            }
+                        }
+                    }
+                }
+
+                // Pop-up lắc lì xì: chờ lắc / đang mở bao
+                AnimatedPopupOverlay(
+                    visible = liXiStage == 1 || liXiStage == 2,
+                    onDismiss = {},
+                    dismissOnBackdropClick = false
+                ) {
+                    val shaking = liXiStage == 2
+                    val envTransition = rememberInfiniteTransition(label = "lixi_popup_anim")
+                    val swingSlow by envTransition.animateFloat(
+                        initialValue = -6f,
+                        targetValue = 6f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(durationMillis = 1100, easing = FastOutSlowInEasing),
+                            repeatMode = RepeatMode.Reverse
+                        ),
+                        label = "lixi_swing_slow"
+                    )
+                    val swingFast by envTransition.animateFloat(
+                        initialValue = -18f,
+                        targetValue = 18f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(durationMillis = 110, easing = LinearEasing),
+                            repeatMode = RepeatMode.Reverse
+                        ),
+                        label = "lixi_swing_fast"
+                    )
+                    val liXiRed = Color(0xFFD32F2F)
+
+                    LiquidGlassPopupSurface(palette = palette) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(24.dp)
+                        ) {
+                            Text(
+                                text = if (shaking) "Đang mở bao lì xì..." else "Lắc lì xì đầu năm",
+                                style = MaterialTheme.typography.headlineSmall,
+                                color = liXiRed,
+                                fontWeight = FontWeight.ExtraBold,
+                                textAlign = TextAlign.Center
+                            )
+
+                            Spacer(modifier = Modifier.height(22.dp))
+
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(120.dp)
+                                    .graphicsLayer {
+                                        rotationZ = if (shaking) swingFast else swingSlow
+                                        translationX = if (shaking) swingFast * 0.6f.dp.toPx() else 0f
+                                    }
+                                    .clip(CircleShape)
+                                    .background(liXiRed.copy(alpha = 0.14f))
+                                    .border(2.5.dp, liXiRed, CircleShape)
+                            ) {
+                                Text(
+                                    text = "🧧",
+                                    fontSize = 70.sp,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(18.dp))
+
+                            Text(
+                                text = if (shaking) {
+                                    "Chờ một chút, lộc sắp tới rồi!"
+                                } else {
+                                    "Lắc điện thoại hoặc bấm nút bên dưới để nhận lì xì mùng Tết"
+                                },
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = palette.popupTextPrimary,
+                                textAlign = TextAlign.Center
+                            )
+
+                            Spacer(modifier = Modifier.height(6.dp))
+
+                            Text(
+                                text = "Lì xì vui, không phải tiền thật",
+                                fontSize = 11.sp,
+                                color = palette.popupTextSecondary,
+                                textAlign = TextAlign.Center
+                            )
+
+                            Spacer(modifier = Modifier.height(18.dp))
+
+                            Button(
+                                onClick = { startLiXiShake() },
+                                enabled = !shaking,
+                                shape = RoundedCornerShape(16.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = liXiRed,
+                                    contentColor = Color.White
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp)
+                            ) {
+                                Text(text = "Lắc lì xì", fontWeight = FontWeight.Bold)
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            OutlinedButton(
+                                onClick = { liXiStage = 0 },
+                                shape = RoundedCornerShape(16.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(46.dp)
+                            ) {
+                                Text(
+                                    text = "Đóng",
+                                    color = palette.popupTextPrimary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Pop-up kết quả lì xì: số tiền + lời chúc
+                AnimatedPopupOverlay(
+                    visible = liXiStage == 3,
+                    onDismiss = {},
+                    dismissOnBackdropClick = false
+                ) {
+                    val result = liXiResult
+                    val liXiRed = Color(0xFFD32F2F)
+                    LiquidGlassPopupSurface(palette = palette) {
+                        if (result != null) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.padding(24.dp)
+                            ) {
+                                Text(text = "🧧", fontSize = 54.sp, maxLines = 1, softWrap = false)
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                Text(
+                                    text = "Lộc đầu năm của bạn",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = palette.popupTextSecondary,
+                                    textAlign = TextAlign.Center
+                                )
+
+                                Spacer(modifier = Modifier.height(6.dp))
+
+                                Text(
+                                    text = formatLiXiAmount(result.amount),
+                                    fontSize = 40.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = if (palette.isDark) Color(0xFFFF6659) else liXiRed,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+
+                                Spacer(modifier = Modifier.height(4.dp))
+
+                                Text(
+                                    text = liXiLuckyNote(result.amount),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = accentCompose,
+                                    fontWeight = FontWeight.Bold,
+                                    textAlign = TextAlign.Center
+                                )
+
+                                Spacer(modifier = Modifier.height(14.dp))
+
+                                Text(
+                                    text = result.wish,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = palette.popupTextPrimary,
+                                    fontStyle = FontStyle.Italic,
+                                    textAlign = TextAlign.Center
+                                )
+
+                                Spacer(modifier = Modifier.height(20.dp))
+
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    OutlinedButton(
+                                        onClick = { liXiStage = 0 },
+                                        shape = RoundedCornerShape(16.dp),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(48.dp)
+                                    ) {
+                                        Text(
+                                            text = "Đóng",
+                                            color = palette.popupTextPrimary,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                    Button(
+                                        onClick = {
+                                            liXiStage = 1
+                                            startLiXiShake()
+                                        },
+                                        shape = RoundedCornerShape(16.dp),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = liXiRed,
+                                            contentColor = Color.White
+                                        ),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(48.dp)
+                                    ) {
+                                        Text(text = "Lắc tiếp", fontWeight = FontWeight.Bold)
+                                    }
+                                }
                             }
                         }
                     }
